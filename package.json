@@ -1,0 +1,31 @@
+{
+  "name": "travel-planner",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.19.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 4173",
+    "dev:api": "pnpm --dir apps/api dev",
+    "dev:all": "pnpm -r --parallel dev",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --dir apps/api migrate",
+    "build": "tsc -b && vite build",
+    "build:api": "pnpm --dir apps/api build",
+    "build:all": "pnpm build && pnpm build:api",
+    "preview": "vite preview",
+    "typecheck": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "typescript": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "latest",
+    "@types/react-dom": "latest"
+  }
+}

@@ -1,0 +1,42 @@
+:root {
+  --font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --type-head-l-size: 32px;
+  --type-head-l-weight: 500;
+  --type-head-l-line-height: 1;
+  --type-head-l-letter-spacing: -1.28px;
+
+  --type-head-m-size: 20px;
+  --type-head-m-weight: 500;
+  --type-head-m-line-height: 1.2;
+  --type-head-m-letter-spacing: 0;
+
+  --type-text-size: 15px;
+  --type-text-weight: 400;
+  --type-text-line-height: 1.2;
+  --type-text-letter-spacing: 0;
+}
+
+.type-head-l {
+  font-family: var(--font-family);
+  font-size: var(--type-head-l-size);
+  font-weight: var(--type-head-l-weight);
+  line-height: var(--type-head-l-line-height);
+  letter-spacing: var(--type-head-l-letter-spacing);
+}
+
+.type-head-m {
+  font-family: var(--font-family);
+  font-size: var(--type-head-m-size);
+  font-weight: var(--type-head-m-weight);
+  line-height: var(--type-head-m-line-height);
+  letter-spacing: var(--type-head-m-letter-spacing);
+}
+
+.type-text {
+  font-family: var(--font-family);
+  font-size: var(--type-text-size);
+  font-weight: var(--type-text-weight);
+  line-height: var(--type-text-line-height);
+  letter-spacing: var(--type-text-letter-spacing);
+}
