@@ -446,10 +446,12 @@ app.post(`${apiPrefix}/trips/:tripId/cities`, async (request, reply) => {
 app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
   const user = await requireUser(request)
   const { tripId, cityId } = request.params as { tripId: string; cityId: string }
-  await requireTripRole(tripId, user.id, true)
+  const role = await requireTripRole(tripId, user.id)
   const current = (await db.query('SELECT * FROM cities WHERE id = $1 AND trip_id = $2', [cityId, tripId])).rows[0]
   if (!current) throw httpError(404, 'Город не найден')
   const body = bodyOf(request.body)
+  const protectedRouteFields = ['name', 'position', 'arrivalDate', 'departureDate', 'arrivalPeriod', 'departurePeriod']
+  if (role !== 'owner' && protectedRouteFields.some((field) => body[field] !== undefined)) throw httpError(403, 'Изменять маршрут может только владелец')
   const transportTypes = [body.transportInType, body.transportOutType].filter((value) => value !== undefined)
   if (transportTypes.some((value) => typeof value !== 'string' || !['train', 'plane', 'bus', 'ship'].includes(value))) throw httpError(400, 'Некорректный тип транспорта')
   const input = await validatedCityInput(tripId, {
