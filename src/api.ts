@@ -36,10 +36,14 @@ export type ApiCity = {
   transport_in_arrival_time: string
   transport_out_departure_time: string
   transport_out_arrival_time: string
-  transport_in_station: string
-  transport_in_station_url: string
-  transport_out_station: string
-  transport_out_station_url: string
+  transport_in_departure_station: string
+  transport_in_departure_station_url: string
+  transport_in_arrival_station: string
+  transport_in_arrival_station_url: string
+  transport_out_departure_station: string
+  transport_out_departure_station_url: string
+  transport_out_arrival_station: string
+  transport_out_arrival_station_url: string
   transport_in_notes: string
   transport_out_notes: string
 }

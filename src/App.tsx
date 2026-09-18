@@ -14,7 +14,7 @@ type Place = { id: string; name: string; url: string; latitude?: number; longitu
 type Task = { id: string; title: string; done: boolean }
 type TravelFile = { id: string; name: string; category: string; uploadedBy?: string; uploadedAt?: string }
 type HotelDetails = { name: string; url: string; checkInTime: string; checkOutTime: string; notes: string }
-type TransportDetails = { type?: TransportType; departureTime: string; arrivalTime: string; station: string; stationUrl: string; notes: string }
+type TransportDetails = { type?: TransportType; departureTime: string; arrivalTime: string; departureStation: string; departureStationUrl: string; arrivalStation: string; arrivalStationUrl: string; notes: string }
 type TripMember = { id: string; email: string; displayName: string; role: 'owner' | 'member'; hasAvatar?: boolean; avatarUrl?: string }
 type CurrentUser = { id: string; email: string; displayName: string; hasAvatar: boolean; avatarUrl?: string }
 type DayPeriod = 'morning' | 'day' | 'evening'
@@ -178,8 +178,8 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
       hotelNotes: city.hotel_notes ?? '',
       trainIn,
       trainOut,
-      transportIn: { type: city.transport_in_type ?? undefined, departureTime: city.transport_in_departure_time, arrivalTime: city.transport_in_arrival_time, station: city.transport_in_station, stationUrl: city.transport_in_station_url, notes: city.transport_in_notes ?? '' },
-      transportOut: { type: city.transport_out_type ?? undefined, departureTime: city.transport_out_departure_time, arrivalTime: city.transport_out_arrival_time, station: city.transport_out_station, stationUrl: city.transport_out_station_url, notes: city.transport_out_notes ?? '' },
+      transportIn: { type: city.transport_in_type ?? undefined, departureTime: city.transport_in_departure_time, arrivalTime: city.transport_in_arrival_time, departureStation: city.transport_in_departure_station, departureStationUrl: city.transport_in_departure_station_url, arrivalStation: city.transport_in_arrival_station, arrivalStationUrl: city.transport_in_arrival_station_url, notes: city.transport_in_notes ?? '' },
+      transportOut: { type: city.transport_out_type ?? undefined, departureTime: city.transport_out_departure_time, arrivalTime: city.transport_out_arrival_time, departureStation: city.transport_out_departure_station, departureStationUrl: city.transport_out_departure_station_url, arrivalStation: city.transport_out_arrival_station, arrivalStationUrl: city.transport_out_arrival_station_url, notes: city.transport_out_notes ?? '' },
       places,
       tasks: source.tasks.filter((task) => task.city_id === city.id).map((task) => ({ id: task.id, title: task.title, done: task.done })),
       files: documents.map((document) => ({ id: document.id, name: document.original_name, category: document.category, uploadedBy: document.created_by_name, uploadedAt: document.created_at })),
@@ -485,6 +485,7 @@ function DeleteTripDialog({ trip, onClose, onConfirm }: { trip: ApiTripSummary; 
 function InviteScreen({ trip, onBack, onCreate, onRemove }: { trip: Trip; onBack: () => void; onCreate: (hours: number) => Promise<{ url: string; expiresAt: string }>; onRemove: (member: TripMember) => Promise<void> }) {
   const [invite, setInvite] = useState<{ url: string; expiresAt: string } | null>(null)
   const [busy, setBusy] = useState(false)
+  const isOwner = trip.role === 'owner'
   const members = [...(trip.members ?? [])].sort((left, right) => {
     if (left.role === right.role) return 0
     return left.role === 'owner' ? -1 : 1
@@ -494,17 +495,19 @@ function InviteScreen({ trip, onBack, onCreate, onRemove }: { trip: Trip; onBack
     <section className="glass setup-card invite-screen-card">
       <h1>Участники «{trip.name}»</h1>
       {members.length > 0
-        ? <div className="member-list">{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</div>
+        ? <div className="member-list">{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={!isOwner || member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</div>
         : <p>Не удалось загрузить список участников.</p>}
-      <div className="invite-divider" />
-      <TypographyGroup headingLevel="h2" variant="head-m-text" title="Ссылка-приглашение" text="Ссылка действует 24 часа. Новая ссылка сразу отключит предыдущую. Все вошедшие по ней станут гостями." />
-      {invite && <div className="invite-result"><Input readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /><small>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</small></div>}
-      <Button size="l" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(24)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button>
+      {isOwner && <>
+        <div className="invite-divider" />
+        <TypographyGroup headingLevel="h2" variant="head-m-text" title="Ссылка-приглашение" text="Ссылка действует 24 часа. Новая ссылка сразу отключит предыдущую. Все вошедшие по ней станут гостями." />
+        {invite && <div className="invite-result"><Input readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /><small>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</small></div>}
+        <Button size="l" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(24)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button>
+      </>}
     </section>
   </main>
 }
 
-const emptyTransport = (): TransportDetails => ({ departureTime: '', arrivalTime: '', station: '', stationUrl: '', notes: '' })
+const emptyTransport = (): TransportDetails => ({ departureTime: '', arrivalTime: '', departureStation: '', departureStationUrl: '', arrivalStation: '', arrivalStationUrl: '', notes: '' })
 const transportPayload = (city: City) => ({
   transportInType: city.transportIn?.type,
   transportOutType: city.transportOut?.type,
@@ -512,10 +515,14 @@ const transportPayload = (city: City) => ({
   transportInArrivalTime: city.transportIn?.arrivalTime ?? '',
   transportOutDepartureTime: city.transportOut?.departureTime ?? '',
   transportOutArrivalTime: city.transportOut?.arrivalTime ?? '',
-  transportInStation: city.transportIn?.station ?? '',
-  transportInStationUrl: city.transportIn?.stationUrl ?? '',
-  transportOutStation: city.transportOut?.station ?? '',
-  transportOutStationUrl: city.transportOut?.stationUrl ?? '',
+  transportInDepartureStation: city.transportIn?.departureStation ?? '',
+  transportInDepartureStationUrl: city.transportIn?.departureStationUrl ?? '',
+  transportInArrivalStation: city.transportIn?.arrivalStation ?? '',
+  transportInArrivalStationUrl: city.transportIn?.arrivalStationUrl ?? '',
+  transportOutDepartureStation: city.transportOut?.departureStation ?? '',
+  transportOutDepartureStationUrl: city.transportOut?.departureStationUrl ?? '',
+  transportOutArrivalStation: city.transportOut?.arrivalStation ?? '',
+  transportOutArrivalStationUrl: city.transportOut?.arrivalStationUrl ?? '',
   transportInNotes: city.transportIn?.notes ?? '',
   transportOutNotes: city.transportOut?.notes ?? '',
 })
@@ -649,8 +656,8 @@ const isTransportComplete = (details: TransportDetails | undefined, ticketName: 
   && details?.type
   && details.departureTime.trim()
   && details.arrivalTime.trim()
-  && details.station.trim()
-  && details.stationUrl.trim(),
+  && details.departureStation.trim()
+  && details.arrivalStation.trim(),
 )
 
 const isHotelComplete = (city: City) => Boolean(city.hotel.trim() && city.hotelUrl.trim() && city.hotelCheckInTime?.trim() && city.hotelCheckOutTime?.trim() && city.files.some((file) => file.category === 'hotel-booking'))
@@ -676,7 +683,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, o
   return (
     <aside className="sidebar">
       <section className="glass sidebar-card trip-summary">
-        <TypographyGroup title={trip.name} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {trip.role === 'owner' ? <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button> : formatParticipants(Math.max(1, trip.members?.length ?? 0))}</>} />
+        <TypographyGroup title={trip.name} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button></>} />
         <div className="city-list">{trip.cities.map((city, index) => {
           const previousCity = trip.cities[index - 1]
           const ticketComplete = previousCity
@@ -775,15 +782,21 @@ function TransportDialog({ title, value, ticketName, tickets, onSave, onTicket, 
     <div className="overlay" role="presentation">
       <form className="glass modal editor transport-dialog" role="dialog" aria-modal="true" aria-labelledby="transport-title" onSubmit={(event) => { event.preventDefault(); if (draft.type) onSave(draft) }}>
         <div className="modal-title transport-dialog-title">
-          <div id="transport-title"><TypographyGroup headingLevel="h2" title={withTransportEmoji(title, draft.type)} text="Галочка в меню появится, когда все поля будут заполнены и появится файл с билетом" /></div>
+          <div id="transport-title"><TypographyGroup headingLevel="h2" title={withTransportEmoji(title, draft.type)} text="Галочка в меню появится, когда будут заполнены время и места, а также прикреплён билет" /></div>
           <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
         </div>
         <Tabs value={draft.type} options={transportTabs} ariaLabel="Тип перемещения" onChange={(type) => setDraft({ ...draft, type })} />
-        <div className="field-grid">
-          <Input label="Время отправления" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.departureTime} onChange={(event) => setDraft({ ...draft, departureTime: manualTime(event.target.value) })} />
-          <Input label="Время приезда" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.arrivalTime} onChange={(event) => setDraft({ ...draft, arrivalTime: manualTime(event.target.value) })} />
-          <Input icon={<Icon name="attractions" />} controlClassName="transport-wide" aria-label="Название места" placeholder="Название места" value={draft.station} onChange={(event) => setDraft({ ...draft, station: event.target.value })} />
-          <Input icon={<Icon name="add-pin" />} trailingIcon={draft.stationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.stationUrl.trim() ? () => void navigator.clipboard.writeText(draft.stationUrl.trim()) : undefined} controlClassName="transport-wide transport-link-input" aria-label="Ссылка Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.stationUrl} onChange={(event) => setDraft({ ...draft, stationUrl: event.target.value })} />
+        <div className="field-grid transport-fields">
+          <div className="transport-column">
+            <Input label="Время отъезда" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.departureTime} onChange={(event) => setDraft({ ...draft, departureTime: manualTime(event.target.value) })} />
+            <Input icon={<Icon name="attractions" />} aria-label="Название места отъезда" placeholder="Название места" value={draft.departureStation} onChange={(event) => setDraft({ ...draft, departureStation: event.target.value })} />
+            <Input icon={<Icon name="add-pin" />} trailingIcon={draft.departureStationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.departureStationUrl.trim() ? () => void navigator.clipboard.writeText(draft.departureStationUrl.trim()) : undefined} controlClassName="transport-link-input" aria-label="Ссылка на место отъезда в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.departureStationUrl} onChange={(event) => setDraft({ ...draft, departureStationUrl: event.target.value })} />
+          </div>
+          <div className="transport-column">
+            <Input label="Время прибытия" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.arrivalTime} onChange={(event) => setDraft({ ...draft, arrivalTime: manualTime(event.target.value) })} />
+            <Input icon={<Icon name="attractions" />} aria-label="Название места прибытия" placeholder="Название места" value={draft.arrivalStation} onChange={(event) => setDraft({ ...draft, arrivalStation: event.target.value })} />
+            <Input icon={<Icon name="add-pin" />} trailingIcon={draft.arrivalStationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.arrivalStationUrl.trim() ? () => void navigator.clipboard.writeText(draft.arrivalStationUrl.trim()) : undefined} controlClassName="transport-link-input" aria-label="Ссылка на место прибытия в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.arrivalStationUrl} onChange={(event) => setDraft({ ...draft, arrivalStationUrl: event.target.value })} />
+          </div>
           <Textarea controlClassName="transport-wide" aria-label="Заметки" placeholder="Заметки" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
         </div>
         <div className="transport-ticket-list">
@@ -863,23 +876,23 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
       setDraft((current) => ({ ...current, files: [...current.files.filter((item) => item.id !== fileRecord.id), saved] }))
     }).catch(() => setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== fileRecord.id) })))
   }
-  const mapPoint = focusedPlace?.name || draft.transportIn.station || draft.transportOut.station || draft.name
+  const mapPoint = focusedPlace?.name || draft.transportIn.arrivalStation || draft.transportOut.departureStation || draft.name
   const transportDocuments = (direction: 'in' | 'out') => draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).slice(0, 2)
   const hotelDocument = draft.files.find((file) => file.category === 'hotel-booking')
   const pointsCount = Object.values(draft.places).reduce((total, places) => total + places.length, 0)
   const saveTransport = (value: TransportDetails) => {
     if (!transportDirection) return
     let next = { ...draft, [transportDirection === 'in' ? 'transportIn' : 'transportOut']: value }
-    if (transportDirection === 'in' && value.stationUrl.trim()) {
+    if (transportDirection === 'in' && value.arrivalStationUrl.trim()) {
       const arrivalPlaces = next.places[next.arrival] ?? []
-      const previousUrl = draft.transportIn.stationUrl.trim()
-      const existing = arrivalPlaces.find((item) => item.url.trim() === previousUrl || item.url.trim() === value.stationUrl.trim())
+      const previousUrl = draft.transportIn.arrivalStationUrl.trim()
+      const existing = arrivalPlaces.find((item) => item.url.trim() === previousUrl || item.url.trim() === value.arrivalStationUrl.trim())
       if (existing) {
-        const place = { ...existing, name: value.station.trim() || 'Место приезда', url: value.stationUrl.trim() }
+        const place = { ...existing, name: value.arrivalStation.trim() || 'Место приезда', url: value.arrivalStationUrl.trim() }
         next = { ...next, places: { ...next.places, [next.arrival]: arrivalPlaces.map((item) => item.id === place.id ? place : item) } }
         onUpdatePlace(next, next.arrival, place)
       } else {
-        const place = { id: uid(), name: value.station.trim() || 'Место приезда', url: value.stationUrl.trim() }
+        const place = { id: uid(), name: value.arrivalStation.trim() || 'Место приезда', url: value.arrivalStationUrl.trim() }
         next = { ...next, places: { ...next.places, [next.arrival]: [...arrivalPlaces, place] } }
         onAddPlace(next, next.arrival, place)
       }
