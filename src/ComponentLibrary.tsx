@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { GalaxyBackground, Icon, IconName } from './App'
 import { Button, IconButton } from './components/Button'
 import { Input, Select } from './components/FormControls'
+import { InfoRow } from './components/InfoRow'
 import { TypographyGroup } from './components/TypographyGroup'
 import './component-library.css'
 
@@ -72,8 +73,13 @@ export default function ComponentLibrary() {
 
         <Section id="lists" title="Списки и плашки" description="Карточки основного интерфейса">
           <Specimen name="City row"><Variant label="Default" wide><button className="city-row"><strong>Осака</strong><span>4–6 окт</span><span>1,5 дня</span></button></Variant><Variant label="Selected" wide><button className="city-row kit-selected"><strong>📌 Киото</strong><span>7–10 окт</span><span>2,5 дня</span></button></Variant></Specimen>
-          <Specimen name="Trip row"><Variant label="Owner" wide><div className="trip-list-row"><button className="trip-list-main"><strong>Аниме Тур</strong><small>Владелец · 4–15 октября</small></button><div className="trip-owner-actions"><IconButton icon={<Icon name="file-export" />} aria-label="Экспорт" /><IconButton icon={<Icon name="delete-forever" />} aria-label="Удалить" /></div></div></Variant><Variant label="Guest" wide><div className="trip-list-row"><button className="trip-list-main"><strong>Кансай</strong><small>Гость · 2–8 ноября</small></button></div></Variant></Specimen>
-          <Specimen name="Info field"><Variant label="Empty" wide><div className="info-field"><div className="info-copy"><b>🏨 Твой отель</b><span>Где будем жить</span></div><IconButton theme="transparent" icon={<Icon name="add-plus" />} aria-label="Добавить" /></div></Variant><Variant label="Attached" wide><div className="info-field"><div className="info-copy"><b>🚅 Осака — Нара</b><span>ticket.pdf</span></div><IconButton theme="transparent" icon={<Icon name="edit" />} aria-label="Редактировать" /></div></Variant></Specimen>
+          <Specimen name="Info row">
+            <Variant label="Без кнопок" wide><InfoRow title="Кансай" subtitle="Гость · 2–8 ноября" /></Variant>
+            <Variant label="1 кнопка · Transparent" wide><InfoRow title="🏨 Твой отель" subtitle="Где будем жить" actions={[{ icon: <Icon name="add-plus" />, label: 'Добавить' }]} /></Variant>
+            <Variant label="1 кнопка · Secondary" wide><InfoRow title="Аниме Тур" subtitle="Владелец · 4–15 октября" actionTheme="secondary" actions={[{ icon: <Icon name="file-export" />, label: 'Экспортировать' }]} /></Variant>
+            <Variant label="2 кнопки · Transparent" wide><InfoRow title="🚅 Осака — Нара" subtitle="ticket.pdf" actions={[{ icon: <Icon name="edit" />, label: 'Редактировать' }, { icon: <Icon name="delete-forever" />, label: 'Удалить' }]} /></Variant>
+            <Variant label="2 кнопки · Secondary" wide><InfoRow title="Аниме Тур" subtitle="Владелец · 4–15 октября" actionTheme="secondary" actions={[{ icon: <Icon name="file-export" />, label: 'Экспортировать' }, { icon: <Icon name="delete-forever" />, label: 'Удалить' }]} /></Variant>
+          </Specimen>
           <Specimen name="Day city"><Variant label="Default" wide><TypographyGroup className="day-city" variant="head-m-text" headingLevel="h3" title="Осака" text="День в городе" /></Variant></Specimen>
         </Section>
 

@@ -53,10 +53,8 @@
 .kit-input-matrix > span { color: rgba(255,255,255,.55); font-size: var(--type-text-size); line-height: var(--type-text-line-height); }
 .kit-input-specimen .kit-variant { width: 100%; flex: 0 0 auto; display: grid; grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; }
 .kit-input-specimen .kit-variant-example { width: 100%; }
-.kit-variant-example > .city-row, .kit-variant-example > .trip-list-row { width: 100%; }
+.kit-variant-example > .city-row, .kit-variant-example > .info-row { width: 100%; }
 .city-row.kit-selected { background: rgba(255,255,255,.25); }
-.kit-variant-example > .info-field { width: 100%; }
-.kit-demo .info-copy span { color: rgba(255,255,255,.65); }
 .kit-check-row { padding: 0; color: #fff; background: transparent; display: flex; align-items: center; gap: 9px; }
 .kit-muted { color: rgba(255,255,255,.58); }
 .kit-inline-error { position: static; transform: none; margin: 0; }

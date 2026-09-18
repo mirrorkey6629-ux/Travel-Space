@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiTripDetails, ApiTripSummary, session } from './api'
 import { Button, IconButton } from './components/Button'
 import { Input, Select } from './components/FormControls'
+import { InfoRow } from './components/InfoRow'
 import { TypographyGroup } from './components/TypographyGroup'
 
 type Place = { id: string; name: string; url: string }
@@ -336,10 +337,7 @@ function TripsScreen({ trips, onOpen, onCreate, onDelete, onExport, onImport }: 
         <header className="trips-header"><h1>Мои поездки</h1><div className="trips-header-actions"><IconButton size="m" icon={<Icon name="upload-file" />} onClick={() => importRef.current?.click()} aria-label="Импортировать поездку" title="Импортировать поездку" /><input ref={importRef} className="hidden-file-input" type="file" accept=".travelspace,application/vnd.travel-space+json,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onImport(file); event.currentTarget.value = '' }} /></div></header>
         <div className="trips-content">
           <div className="trips-list">
-            {trips.map((item) => <article className="trip-list-row" key={item.id}>
-              <button className="trip-list-main" onClick={() => onOpen(item.id)}><strong>{item.name}</strong><small>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</small></button>
-              {item.role === 'owner' && <div className="trip-owner-actions"><IconButton icon={<Icon name="file-export" />} onClick={() => void onExport(item)} aria-label={`Экспортировать поездку ${item.name}`} title="Экспортировать" /><IconButton className="trip-delete-trigger" icon={<Icon name="delete-forever" />} onClick={() => onDelete(item)} aria-label={`Удалить поездку ${item.name}`} title="Удалить" /></div>}
-            </article>)}
+            {trips.map((item) => <InfoRow key={item.id} title={item.name} subtitle={<>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</>} onClick={() => onOpen(item.id)} actionTheme="secondary" actions={item.role === 'owner' ? [{ icon: <Icon name="file-export" />, label: `Экспортировать поездку ${item.name}`, title: 'Экспортировать', onClick: () => void onExport(item) }, { icon: <Icon name="delete-forever" />, label: `Удалить поездку ${item.name}`, title: 'Удалить', className: 'trip-delete-trigger', onClick: () => onDelete(item) }] : []} />)}
           </div>
           <IconButton className="trip-create-row" size="l" icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />
         </div>
@@ -549,9 +547,11 @@ function CityPanel({ city, previousCity, nextCity, onChange, onAddPlace, onTrain
           <TypographyGroup className="city-compact-copy" title={draft.name} text={<>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))}</>} />
         </div>
         <div className="info-strip">
-          <div className="info-field"><div className="info-copy"><b>🏨 Твой отель</b><input ref={hotelInputRef} placeholder="Где будем жить" value={draft.hotel} onChange={(e) => setDraft({ ...draft, hotel: e.target.value })} onBlur={() => onChange(draft)} /></div><IconButton type="button" theme="transparent" icon={<Icon name="add-plus" size={20} />} onClick={() => hotelInputRef.current?.focus()} aria-label="Добавить отель" /></div>
-          <div className="info-field"><div className="info-copy"><b>🚅 {previousCity ? `${previousCity.name} — ${draft.name}` : 'Поезд сюда'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainIn} /></div><IconButton type="button" theme="transparent" icon={<Icon name={draft.trainIn ? 'edit' : 'add-plus'} size={20} />} onClick={() => trainInFileRef.current?.click()} aria-label={draft.trainIn ? 'Заменить билет на поезд сюда' : 'Прикрепить билет на поезд сюда'} /><input ref={trainInFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'in')} /></div>
-          <div className="info-field"><div className="info-copy"><b>🚅 {nextCity ? `${draft.name} — ${nextCity.name}` : 'Поезд дальше'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainOut} /></div><IconButton type="button" theme="transparent" icon={<Icon name={draft.trainOut ? 'edit' : 'add-plus'} size={20} />} onClick={() => trainOutFileRef.current?.click()} aria-label={draft.trainOut ? 'Заменить билет на поезд дальше' : 'Прикрепить билет на поезд дальше'} /><input ref={trainOutFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'out')} /></div>
+          <InfoRow title="🏨 Твой отель" subtitle={<input ref={hotelInputRef} placeholder="Где будем жить" value={draft.hotel} onChange={(e) => setDraft({ ...draft, hotel: e.target.value })} onBlur={() => onChange(draft)} />} actions={[{ icon: <Icon name="add-plus" size={20} />, label: 'Добавить отель', onClick: () => hotelInputRef.current?.focus() }]} />
+          <InfoRow title={<>🚅 {previousCity ? `${previousCity.name} — ${draft.name}` : 'Поезд сюда'}</>} subtitle={<input readOnly placeholder="Прикрепить билет" value={draft.trainIn} />} actions={[{ icon: <Icon name={draft.trainIn ? 'edit' : 'add-plus'} size={20} />, label: draft.trainIn ? 'Заменить билет на поезд сюда' : 'Прикрепить билет на поезд сюда', onClick: () => trainInFileRef.current?.click() }]} />
+          <InfoRow title={<>🚅 {nextCity ? `${draft.name} — ${nextCity.name}` : 'Поезд дальше'}</>} subtitle={<input readOnly placeholder="Прикрепить билет" value={draft.trainOut} />} actions={[{ icon: <Icon name={draft.trainOut ? 'edit' : 'add-plus'} size={20} />, label: draft.trainOut ? 'Заменить билет на поезд дальше' : 'Прикрепить билет на поезд дальше', onClick: () => trainOutFileRef.current?.click() }]} />
+          <input ref={trainInFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'in')} />
+          <input ref={trainOutFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'out')} />
         </div>
         <div className="city-main">
           <div className="city-days">
