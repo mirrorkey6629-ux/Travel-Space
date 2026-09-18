@@ -12,6 +12,9 @@ type InfoRowAction = {
 export function InfoRow({
   title,
   subtitle,
+  image,
+  imageAlt = '',
+  imageShape = 'rounded',
   onClick,
   actions = [],
   actionTheme = 'transparent',
@@ -19,15 +22,19 @@ export function InfoRow({
 }: {
   title: ReactNode
   subtitle?: ReactNode
+  image?: string
+  imageAlt?: string
+  imageShape?: 'rounded' | 'circle'
   onClick?: ButtonHTMLAttributes<HTMLButtonElement>['onClick']
   actions?: InfoRowAction[]
   actionTheme?: 'transparent' | 'secondary'
   className?: string
 }) {
   const copy = <><strong>{title}</strong>{subtitle !== undefined && subtitle !== null && subtitle !== '' && <span>{subtitle}</span>}</>
+  const content = <>{image && <img className={`info-row-image info-row-image-${imageShape}`} src={image} alt={imageAlt} />}<div className="info-row-copy">{copy}</div></>
 
-  return <div className={`info-row ${className}`.trim()}>
-    {onClick ? <button type="button" className="info-row-copy info-row-trigger" onClick={onClick}>{copy}</button> : <div className="info-row-copy">{copy}</div>}
+  return <div className={`info-row${image ? ' info-row-with-image' : ' info-row-without-image'} ${className}`.trim()}>
+    {onClick ? <button type="button" className="info-row-content info-row-trigger" onClick={onClick}>{content}</button> : <div className="info-row-content">{content}</div>}
     {actions.length > 0 && <div className="info-row-actions">{actions.slice(0, 2).map((action, index) => <IconButton key={`${action.label}-${index}`} type="button" size="m" theme={actionTheme} icon={action.icon} onClick={action.onClick} className={action.className} aria-label={action.label} title={action.title ?? action.label} />)}</div>}
   </div>
 }

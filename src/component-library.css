@@ -41,13 +41,16 @@
 .kit-button-matrix-text > .ui-button { width: 100%; }
 .kit-button-matrix-icon > .icon-button { justify-self: center; }
 .kit-type-line { width: 100%; margin: 0; }
-.kit-danger { min-height: 48px; padding: 0 18px; border-radius: 24px; background: #8e3337; color: #fff; display: flex; align-items: center; gap: 8px; }
 .kit-variant-example > .field { width: 100%; }
 .kit-demo .field input { height: 60px; }
 .kit-demo .field input::placeholder { color: rgba(255,255,255,.58); opacity: 1; }
 .kit-variant-example > .form-control { width: 100%; }
 .kit-input-specimen .kit-demo { flex-direction: column; }
 .kit-control-toggles { width: 100%; display: flex; align-items: center; gap: 20px; margin-bottom: 4px; }
+.kit-info-row-controls { width: 100%; display: flex; flex-wrap: wrap; align-items: flex-end; gap: 20px; }
+.kit-property-select { display: flex; flex-direction: column; gap: 6px; color: rgba(255,255,255,.72); }
+.kit-property-select select { min-width: 160px; height: 40px; padding: 0 36px 0 12px; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; outline: 0; color: #fff; background: rgba(255,255,255,.14); font: inherit; color-scheme: dark; }
+.kit-property-select select:focus-visible { border-color: rgba(255,255,255,.42); }
 .kit-input-matrix { width: 100%; display: grid; grid-template-columns: 128px repeat(2, minmax(0, 1fr)); align-items: center; gap: 16px 12px; }
 .kit-input-matrix > b { color: rgba(255,255,255,.82); font-size: var(--type-text-size); font-weight: var(--type-head-m-weight); text-align: center; }
 .kit-input-matrix > span { color: rgba(255,255,255,.55); font-size: var(--type-text-size); line-height: var(--type-text-line-height); }

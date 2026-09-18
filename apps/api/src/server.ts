@@ -16,6 +16,12 @@ const bodyOf = (value: unknown) => (value && typeof value === 'object' ? value a
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : ''
 const passwordText = (value: unknown) => typeof value === 'string' ? value : ''
 const optionalText = (value: unknown) => typeof value === 'string' ? value.trim() : undefined
+const optionalCoordinate = (value: unknown, min: number, max: number) => {
+  if (value === undefined || value === null || value === '') return undefined
+  const number = Number(value)
+  if (!Number.isFinite(number) || number < min || number > max) throw httpError(400, 'Некорректные координаты места')
+  return number
+}
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode })
 
@@ -151,9 +157,11 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
         const departurePeriod = text(source.departurePeriod) || 'evening'
         if (!oldId || !name || !datePattern.test(arrivalDate) || !datePattern.test(departureDate) || arrivalDate < startDate || departureDate > endDate || departureDate < arrivalDate || !['morning','day','evening'].includes(arrivalPeriod) || !['morning','day','evening'].includes(departurePeriod)) throw httpError(400, 'Некорректные данные города в файле')
         const city = (await client.query(
-          `INSERT INTO cities(trip_id,name,position,arrival_date,departure_date,arrival_period,departure_period,hotel,train_in,train_out,created_by)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-          [createdTrip.id, name, index, arrivalDate, departureDate, arrivalPeriod, departurePeriod, text(source.hotel), text(source.trainIn), text(source.trainOut), user.id],
+          `INSERT INTO cities(trip_id,name,position,arrival_date,departure_date,arrival_period,departure_period,hotel,hotel_url,train_in,train_out,created_by,
+             transport_in_type,transport_out_type,transport_in_departure_time,transport_in_arrival_time,transport_out_departure_time,transport_out_arrival_time,transport_in_station,transport_in_station_url,transport_out_station,transport_out_station_url)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING id`,
+          [createdTrip.id, name, index, arrivalDate, departureDate, arrivalPeriod, departurePeriod, text(source.hotel), text(source.hotelUrl), text(source.trainIn), text(source.trainOut), user.id,
+            optionalText(source.transportInType) || null, optionalText(source.transportOutType) || null, text(source.transportInDepartureTime), text(source.transportInArrivalTime), text(source.transportOutDepartureTime), text(source.transportOutArrivalTime), text(source.transportInStation), text(source.transportInStationUrl), text(source.transportOutStation), text(source.transportOutStationUrl)],
         )).rows[0]
         cityIds.set(oldId, city.id)
         cityDates.set(oldId, { arrivalDate, departureDate })
@@ -166,8 +174,8 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
         if (!cityId || !text(source.name)) throw httpError(400, 'Некорректное место в файле')
         if (visitDate && (!datePattern.test(visitDate) || !cityRange || visitDate < cityRange.arrivalDate || visitDate > cityRange.departureDate)) throw httpError(400, 'Дата места находится за пределами дат города')
         await client.query(
-          `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,position,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-          [createdTrip.id, cityId, visitDate, text(source.name), text(source.googleMapsUrl), Number.isInteger(source.position) ? source.position : 0, user.id],
+          `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [createdTrip.id, cityId, visitDate, text(source.name), text(source.googleMapsUrl), optionalCoordinate(source.latitude, -90, 90) ?? null, optionalCoordinate(source.longitude, -180, 180) ?? null, Number.isInteger(source.position) ? source.position : 0, user.id],
         )
       }
       for (const source of bundle.tasks) {
@@ -243,8 +251,9 @@ app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
   const bundle = {
     format: 'travel-space', version: 1, exportedAt: new Date().toISOString(),
     trip: { name: trip.name, startDate: trip.start_date, endDate: trip.end_date },
-    cities: cities.rows.map((city) => ({ id: city.id, name: city.name, arrivalDate: String(city.arrival_date).slice(0,10), departureDate: String(city.departure_date).slice(0,10), arrivalPeriod: city.arrival_period, departurePeriod: city.departure_period, hotel: city.hotel, trainIn: city.train_in, trainOut: city.train_out })),
-    places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, position: place.position })),
+    cities: cities.rows.map((city) => ({ id: city.id, name: city.name, arrivalDate: String(city.arrival_date).slice(0,10), departureDate: String(city.departure_date).slice(0,10), arrivalPeriod: city.arrival_period, departurePeriod: city.departure_period, hotel: city.hotel, hotelUrl: city.hotel_url, trainIn: city.train_in, trainOut: city.train_out,
+      transportInType: city.transport_in_type, transportOutType: city.transport_out_type, transportInDepartureTime: city.transport_in_departure_time, transportInArrivalTime: city.transport_in_arrival_time, transportOutDepartureTime: city.transport_out_departure_time, transportOutArrivalTime: city.transport_out_arrival_time, transportInStation: city.transport_in_station, transportInStationUrl: city.transport_in_station_url, transportOutStation: city.transport_out_station, transportOutStationUrl: city.transport_out_station_url })),
+    places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, latitude: place.latitude, longitude: place.longitude, position: place.position })),
     tasks: tasks.rows.map((task) => ({ cityId: task.city_id, dueDate: task.due_date ? String(task.due_date).slice(0,10) : null, title: task.title, done: task.done })),
     documents: await Promise.all(documents.rows.map(async (document) => ({ cityId: document.city_id, category: document.category, originalName: document.original_name, mimeType: document.mime_type, contentBase64: (await readFile(path.join(config.uploadDir, document.storage_key))).toString('base64') }))),
   }
@@ -354,9 +363,9 @@ app.post(`${apiPrefix}/trips/:tripId/cities`, async (request, reply) => {
   const position = Number(bodyOf(request.body).position)
   const nextPosition = Number.isInteger(position) ? position : Number((await db.query('SELECT coalesce(max(position), -1) + 1 AS value FROM cities WHERE trip_id = $1', [tripId])).rows[0].value)
   const result = await db.query(
-    `INSERT INTO cities(trip_id, name, position, arrival_date, departure_date, arrival_period, departure_period, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-    [tripId, input.name, nextPosition, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, user.id],
+    `INSERT INTO cities(trip_id, name, position, arrival_date, departure_date, arrival_period, departure_period, hotel, hotel_url, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [tripId, input.name, nextPosition, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, text(bodyOf(request.body).hotel), text(bodyOf(request.body).hotelUrl), user.id],
   )
   reply.code(201)
   return { city: result.rows[0] }
@@ -369,6 +378,8 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
   const current = (await db.query('SELECT * FROM cities WHERE id = $1 AND trip_id = $2', [cityId, tripId])).rows[0]
   if (!current) throw httpError(404, 'Город не найден')
   const body = bodyOf(request.body)
+  const transportTypes = [body.transportInType, body.transportOutType].filter((value) => value !== undefined)
+  if (transportTypes.some((value) => typeof value !== 'string' || !['train', 'plane', 'bus', 'ship'].includes(value))) throw httpError(400, 'Некорректный тип транспорта')
   const input = await validatedCityInput(tripId, {
     name: optionalText(body.name) ?? current.name,
     arrivalDate: optionalText(body.arrivalDate) ?? String(current.arrival_date).slice(0, 10),
@@ -378,9 +389,18 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
   })
   const result = await db.query(
     `UPDATE cities SET name=$3, arrival_date=$4, departure_date=$5, arrival_period=$6, departure_period=$7,
-       hotel=coalesce($8,hotel), train_in=coalesce($9,train_in), train_out=coalesce($10,train_out), updated_at=now()
+       hotel=coalesce($8,hotel), train_in=coalesce($9,train_in), train_out=coalesce($10,train_out),
+       transport_in_type=coalesce($11,transport_in_type), transport_out_type=coalesce($12,transport_out_type),
+       transport_in_departure_time=coalesce($13,transport_in_departure_time), transport_in_arrival_time=coalesce($14,transport_in_arrival_time),
+       transport_out_departure_time=coalesce($15,transport_out_departure_time), transport_out_arrival_time=coalesce($16,transport_out_arrival_time),
+       transport_in_station=coalesce($17,transport_in_station), transport_in_station_url=coalesce($18,transport_in_station_url),
+       transport_out_station=coalesce($19,transport_out_station), transport_out_station_url=coalesce($20,transport_out_station_url),
+       hotel_url=coalesce($21,hotel_url), updated_at=now()
      WHERE id=$1 AND trip_id=$2 RETURNING *`,
-    [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut)],
+    [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut),
+      optionalText(body.transportInType), optionalText(body.transportOutType), optionalText(body.transportInDepartureTime), optionalText(body.transportInArrivalTime),
+      optionalText(body.transportOutDepartureTime), optionalText(body.transportOutArrivalTime), optionalText(body.transportInStation), optionalText(body.transportInStationUrl),
+      optionalText(body.transportOutStation), optionalText(body.transportOutStationUrl), optionalText(body.hotelUrl)],
   )
   return { city: result.rows[0] }
 })
@@ -403,14 +423,17 @@ app.post(`${apiPrefix}/trips/:tripId/cities/:cityId/places`, async (request, rep
   const body = bodyOf(request.body)
   const name = text(body.name)
   const visitDate = optionalText(body.visitDate) || null
+  const latitude = optionalCoordinate(body.latitude, -90, 90)
+  const longitude = optionalCoordinate(body.longitude, -180, 180)
+  if ((latitude === undefined) !== (longitude === undefined)) throw httpError(400, 'Широта и долгота должны быть указаны вместе')
   if (!name) throw httpError(400, 'Название места обязательно')
   const city = (await db.query<{ arrival_date: string; departure_date: string }>('SELECT arrival_date::text, departure_date::text FROM cities WHERE id=$1 AND trip_id=$2', [cityId, tripId])).rows[0]
   if (!city) throw httpError(404, 'Город не найден')
   if (visitDate && (!datePattern.test(visitDate) || visitDate < city.arrival_date || visitDate > city.departure_date)) throw httpError(400, 'Дата места должна быть внутри дат города')
   const position = Number((await db.query('SELECT coalesce(max(position), -1) + 1 AS value FROM places WHERE city_id=$1 AND visit_date IS NOT DISTINCT FROM $2', [cityId, visitDate])).rows[0].value)
   const result = await db.query(
-    `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,position,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-    [tripId, cityId, visitDate, name, text(body.googleMapsUrl), position, user.id],
+    `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+    [tripId, cityId, visitDate, name, text(body.googleMapsUrl), latitude ?? null, longitude ?? null, position, user.id],
   )
   reply.code(201)
   return { place: result.rows[0] }
@@ -424,10 +447,13 @@ app.patch(`${apiPrefix}/trips/:tripId/places/:placeId`, async (request) => {
   if (!place) throw httpError(404, 'Место не найдено')
   if (role !== 'owner' && place.created_by !== user.id) throw httpError(403, 'Можно редактировать только добавленные вами места')
   const body = bodyOf(request.body)
+  const latitude = optionalCoordinate(body.latitude, -90, 90)
+  const longitude = optionalCoordinate(body.longitude, -180, 180)
+  if ((latitude === undefined) !== (longitude === undefined)) throw httpError(400, 'Широта и долгота должны быть указаны вместе')
   const result = await db.query(
-    `UPDATE places SET name=coalesce($3,name), google_maps_url=coalesce($4,google_maps_url), visit_date=coalesce($5,visit_date), position=coalesce($6,position), updated_at=now()
+    `UPDATE places SET name=coalesce($3,name), google_maps_url=coalesce($4,google_maps_url), visit_date=coalesce($5,visit_date), position=coalesce($6,position), latitude=coalesce($7,latitude), longitude=coalesce($8,longitude), updated_at=now()
      WHERE id=$1 AND trip_id=$2 RETURNING *`,
-    [placeId, tripId, optionalText(body.name), optionalText(body.googleMapsUrl), optionalText(body.visitDate), Number.isInteger(body.position) ? body.position : null],
+    [placeId, tripId, optionalText(body.name), optionalText(body.googleMapsUrl), optionalText(body.visitDate), Number.isInteger(body.position) ? body.position : null, latitude ?? null, longitude ?? null],
   )
   return { place: result.rows[0] }
 })
@@ -499,6 +525,21 @@ app.get(`${apiPrefix}/documents/:documentId/download`, async (request, reply) =>
   reply.header('Content-Type', document.mime_type)
   reply.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(document.original_name)}`)
   return reply.send(createReadStream(path.join(config.uploadDir, document.storage_key)))
+})
+
+app.delete(`${apiPrefix}/documents/:documentId`, async (request, reply) => {
+  const user = await requireUser(request)
+  const { documentId } = request.params as { documentId: string }
+  const document = (await db.query('SELECT * FROM documents WHERE id=$1', [documentId])).rows[0]
+  if (!document) throw httpError(404, 'Файл не найден')
+  const role = await requireTripRole(document.trip_id, user.id)
+  if (role !== 'owner' && document.created_by !== user.id) throw httpError(403, 'Удалить файл может его автор или владелец поездки')
+  const routeSuffix = /^train-(?:in|out):(.+)$/.exec(document.category)?.[1]
+  const deleted = routeSuffix
+    ? await db.query<{ storage_key: string }>("DELETE FROM documents WHERE trip_id=$1 AND category IN ($2,$3) RETURNING storage_key", [document.trip_id, `train-in:${routeSuffix}`, `train-out:${routeSuffix}`])
+    : await db.query<{ storage_key: string }>('DELETE FROM documents WHERE id=$1 RETURNING storage_key', [documentId])
+  await Promise.all(deleted.rows.map((item) => unlink(path.join(config.uploadDir, item.storage_key)).catch(() => undefined)))
+  reply.code(204).send()
 })
 
 

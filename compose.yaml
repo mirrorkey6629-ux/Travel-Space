@@ -36,6 +36,7 @@ services:
       context: .
       args:
         BASE_PATH: ${BASE_PATH:-/travel}
+        VITE_GOOGLE_MAPS_API_KEY: ${VITE_GOOGLE_MAPS_API_KEY:-}
     image: ghcr.io/mirrorkey6629-ux/travel-space:${TRAVEL_IMAGE_TAG:-latest}
     restart: unless-stopped
     environment:

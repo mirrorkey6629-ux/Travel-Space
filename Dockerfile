@@ -27,7 +27,9 @@ FROM deps AS build
 # Префикс вшивается в бандл на этапе сборки: Vite подставляет его в пути к
 # ассетам и в import.meta.env.BASE_URL, поменять его в готовом образе нельзя.
 ARG BASE_PATH
+ARG VITE_GOOGLE_MAPS_API_KEY
 ENV BASE_PATH=${BASE_PATH}
+ENV VITE_GOOGLE_MAPS_API_KEY=${VITE_GOOGLE_MAPS_API_KEY}
 COPY . .
 # tsc -b внутри pnpm build падает на любой ошибке типов, поэтому непроходящий
 # typecheck не даст собрать образ.

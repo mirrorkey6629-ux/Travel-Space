@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
 
-type ButtonTheme = 'primary' | 'secondary'
+type ButtonTheme = 'primary' | 'secondary' | 'transparent'
 type ButtonSize = 'l' | 'm'
 type IconButtonSize = 'l' | 'm' | 's'
 type IconButtonTheme = ButtonTheme | 'transparent'
@@ -13,7 +13,7 @@ export function Button({
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { theme?: ButtonTheme; size?: ButtonSize; icon?: ReactNode }) {
-  return <button className={`ui-button ui-button-${theme} ui-button-${size} ${theme === 'primary' ? 'primary' : 'secondary'} ${className}`.trim()} {...props}>{icon && <span className="ui-button-icon">{icon}</span>}{children}</button>
+  return <button className={`ui-button ui-button-${theme} ui-button-${size} ${theme} ${className}`.trim()} {...props}>{icon && <span className="ui-button-icon">{icon}</span>}{children}</button>
 }
 
 export function IconButton({

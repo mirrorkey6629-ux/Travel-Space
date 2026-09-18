@@ -38,6 +38,8 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: ${{ env.TEST_IMAGE }}
+          build-args: |
+            VITE_GOOGLE_MAPS_API_KEY=${{ vars.GOOGLE_MAPS_BROWSER_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -75,4 +77,6 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VITE_GOOGLE_MAPS_API_KEY=${{ vars.GOOGLE_MAPS_BROWSER_KEY }}
           cache-from: type=gha

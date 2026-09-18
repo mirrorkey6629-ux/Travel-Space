@@ -1,21 +1,23 @@
 import { useState } from 'react'
 import { GalaxyBackground, Icon, IconName } from './App'
 import { Button, IconButton } from './components/Button'
+import { AddRow } from './components/AddRow'
 import { Input, Select } from './components/FormControls'
 import { InfoRow } from './components/InfoRow'
 import { TypographyGroup } from './components/TypographyGroup'
+import { Tabs } from './components/Tabs'
 import './component-library.css'
 
-const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'calendar-month', 'close', 'delete-forever', 'edit-location', 'edit', 'face', 'file-export', 'image', 'key', 'link', 'pin-home', 'planet', 'time', 'upload-file']
+const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'calendar-month', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'face', 'image', 'key', 'link', 'pin-home', 'planet', 'time', 'upload-file']
 
 const navigation = [
   { id: 'typography', label: 'Типографика' },
-  { id: 'typography-groups', label: 'Типографические группы' },
+  { id: 'typography-groups', label: 'Группы текста' },
   { id: 'buttons', label: 'Кнопки' },
   { id: 'fields', label: 'Поля и селекты' },
   { id: 'lists', label: 'Списки и плашки' },
   { id: 'states', label: 'Чекбоксы и состояния' },
-  { id: 'glass', label: 'Стеклянные контейнеры' },
+  { id: 'glass', label: 'Контейнеры' },
   { id: 'icons', label: 'Иконки' },
 ]
 
@@ -33,9 +35,20 @@ function Section({ id, title, description, className = '', children }: { id: str
 
 export default function ComponentLibrary() {
   const [checked, setChecked] = useState(true)
+  const [activeTab, setActiveTab] = useState('plane')
   const [buttonIcons, setButtonIcons] = useState(false)
   const [inputLabel, setInputLabel] = useState(true)
-  const [inputIcon, setInputIcon] = useState(false)
+  const [inputLeftIcon, setInputLeftIcon] = useState(false)
+  const [inputRightIcon, setInputRightIcon] = useState(false)
+  const [infoRowFirstAction, setInfoRowFirstAction] = useState(true)
+  const [infoRowSecondAction, setInfoRowSecondAction] = useState(false)
+  const [infoRowImage, setInfoRowImage] = useState(false)
+  const [infoRowImageShape, setInfoRowImageShape] = useState<'rounded' | 'circle'>('rounded')
+  const [infoRowActionTheme, setInfoRowActionTheme] = useState<'transparent' | 'secondary'>('transparent')
+  const inputIcons = {
+    icon: inputLeftIcon ? <Icon name="attractions" /> : undefined,
+    trailingIcon: inputRightIcon ? <Icon name="content-copy" /> : undefined,
+  }
   return (
     <main className="component-library">
       <GalaxyBackground />
@@ -55,7 +68,7 @@ export default function ComponentLibrary() {
           <Specimen name="Text"><Variant label="15px · Regular"><p className="kit-type-line">Основной текст и подписи</p></Variant></Specimen>
         </Section>
 
-        <Section id="typography-groups" title="Типографические группы" description="Готовые сочетания заголовков и поясняющего текста">
+        <Section id="typography-groups" title="Группы текста" description="Готовые сочетания заголовков и поясняющего текста">
           <Specimen name="Head L + Text"><Variant label="Gap 8"><TypographyGroup title="Название поездки" text="4–15 октября · 12 дней" /></Variant></Specimen>
           <Specimen name="Head M + Text"><Variant label="Gap 4"><TypographyGroup variant="head-m-text" headingLevel="h3" title="Осака" text="Прибытие" /></Variant></Specimen>
         </Section>
@@ -63,24 +76,29 @@ export default function ComponentLibrary() {
         <Section id="buttons" title="Кнопки" description="Основные действия и компактные контролы">
           <Specimen name="Button"><div className="kit-button-showcase"><label className="kit-toggle"><span>Иконка</span><input type="checkbox" checked={buttonIcons} onChange={(event) => setButtonIcons(event.target.checked)} /><i aria-hidden="true" /></label><div className="kit-button-matrix kit-button-matrix-text"><span /><b>L</b><b>M</b><span>Primary · Default</span><Button icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><Button size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><span>Primary · Disabled</span><Button icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><Button size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><span>Secondary · Default</span><Button theme="secondary" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><Button theme="secondary" size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><span>Secondary · Disabled</span><Button theme="secondary" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><Button theme="secondary" size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button></div></div></Specimen>
           <Specimen name="Icon button"><div className="kit-button-matrix kit-button-matrix-icon"><span /><b>L</b><b>M</b><b>S</b><span>Primary · Default</span><IconButton theme="primary" size="l" icon={<Icon name="add-plus" />} aria-label="Primary L" /><IconButton theme="primary" size="m" icon={<Icon name="add-plus" />} aria-label="Primary M" /><IconButton theme="primary" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Primary S" /><span>Primary · Disabled</span><IconButton theme="primary" size="l" icon={<Icon name="add-plus" />} aria-label="Primary L disabled" disabled /><IconButton theme="primary" size="m" icon={<Icon name="add-plus" />} aria-label="Primary M disabled" disabled /><IconButton theme="primary" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Primary S disabled" disabled /><span>Secondary · Default</span><IconButton size="l" icon={<Icon name="add-plus" />} aria-label="Secondary L" /><IconButton size="m" icon={<Icon name="add-plus" />} aria-label="Secondary M" /><IconButton size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Secondary S" /><span>Secondary · Disabled</span><IconButton size="l" icon={<Icon name="add-plus" />} aria-label="Secondary L disabled" disabled /><IconButton size="m" icon={<Icon name="add-plus" />} aria-label="Secondary M disabled" disabled /><IconButton size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Secondary S disabled" disabled /><span>Transparent · Default</span><IconButton theme="transparent" size="l" icon={<Icon name="add-plus" />} aria-label="Transparent L" /><IconButton theme="transparent" size="m" icon={<Icon name="add-plus" />} aria-label="Transparent M" /><IconButton theme="transparent" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Transparent S" /><span>Transparent · Disabled</span><IconButton theme="transparent" size="l" icon={<Icon name="add-plus" />} aria-label="Transparent L disabled" disabled /><IconButton theme="transparent" size="m" icon={<Icon name="add-plus" />} aria-label="Transparent M disabled" disabled /><IconButton theme="transparent" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Transparent S disabled" disabled /></div></Specimen>
-          <Specimen name="Danger button"><Variant label="Default"><button className="kit-danger"><Icon name="delete-forever" />Удалить</button></Variant></Specimen>
+          <Specimen name="Add row"><Variant label="Default" wide><AddRow icon={<Icon name="add-plus" />} aria-label="Добавить" /></Variant><Variant label="Disabled" wide><AddRow icon={<Icon name="add-plus" />} aria-label="Добавить" disabled /></Variant></Specimen>
+          <Specimen name="Tabs"><Variant label="4 варианта" wide><Tabs value={activeTab} ariaLabel="Тип перемещения" options={[{ value: 'train', label: 'Поезд' }, { value: 'plane', label: 'Самолёт' }, { value: 'bus', label: 'Автобус' }, { value: 'ship', label: 'Корабль' }]} onChange={setActiveTab} /></Variant></Specimen>
         </Section>
 
         <Section id="fields" title="Поля и селекты" description="Высота 60px, скругление 16px" className="kit-fields-section">
-          <Specimen name="Input" className="kit-input-specimen"><div className="kit-control-toggles"><label className="kit-toggle"><span>Подпись</span><input type="checkbox" checked={inputLabel} onChange={(event) => setInputLabel(event.target.checked)} /><i aria-hidden="true" /></label><label className="kit-toggle"><span>Иконка</span><input type="checkbox" checked={inputIcon} onChange={(event) => setInputIcon(event.target.checked)} /><i aria-hidden="true" /></label></div><div className="kit-input-matrix"><span /><b>Обычная</b><b>Акцентная</b><span>Empty</span><Input label="Город" showLabel={inputLabel} showIcon={inputIcon} icon={<Icon name="attractions" />} placeholder="Название города" /><Input theme="accent" label="Город" showLabel={inputLabel} showIcon={inputIcon} icon={<Icon name="attractions" />} placeholder="Название города" /><span>Filled</span><Input label="Город" showLabel={inputLabel} showIcon={inputIcon} icon={<Icon name="attractions" />} defaultValue="Осака" /><Input theme="accent" label="Город" showLabel={inputLabel} showIcon={inputIcon} icon={<Icon name="attractions" />} defaultValue="Осака" /><span>Disabled</span><Input label="Город" showLabel={inputLabel} showIcon={inputIcon} icon={<Icon name="attractions" />} value="Осака" disabled readOnly /><Input theme="accent" label="Город" showLabel={inputLabel} showIcon={inputIcon} icon={<Icon name="attractions" />} value="Осака" disabled readOnly /></div></Specimen>
+          <Specimen name="Input" className="kit-input-specimen"><div className="kit-control-toggles"><label className="kit-toggle"><span>Подпись</span><input type="checkbox" checked={inputLabel} onChange={(event) => setInputLabel(event.target.checked)} /><i aria-hidden="true" /></label><label className="kit-toggle"><span>Иконка слева</span><input type="checkbox" checked={inputLeftIcon} onChange={(event) => setInputLeftIcon(event.target.checked)} /><i aria-hidden="true" /></label><label className="kit-toggle"><span>Иконка справа</span><input type="checkbox" checked={inputRightIcon} onChange={(event) => setInputRightIcon(event.target.checked)} /><i aria-hidden="true" /></label></div><div className="kit-input-matrix"><span /><b>Обычная</b><b>Акцентная</b><span>Empty</span><Input label="Город" showLabel={inputLabel} {...inputIcons} placeholder="Название города" /><Input theme="accent" label="Город" showLabel={inputLabel} {...inputIcons} placeholder="Название города" /><span>Filled</span><Input label="Город" showLabel={inputLabel} {...inputIcons} defaultValue="Осака" /><Input theme="accent" label="Город" showLabel={inputLabel} {...inputIcons} defaultValue="Осака" /><span>Disabled</span><Input label="Город" showLabel={inputLabel} {...inputIcons} value="Осака" disabled readOnly /><Input theme="accent" label="Город" showLabel={inputLabel} {...inputIcons} value="Осака" disabled readOnly /></div></Specimen>
           <Specimen name="Select" className="kit-input-specimen"><Variant label="Date"><Select content="date" icon={<Icon name="calendar-month" />} defaultValue="4 октября"><option>4 октября</option><option>5 октября</option></Select></Variant><Variant label="Date · Disabled"><Select content="date" icon={<Icon name="calendar-month" />} disabled><option>4 октября</option></Select></Variant><Variant label="List"><Select content="list" icon={<Icon name="time" />} defaultValue="День"><option>Утро</option><option>День</option><option>Вечер</option></Select></Variant><Variant label="List · Disabled"><Select content="list" icon={<Icon name="time" />} disabled><option>День</option></Select></Variant></Specimen>
         </Section>
 
         <Section id="lists" title="Списки и плашки" description="Карточки основного интерфейса">
           <Specimen name="City row"><Variant label="Default" wide><button className="city-row"><strong>Осака</strong><span>4–6 окт</span><span>1,5 дня</span></button></Variant><Variant label="Selected" wide><button className="city-row kit-selected"><strong>📌 Киото</strong><span>7–10 окт</span><span>2,5 дня</span></button></Variant></Specimen>
           <Specimen name="Info row">
-            <Variant label="Без кнопок" wide><InfoRow title="Кансай" subtitle="Гость · 2–8 ноября" /></Variant>
-            <Variant label="1 кнопка · Transparent" wide><InfoRow title="🏨 Твой отель" subtitle="Где будем жить" actions={[{ icon: <Icon name="add-plus" />, label: 'Добавить' }]} /></Variant>
-            <Variant label="1 кнопка · Secondary" wide><InfoRow title="Аниме Тур" subtitle="Владелец · 4–15 октября" actionTheme="secondary" actions={[{ icon: <Icon name="file-export" />, label: 'Экспортировать' }]} /></Variant>
-            <Variant label="2 кнопки · Transparent" wide><InfoRow title="🚅 Осака — Нара" subtitle="ticket.pdf" actions={[{ icon: <Icon name="edit" />, label: 'Редактировать' }, { icon: <Icon name="delete-forever" />, label: 'Удалить' }]} /></Variant>
-            <Variant label="2 кнопки · Secondary" wide><InfoRow title="Аниме Тур" subtitle="Владелец · 4–15 октября" actionTheme="secondary" actions={[{ icon: <Icon name="file-export" />, label: 'Экспортировать' }, { icon: <Icon name="delete-forever" />, label: 'Удалить' }]} /></Variant>
+            <div className="kit-info-row-controls">
+              <label className="kit-toggle"><span>Кнопка 1</span><input type="checkbox" checked={infoRowFirstAction} onChange={(event) => setInfoRowFirstAction(event.target.checked)} /><i aria-hidden="true" /></label>
+              <label className="kit-toggle"><span>Кнопка 2</span><input type="checkbox" checked={infoRowSecondAction} onChange={(event) => setInfoRowSecondAction(event.target.checked)} /><i aria-hidden="true" /></label>
+              <label className="kit-toggle"><span>Картинка</span><input type="checkbox" checked={infoRowImage} onChange={(event) => setInfoRowImage(event.target.checked)} /><i aria-hidden="true" /></label>
+              <label className="kit-property-select"><span>Тип картинки</span><select value={infoRowImageShape} onChange={(event) => setInfoRowImageShape(event.target.value as 'rounded' | 'circle')}><option value="rounded">Скруглённая</option><option value="circle">Круглая</option></select></label>
+              <label className="kit-property-select"><span>Тип кнопок</span><select value={infoRowActionTheme} onChange={(event) => setInfoRowActionTheme(event.target.value as 'transparent' | 'secondary')}><option value="transparent">Transparent</option><option value="secondary">Secondary</option></select></label>
+            </div>
+            <Variant label={`${Number(infoRowFirstAction) + Number(infoRowSecondAction)} ${Number(infoRowFirstAction) + Number(infoRowSecondAction) === 1 ? 'кнопка' : 'кнопок'} · ${infoRowActionTheme === 'transparent' ? 'Transparent' : 'Secondary'}`} wide>
+              <InfoRow image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title="Аниме Тур" subtitle="Владелец · 4–15 октября" actionTheme={infoRowActionTheme} actions={[...(infoRowFirstAction ? [{ icon: <Icon name="download" />, label: 'Экспортировать' }] : []), ...(infoRowSecondAction ? [{ icon: <Icon name="delete-forever" />, label: 'Удалить' }] : [])]} />
+            </Variant>
           </Specimen>
-          <Specimen name="Day city"><Variant label="Default" wide><TypographyGroup className="day-city" variant="head-m-text" headingLevel="h3" title="Осака" text="День в городе" /></Variant></Specimen>
         </Section>
 
         <Section id="states" title="Чекбоксы и состояния">
@@ -88,7 +106,7 @@ export default function ComponentLibrary() {
           <Specimen name="Status text"><Variant label="Default"><span>Основной текст</span></Variant><Variant label="Muted"><span className="kit-muted">Вспомогательный текст</span></Variant><Variant label="Error"><span className="app-error kit-inline-error">Текст ошибки</span></Variant></Specimen>
         </Section>
 
-        <Section id="glass" title="Стеклянные контейнеры" description="Основные уровни вложенности">
+        <Section id="glass" title="Контейнеры" description="Основные уровни вложенности">
           <Specimen name="Main glass"><Variant label="Default" wide><div className="glass kit-glass-card"><h3>Основная карточка</h3><p>Blur 50px, основной стеклянный фон.</p></div></Variant></Specimen>
           <Specimen name="Soft glass"><Variant label="Default" wide><div className="kit-soft-card"><h3>Вложенная плашка</h3><p>Используется внутри карточек.</p></div></Variant></Specimen>
           <Specimen name="Divider"><Variant label="Default" wide><div className="divider" /></Variant></Specimen>

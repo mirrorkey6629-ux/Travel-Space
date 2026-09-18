@@ -1,0 +1,2 @@
+ALTER TABLE cities
+  ADD COLUMN IF NOT EXISTS hotel_url text NOT NULL DEFAULT '';

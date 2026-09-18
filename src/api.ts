@@ -23,9 +23,22 @@ export type ApiCity = {
   arrival_period: 'morning' | 'day' | 'evening'
   departure_period: 'morning' | 'day' | 'evening'
   hotel: string
+  hotel_url: string
   train_in: string
   train_out: string
+  transport_in_type: TransportType | null
+  transport_out_type: TransportType | null
+  transport_in_departure_time: string
+  transport_in_arrival_time: string
+  transport_out_departure_time: string
+  transport_out_arrival_time: string
+  transport_in_station: string
+  transport_in_station_url: string
+  transport_out_station: string
+  transport_out_station_url: string
 }
+
+export type TransportType = 'train' | 'plane' | 'bus' | 'ship'
 
 export type ApiPlace = {
   id: string
@@ -33,6 +46,8 @@ export type ApiPlace = {
   visit_date: string | null
   name: string
   google_maps_url: string
+  latitude: number | null
+  longitude: number | null
   position: number
 }
 
@@ -121,7 +136,8 @@ export const api = {
   createCity: (tripId: string, value: Record<string, unknown>) => request<{ city: ApiCity }>(`/trips/${tripId}/cities`, json('POST', value)),
   updateCity: (tripId: string, cityId: string, value: Record<string, unknown>) => request<{ city: ApiCity }>(`/trips/${tripId}/cities/${cityId}`, json('PATCH', value)),
   deleteCity: (tripId: string, cityId: string) => request<void>(`/trips/${tripId}/cities/${cityId}`, { method: 'DELETE' }),
-  createPlace: (tripId: string, cityId: string, value: { name: string; googleMapsUrl: string; visitDate?: string }) => request<{ place: ApiPlace }>(`/trips/${tripId}/cities/${cityId}/places`, json('POST', value)),
+  createPlace: (tripId: string, cityId: string, value: { name: string; googleMapsUrl: string; visitDate?: string; latitude?: number; longitude?: number }) => request<{ place: ApiPlace }>(`/trips/${tripId}/cities/${cityId}/places`, json('POST', value)),
+  updatePlace: (tripId: string, placeId: string, value: { name?: string; googleMapsUrl?: string; visitDate?: string; latitude?: number; longitude?: number }) => request<{ place: ApiPlace }>(`/trips/${tripId}/places/${placeId}`, json('PATCH', value)),
   createTask: (tripId: string, value: { cityId?: string; dueDate?: string; title: string }) => request<{ task: ApiTask }>(`/trips/${tripId}/tasks`, json('POST', value)),
   uploadDocument: async (tripId: string, cityId: string, category: string, file: File) => {
     const form = new FormData()
@@ -129,5 +145,7 @@ export const api = {
     const query = new URLSearchParams({ tripId, cityId, category })
     return request<{ document: ApiDocument }>(`/documents?${query}`, { method: 'POST', body: form })
   },
+  downloadDocument: (documentId: string) => checkedResponse(`/documents/${documentId}/download`).then((response) => response.blob()),
+  deleteDocument: (documentId: string) => request<void>(`/documents/${documentId}`, { method: 'DELETE' }),
   acceptInvitation: (token: string) => request<{ tripId: string }>(`/invitations/${token}/accept`, { method: 'POST' }),
 }
