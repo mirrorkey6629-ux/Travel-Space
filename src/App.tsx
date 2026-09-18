@@ -659,29 +659,26 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, o
     <aside className="sidebar">
       <section className="glass sidebar-card trip-summary">
         <TypographyGroup title={trip.name} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {trip.role === 'owner' ? <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button> : formatParticipants(Math.max(1, trip.members?.length ?? 0))}</>} />
-        <div className="city-list sidebar-city-list">{trip.cities.map((city, index) => {
-          const previousCity = trip.cities[index - 1]
-          const incomingCity = previousCity && (previousCity.transportOut?.type || previousCity.trainOut) ? previousCity : city
-          const incomingDirection = incomingCity === city ? 'in' : 'out'
-          const incomingDetails = incomingDirection === 'in' ? city.transportIn : previousCity?.transportOut
-          const incomingTicket = incomingDirection === 'in' ? city.trainIn : previousCity?.trainOut ?? ''
-          const incomingLabel = `Билеты в ${city.name}`
-          return (
-            <div className={`sidebar-city-group${city.id === selectedCityId ? ' selected' : ''}`} key={city.id}>
-              <CityRow city={`${city.id === selectedCityId ? '📌 ' : ''}${city.name}`} dates={formatShortRange(city.arrival, city.departure)} duration={formatDays(cityDays(city))} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" selected={city.id === selectedCityId} aria-current={city.id === selectedCityId ? 'true' : undefined} onClick={() => onCity(city)} />
-              <div className="sidebar-city-documents">
-                <DocumentStatus checked={isTransportComplete(incomingDetails, incomingTicket)} onClick={() => onTransport(incomingCity, incomingDirection)}>{withTransportEmoji(incomingLabel, incomingDetails?.type)}</DocumentStatus>
-                <DocumentStatus checked={isHotelComplete(city)} onClick={() => onHotel(city)}>Отель</DocumentStatus>
-                {index === trip.cities.length - 1 && <DocumentStatus checked={isTransportComplete(city.transportOut, city.trainOut)} onClick={() => onTransport(city, 'out')}>{withTransportEmoji('Отъезд', city.transportOut?.type)}</DocumentStatus>}
-              </div>
-            </div>
-          )
-        })}</div>
+        <div className="city-list">{trip.cities.map((city) => <CityRow key={city.id} city={`${city.id === selectedCityId ? '📌 ' : ''}${city.name}`} dates={formatShortRange(city.arrival, city.departure)} duration={formatDays(cityDays(city))} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" selected={city.id === selectedCityId} aria-current={city.id === selectedCityId ? 'true' : undefined} onClick={() => onCity(city)} />)}</div>
         {trip.role === 'owner' && <div className="trip-summary-actions">
           <Button onClick={onEdit}>Редактировать</Button>
           <Button theme="secondary" onClick={onInvite}>Пригласить</Button>
         </div>}
         <p className="countdown">{daysLeft > 0 ? `🎉 Едем через ${formatDays(daysLeft)}` : daysLeft === 0 ? '🎉 Поездка начинается сегодня' : '🎉 Путешествие уже началось'}</p>
+      </section>
+      <section className="glass sidebar-card links-card">
+        <h3>Отели</h3>
+        {trip.cities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{city.name}</DocumentStatus>)}
+        <div className="divider" />
+        <h3>Транспорт</h3>
+        {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}>{withTransportEmoji('Приезд', trip.cities[0].transportIn?.type)}</DocumentStatus>}
+        {trip.cities.slice(0, -1).map((city, index) => {
+          const nextCity = trip.cities[index + 1]
+          const checked = isTransportComplete(city.transportOut, city.trainOut) || isTransportComplete(nextCity.transportIn, nextCity.trainIn)
+          const type = city.transportOut?.type ?? nextCity.transportIn?.type
+          return <DocumentStatus key={`${city.id}:${nextCity.id}`} checked={checked} onClick={() => onTransport(city, 'out')}>{withTransportEmoji(`${city.name} — ${nextCity.name}`, type)}</DocumentStatus>
+        })}
+        {trip.cities.at(-1) && <DocumentStatus checked={isTransportComplete(trip.cities.at(-1)!.transportOut, trip.cities.at(-1)!.trainOut)} onClick={() => onTransport(trip.cities.at(-1)!, 'out')}>{withTransportEmoji('Отъезд', trip.cities.at(-1)!.transportOut?.type)}</DocumentStatus>}
       </section>
       {user && <section className="glass sidebar-card profile-card">
         <InfoRow image={user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`} imageAlt="Аватар профиля" imageShape="circle" title={user.displayName} subtitle={user.email} onClick={onProfile} />
@@ -876,31 +873,6 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
     onChange(next)
     setTransportDirection(null)
   }
-  const saveHotel = (hotel: HotelDetails) => {
-    let next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes }
-    if (hotel.name.trim()) {
-      const arrivalPlaces = next.places[next.arrival] ?? []
-      const previousUrl = draft.hotelUrl.trim()
-      const previousName = draft.hotel.trim()
-      const existing = arrivalPlaces.find((item) =>
-        (previousUrl && item.url.trim() === previousUrl)
-        || (hotel.url.trim() && item.url.trim() === hotel.url.trim())
-        || (previousName && item.name.trim() === previousName),
-      )
-      if (existing) {
-        const place = { ...existing, name: hotel.name.trim(), url: hotel.url.trim(), ...(coordinatesFromGoogleMapsUrl(hotel.url) ?? {}) }
-        next = { ...next, places: { ...next.places, [next.arrival]: arrivalPlaces.map((item) => item.id === place.id ? place : item) } }
-        onUpdatePlace(next, next.arrival, place)
-      } else {
-        const place = { id: uid(), name: hotel.name.trim(), url: hotel.url.trim(), ...(coordinatesFromGoogleMapsUrl(hotel.url) ?? {}) }
-        next = { ...next, places: { ...next.places, [next.arrival]: [...arrivalPlaces, place] } }
-        onAddPlace(next, next.arrival, place)
-      }
-    }
-    setDraft(next)
-    onChange(next)
-    setHotelOpen(false)
-  }
   return (
     <>
       <section className="glass city-page-card setup-transition">
@@ -909,7 +881,7 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
           <TypographyGroup className="city-compact-copy" title={draft.name} text={<>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))}</>} />
         </div>
         <div className="info-strip">
-          <InfoRow title="Твой отель" subtitle={[draft.hotelCheckInTime, draft.hotel].filter(Boolean).join(' · ') || 'Где будем жить'} onClick={() => setHotelOpen(true)} actions={hotelDocument ? [{ icon: <Icon name="docs" />, label: 'Открыть бронь отеля', onClick: () => onOpenDocument(hotelDocument) }] : []} />
+          <InfoRow title="Твой отель" subtitle={draft.hotel || 'Где будем жить'} onClick={() => setHotelOpen(true)} />
           <InfoRow title={withTransportEmoji(previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд', draft.transportIn.type)} subtitle={transportSubtitle(draft.transportIn)} onClick={() => setTransportDirection('in')} actions={transportDocuments('in')[0] ? [{ icon: <Icon name="docs" />, label: 'Открыть прикреплённые билеты', onClick: () => openTransportDocuments('in') }] : []} />
           <InfoRow title={withTransportEmoji(nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд', draft.transportOut.type)} subtitle={transportSubtitle(draft.transportOut)} onClick={() => setTransportDirection('out')} actions={transportDocuments('out')[0] ? [{ icon: <Icon name="docs" />, label: 'Открыть прикреплённые билеты', onClick: () => openTransportDocuments('out') }] : []} />
           <input ref={trainInFileRef} className="hidden-file-input" type="file" multiple onChange={(e) => { addTrainFiles(e.target.files, 'in'); e.currentTarget.value = '' }} />
@@ -948,7 +920,7 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
         </div>
       </section>
       {transportDirection && <TransportDialog title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд') : (nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд')} value={transportDirection === 'in' ? draft.transportIn : draft.transportOut} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => setTransportDirection(null)} onSave={saveTransport} />}
-      {hotelOpen && <HotelDialog cityName={draft.name} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => setHotelOpen(false)} onSave={saveHotel} />}
+      {hotelOpen && <HotelDialog cityName={draft.name} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => setHotelOpen(false)} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes }; setDraft(next); onChange(next); setHotelOpen(false) }} />}
     </>
   )
 }
@@ -1197,8 +1169,7 @@ export default function App() {
 
   const updateCity = async (city: City) => {
     if (!trip?.id) return
-    const routePayload = trip.role === 'owner' ? { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod } : {}
-    try { await api.updateCity(trip.id, city.id, { ...routePayload, ...hotelPayload(city), ...transportPayload(city) }); setError('') }
+    try { await api.updateCity(trip.id, city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...hotelPayload(city), ...transportPayload(city) }) }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка сохранения') }
   }
 

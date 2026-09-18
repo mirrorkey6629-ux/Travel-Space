@@ -364,12 +364,6 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .trip-summary .city-row-with-image { min-height: 64px; height: 64px; }
 .trip-summary .city-row span { color: rgba(255,255,255,.8); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
 .trip-summary .city-row.selected { background: rgba(255,255,255,.24); }
-.sidebar-city-list { gap: 8px; }
-.sidebar-city-group { display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: var(--glass-soft); }
-.sidebar-city-group.selected { background: rgba(255,255,255,.24); }
-.trip-summary .sidebar-city-group .city-row,
-.trip-summary .sidebar-city-group .city-row.selected { border-radius: 0; background: transparent; }
-.sidebar-city-documents { padding: 0 20px 14px; }
 .links-card h3 { margin: 0 0 16px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); display: flex; align-items: center; gap: 6px; }
 .links-card h3 button, .city-day h3 button { width: 24px; height: 24px; border-radius: 50%; color: #fff; background: var(--glass-soft); display: inline-grid; place-items: center; padding: 4px; }
 .links-card h3 button .ui-icon { margin: auto; }
