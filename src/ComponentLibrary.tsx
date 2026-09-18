@@ -6,6 +6,8 @@ import { Input, Select } from './components/FormControls'
 import { InfoRow } from './components/InfoRow'
 import { TypographyGroup } from './components/TypographyGroup'
 import { Tabs } from './components/Tabs'
+import { SecondaryText } from './components/SecondaryText'
+import { CityRow } from './components/CityRow'
 import './component-library.css'
 
 const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'calendar-month', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'face', 'image', 'key', 'link', 'pin-home', 'planet', 'time', 'upload-file']
@@ -45,6 +47,7 @@ export default function ComponentLibrary() {
   const [infoRowImage, setInfoRowImage] = useState(false)
   const [infoRowImageShape, setInfoRowImageShape] = useState<'rounded' | 'circle'>('rounded')
   const [infoRowActionTheme, setInfoRowActionTheme] = useState<'transparent' | 'secondary'>('transparent')
+  const [cityRowImage, setCityRowImage] = useState(false)
   const inputIcons = {
     icon: inputLeftIcon ? <Icon name="attractions" /> : undefined,
     trailingIcon: inputRightIcon ? <Icon name="content-copy" /> : undefined,
@@ -62,10 +65,12 @@ export default function ComponentLibrary() {
         </aside>
 
         <div className="kit-content">
-        <Section id="typography" title="Типографика" description="Единая шкала текста проекта">
+        <Section id="typography" title="Типографика" description="Единая шкала текста проекта" className="kit-typography-section">
           <Specimen name="Head L"><Variant label="32px · Medium"><p className="type-head-l kit-type-line">Название поездки</p></Variant></Specimen>
           <Specimen name="Head M"><Variant label="20px · Medium"><p className="type-head-m kit-type-line">Название города</p></Variant></Specimen>
           <Specimen name="Text"><Variant label="15px · Regular"><p className="kit-type-line">Основной текст и подписи</p></Variant></Specimen>
+          <Specimen name="Text S"><Variant label="13px · Regular"><p className="type-text-s kit-type-line">Вспомогательный текст</p></Variant></Specimen>
+          <Specimen name="Secondary text"><Variant label="Default"><SecondaryText>Вторичный текст</SecondaryText></Variant><Variant label="Interactive"><button className="kit-secondary-text-demo"><SecondaryText interactive>Наведи на текст</SecondaryText></button></Variant></Specimen>
         </Section>
 
         <Section id="typography-groups" title="Группы текста" description="Готовые сочетания заголовков и поясняющего текста">
@@ -86,7 +91,7 @@ export default function ComponentLibrary() {
         </Section>
 
         <Section id="lists" title="Списки и плашки" description="Карточки основного интерфейса">
-          <Specimen name="City row"><Variant label="Default" wide><button className="city-row"><strong>Осака</strong><span>4–6 окт</span><span>1,5 дня</span></button></Variant><Variant label="Selected" wide><button className="city-row kit-selected"><strong>📌 Киото</strong><span>7–10 окт</span><span>2,5 дня</span></button></Variant></Specimen>
+          <Specimen name="City row"><div className="kit-city-row-controls"><label className="kit-toggle"><span>Картинка</span><input type="checkbox" checked={cityRowImage} onChange={(event) => setCityRowImage(event.target.checked)} /><i aria-hidden="true" /></label></div><Variant label="Default" wide><CityRow city="Осака" dates="4–6 окт" duration="1,5 дня" image={cityRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" /></Variant><Variant label="Selected" wide><CityRow className="kit-selected" city="📌 Киото" dates="7–10 окт" duration="2,5 дня" image={cityRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" /></Variant></Specimen>
           <Specimen name="Info row">
             <div className="kit-info-row-controls">
               <label className="kit-toggle"><span>Кнопка 1</span><input type="checkbox" checked={infoRowFirstAction} onChange={(event) => setInfoRowFirstAction(event.target.checked)} /><i aria-hidden="true" /></label>

@@ -15,6 +15,11 @@
   --type-text-weight: 400;
   --type-text-line-height: 1.2;
   --type-text-letter-spacing: 0;
+
+  --type-text-s-size: 13px;
+  --type-text-s-weight: 400;
+  --type-text-s-line-height: 1.2;
+  --type-text-s-letter-spacing: 0;
 }
 
 .type-head-l {
@@ -39,4 +44,12 @@
   font-weight: var(--type-text-weight);
   line-height: var(--type-text-line-height);
   letter-spacing: var(--type-text-letter-spacing);
+}
+
+.type-text-s {
+  font-family: var(--font-family);
+  font-size: var(--type-text-s-size);
+  font-weight: var(--type-text-s-weight);
+  line-height: var(--type-text-s-line-height);
+  letter-spacing: var(--type-text-s-letter-spacing);
 }

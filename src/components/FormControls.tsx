@@ -1,4 +1,4 @@
-import { InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from 'react'
+import { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
 
 type InputProps = InputHTMLAttributes<HTMLInputElement> & {
   icon?: ReactNode
@@ -25,6 +25,17 @@ export function Input({ icon, trailingIcon, trailingIconLabel, onTrailingIconCli
   )
   if (showLabel && label) return <label className={`field${fieldClassName ? ` ${fieldClassName}` : ''}`}><span>{label}</span>{control}</label>
   return control
+}
+
+type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
+  label?: ReactNode
+  controlClassName?: string
+  fieldClassName?: string
+}
+
+export function Textarea({ label, controlClassName = '', fieldClassName = '', ...props }: TextareaProps) {
+  const control = <span className={`form-control form-textarea${controlClassName ? ` ${controlClassName}` : ''}`}><textarea {...props} /></span>
+  return label ? <label className={`field${fieldClassName ? ` ${fieldClassName}` : ''}`}><span>{label}</span>{control}</label> : control
 }
 
 type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {

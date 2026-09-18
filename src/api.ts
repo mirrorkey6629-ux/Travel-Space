@@ -11,6 +11,7 @@ export type ApiTripSummary = {
   start_date: string
   end_date: string
   role: ApiRole
+  background_removed?: boolean
 }
 
 export type ApiCity = {
@@ -24,6 +25,9 @@ export type ApiCity = {
   departure_period: 'morning' | 'day' | 'evening'
   hotel: string
   hotel_url: string
+  hotel_check_in_time: string
+  hotel_check_out_time: string
+  hotel_notes: string
   train_in: string
   train_out: string
   transport_in_type: TransportType | null
@@ -36,6 +40,8 @@ export type ApiCity = {
   transport_in_station_url: string
   transport_out_station: string
   transport_out_station_url: string
+  transport_in_notes: string
+  transport_out_notes: string
 }
 
 export type TransportType = 'train' | 'plane' | 'bus' | 'ship'
@@ -63,6 +69,9 @@ export type ApiDocument = {
   city_id: string | null
   category: string
   original_name: string
+  created_by: string
+  created_by_name: string
+  created_at: string
 }
 
 export type ApiMember = {
@@ -71,6 +80,7 @@ export type ApiMember = {
   display_name: string
   role: ApiRole
   joined_at: string
+  has_avatar: boolean
 }
 
 export type ApiTripDetails = ApiTripSummary & {
@@ -116,14 +126,18 @@ const json = (method: string, body?: unknown): RequestInit => ({ method, body: b
 export const api = {
   register: (email: string, password: string, displayName: string) => request<{ token: string }>('/auth/register', json('POST', { email, password, displayName })),
   login: (email: string, password: string) => request<{ token: string }>('/auth/login', json('POST', { email, password })),
-  me: () => request<{ user: { id: string; email: string; displayName: string } }>('/me'),
+  me: () => request<{ user: { id: string; email: string; displayName: string; hasAvatar: boolean } }>('/me'),
+  updateProfile: (value: { displayName: string; email: string; password?: string }) => request<{ user: { id: string; email: string; displayName: string; hasAvatar: boolean } }>('/me', json('PATCH', value)),
+  uploadAvatar: (file: File) => { const form = new FormData(); form.append('file', file); return request<{ ok: true }>('/me/avatar', { method: 'POST', body: form }) },
+  downloadAvatar: () => checkedResponse('/me/avatar').then((response) => response.blob()),
   trips: () => request<{ trips: ApiTripSummary[] }>('/trips'),
   trip: (id: string) => request<{ trip: ApiTripDetails }>(`/trips/${id}`),
-  createTrip: (value: { name: string; startDate: string; endDate: string }) => request<{ trip: ApiTripSummary }>('/trips', json('POST', value)),
-  updateTrip: (id: string, value: { name: string; startDate: string; endDate: string }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),
+  createTrip: (value: { name: string; startDate: string; endDate: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>('/trips', json('POST', value)),
+  updateTrip: (id: string, value: { name: string; startDate: string; endDate: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),
   deleteTrip: (id: string, confirmation: string) => request<void>(`/trips/${id}`, json('DELETE', { confirmation })),
   createInvitation: (id: string, expiresInHours: number) => request<{ invitation: { id: string; url: string; expiresAt: string } }>(`/trips/${id}/invitations`, json('POST', { expiresInHours })),
   removeMember: (tripId: string, memberId: string) => request<void>(`/trips/${tripId}/members/${memberId}`, { method: 'DELETE' }),
+  downloadMemberAvatar: (tripId: string, memberId: string) => checkedResponse(`/trips/${tripId}/members/${memberId}/avatar`).then((response) => response.blob()),
   exportTrip: async (tripId: string) => {
     const response = await checkedResponse(`/trips/${tripId}/export`)
     return response.blob()
@@ -139,10 +153,11 @@ export const api = {
   createPlace: (tripId: string, cityId: string, value: { name: string; googleMapsUrl: string; visitDate?: string; latitude?: number; longitude?: number }) => request<{ place: ApiPlace }>(`/trips/${tripId}/cities/${cityId}/places`, json('POST', value)),
   updatePlace: (tripId: string, placeId: string, value: { name?: string; googleMapsUrl?: string; visitDate?: string; latitude?: number; longitude?: number }) => request<{ place: ApiPlace }>(`/trips/${tripId}/places/${placeId}`, json('PATCH', value)),
   createTask: (tripId: string, value: { cityId?: string; dueDate?: string; title: string }) => request<{ task: ApiTask }>(`/trips/${tripId}/tasks`, json('POST', value)),
-  uploadDocument: async (tripId: string, cityId: string, category: string, file: File) => {
+  uploadDocument: async (tripId: string, cityId: string | undefined, category: string, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    const query = new URLSearchParams({ tripId, cityId, category })
+    const query = new URLSearchParams({ tripId, category })
+    if (cityId) query.set('cityId', cityId)
     return request<{ document: ApiDocument }>(`/documents?${query}`, { method: 'POST', body: form })
   },
   downloadDocument: (documentId: string) => checkedResponse(`/documents/${documentId}/download`).then((response) => response.blob()),

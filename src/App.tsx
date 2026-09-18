@@ -1,19 +1,22 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiTripDetails, ApiTripSummary, session, TransportType } from './api'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
-import { Input, Select } from './components/FormControls'
+import { Input, Select, Textarea } from './components/FormControls'
 import { InfoRow } from './components/InfoRow'
 import { TypographyGroup } from './components/TypographyGroup'
 import { Tabs } from './components/Tabs'
 import { GoogleMapPicker } from './components/GoogleMapPicker'
+import { SecondaryText } from './components/SecondaryText'
+import { CityRow } from './components/CityRow'
 
 type Place = { id: string; name: string; url: string; latitude?: number; longitude?: number }
 type Task = { id: string; title: string; done: boolean }
-type TravelFile = { id: string; name: string; category: string }
-type HotelDetails = { name: string; url: string }
-type TransportDetails = { type?: TransportType; departureTime: string; arrivalTime: string; station: string; stationUrl: string }
-type TripMember = { id: string; email: string; displayName: string; role: 'owner' | 'member' }
+type TravelFile = { id: string; name: string; category: string; uploadedBy?: string; uploadedAt?: string }
+type HotelDetails = { name: string; url: string; checkInTime: string; checkOutTime: string; notes: string }
+type TransportDetails = { type?: TransportType; departureTime: string; arrivalTime: string; station: string; stationUrl: string; notes: string }
+type TripMember = { id: string; email: string; displayName: string; role: 'owner' | 'member'; hasAvatar?: boolean; avatarUrl?: string }
+type CurrentUser = { id: string; email: string; displayName: string; hasAvatar: boolean; avatarUrl?: string }
 type DayPeriod = 'morning' | 'day' | 'evening'
 type City = {
   id: string
@@ -24,6 +27,9 @@ type City = {
   departurePeriod?: DayPeriod
   hotel: string
   hotelUrl: string
+  hotelCheckInTime: string
+  hotelCheckOutTime: string
+  hotelNotes: string
   trainIn: string
   trainOut: string
   transportIn: TransportDetails
@@ -31,13 +37,20 @@ type City = {
   places: Record<string, Place[]>
   tasks: Task[]
   files: TravelFile[]
+  image?: TravelFile
+  imageUrl?: string
+  imageFile?: File
+  imageDeleteId?: string
 }
-type Trip = { id?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; cities: City[]; members?: TripMember[] }
-type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard'
+type Trip = { id?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; cities: City[]; members?: TripMember[]; background?: TravelFile; backgroundUrl?: string; backgroundFile?: File; backgroundRemoved?: boolean; backgroundDeleteId?: string }
+type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard' | 'profile'
 export type IconName = 'link' | 'content-copy' | 'add-pin' | 'add-circle' | 'add-plus' | 'arrow-back' | 'attractions' | 'calendar-month' | 'time' | 'planet' | 'close' | 'edit-location' | 'pin-home' | 'image' | 'edit' | 'face' | 'key' | 'delete-forever' | 'download' | 'upload-file' | 'docs'
 
 const STORAGE_KEY = 'tabi-trip-v1'
 const UNSCHEDULED_KEY = 'unscheduled'
+const ADMIN_EMAIL = 'mirrorkey6629@gmail.com'
+const defaultTripBackground = `${import.meta.env.BASE_URL}assets/autumn-garden.jpg`
+const cityPlaceholder = `${import.meta.env.BASE_URL}assets/city-placeholder.png`
 const ruMonths = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 const ruWeekdays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 
@@ -112,6 +125,8 @@ const dateRange = (from: string, to: string) => {
   return result
 }
 
+const tripBackgroundStyle = (trip: Trip): CSSProperties => ({ '--trip-background-image': trip.backgroundRemoved ? 'none' : `url("${trip.backgroundUrl || defaultTripBackground}")` } as CSSProperties)
+
 const coordinatesFromGoogleMapsUrl = (value: string) => {
   const match = value.match(/[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/) ?? value.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
   if (!match) return undefined
@@ -121,6 +136,7 @@ const coordinatesFromGoogleMapsUrl = (value: string) => {
 }
 
 const fromApiTrip = (source: ApiTripDetails): Trip => {
+  const backgroundDocument = source.documents.find((document) => !document.city_id && document.category === 'trip-background')
   const cities = source.cities.map<City>((city) => {
     const places: Record<string, Place[]> = {}
     source.places.filter((place) => place.city_id === city.id).forEach((place) => {
@@ -130,6 +146,7 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
     const documents = source.documents.filter((document) => document.city_id === city.id)
     const trainIn = documents.find((document) => document.category.startsWith('train-in:'))?.original_name || city.train_in
     const trainOut = documents.find((document) => document.category.startsWith('train-out:'))?.original_name || city.train_out
+    const imageDocument = documents.find((document) => document.category === 'city-image')
     return {
       id: city.id,
       name: city.name,
@@ -139,16 +156,20 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
       departurePeriod: city.departure_period,
       hotel: city.hotel,
       hotelUrl: city.hotel_url,
+      hotelCheckInTime: city.hotel_check_in_time ?? '',
+      hotelCheckOutTime: city.hotel_check_out_time ?? '',
+      hotelNotes: city.hotel_notes ?? '',
       trainIn,
       trainOut,
-      transportIn: { type: city.transport_in_type ?? undefined, departureTime: city.transport_in_departure_time, arrivalTime: city.transport_in_arrival_time, station: city.transport_in_station, stationUrl: city.transport_in_station_url },
-      transportOut: { type: city.transport_out_type ?? undefined, departureTime: city.transport_out_departure_time, arrivalTime: city.transport_out_arrival_time, station: city.transport_out_station, stationUrl: city.transport_out_station_url },
+      transportIn: { type: city.transport_in_type ?? undefined, departureTime: city.transport_in_departure_time, arrivalTime: city.transport_in_arrival_time, station: city.transport_in_station, stationUrl: city.transport_in_station_url, notes: city.transport_in_notes ?? '' },
+      transportOut: { type: city.transport_out_type ?? undefined, departureTime: city.transport_out_departure_time, arrivalTime: city.transport_out_arrival_time, station: city.transport_out_station, stationUrl: city.transport_out_station_url, notes: city.transport_out_notes ?? '' },
       places,
       tasks: source.tasks.filter((task) => task.city_id === city.id).map((task) => ({ id: task.id, title: task.title, done: task.done })),
-      files: documents.map((document) => ({ id: document.id, name: document.original_name, category: document.category })),
+      files: documents.map((document) => ({ id: document.id, name: document.original_name, category: document.category, uploadedBy: document.created_by_name, uploadedAt: document.created_at })),
+      image: imageDocument ? { id: imageDocument.id, name: imageDocument.original_name, category: imageDocument.category, uploadedBy: imageDocument.created_by_name, uploadedAt: imageDocument.created_at } : undefined,
     }
   })
-  return { id: source.id, role: source.role, name: source.name, startDate: source.start_date.slice(0, 10), endDate: source.end_date.slice(0, 10), cities, members: source.members.map((member) => ({ id: member.id, email: member.email, displayName: member.display_name, role: member.role })) }
+  return { id: source.id, role: source.role, name: source.name, startDate: source.start_date.slice(0, 10), endDate: source.end_date.slice(0, 10), cities, members: source.members.map((member) => ({ id: member.id, email: member.email, displayName: member.display_name, role: member.role, hasAvatar: member.has_avatar })), background: backgroundDocument ? { id: backgroundDocument.id, name: backgroundDocument.original_name, category: backgroundDocument.category } : undefined, backgroundUrl: source.background_removed ? undefined : defaultTripBackground, backgroundRemoved: Boolean(source.background_removed) }
 }
 
 // BASE_URL — это vite base, всегда со слэшем на конце. Строки, которые JS собирает
@@ -347,7 +368,66 @@ function JoinScreen({ onSubmit, initialLink = '' }: { onSubmit: (link: string, n
   )
 }
 
-function TripsScreen({ trips, deleteTarget, onOpen, onCreate, onClose, onDelete, onCloseDelete, onConfirmDelete, onExport, onImport }: { trips: ApiTripSummary[]; deleteTarget: ApiTripSummary | null; onOpen: (id: string) => void; onCreate: () => void; onClose: () => void; onDelete: (trip: ApiTripSummary) => void; onCloseDelete: () => void; onConfirmDelete: () => Promise<void>; onExport: (trip: ApiTripSummary) => Promise<void>; onImport: (file: File) => Promise<void> }) {
+function ProfileScreen({ user, onBack, onSave, onAvatar }: { user: CurrentUser; onBack: () => void; onSave: (value: { displayName: string; email: string; password?: string }) => Promise<void>; onAvatar: (file: File) => Promise<string> }) {
+  const [displayName, setDisplayName] = useState(user.displayName)
+  const [email, setEmail] = useState(user.email)
+  const [password, setPassword] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [message, setMessage] = useState('')
+  const avatarInputRef = useRef<HTMLInputElement>(null)
+  const avatarPreviewRef = useRef<string | null>(null)
+  useEffect(() => () => { if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current) }, [])
+  const profileChanged = displayName.trim() !== user.displayName || email.trim().toLowerCase() !== user.email.toLowerCase() || Boolean(password)
+  const changed = profileChanged || Boolean(avatarFile)
+  const valid = displayName.trim() && /^\S+@\S+\.\S+$/.test(email.trim()) && (!password || password.length >= 8)
+  const submit = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!changed || !valid) return
+    setBusy(true)
+    setMessage('')
+    try {
+      if (profileChanged) await onSave({ displayName: displayName.trim(), email: email.trim().toLowerCase(), ...(password ? { password } : {}) })
+      if (avatarFile) {
+        const savedUrl = await onAvatar(avatarFile)
+        if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current)
+        avatarPreviewRef.current = null
+        setAvatarUrl(savedUrl)
+        setAvatarFile(null)
+      }
+      setPassword('')
+      setMessage('Изменения сохранены')
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'Не удалось сохранить изменения')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <main className="screen auth-screen profile-screen">
+      <GalaxyBackground />
+      <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
+      <form className="glass profile-card-screen" onSubmit={submit}>
+        <h1>Профиль</h1>
+        <button className="profile-avatar-button" type="button" onClick={() => avatarInputRef.current?.click()} aria-label="Загрузить новый аватар">
+          <img className="profile-avatar" src={avatarUrl} alt="Аватар профиля" />
+          <span className="profile-avatar-overlay"><Icon name="edit" size={32} /></span>
+        </button>
+        <input ref={avatarInputRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current); avatarPreviewRef.current = URL.createObjectURL(file); setAvatarUrl(avatarPreviewRef.current); setAvatarFile(file); setMessage(''); event.currentTarget.value = '' }} />
+        <div className="profile-fields">
+          <Input icon={<Icon name="face" />} aria-label="Имя" placeholder="Имя" value={displayName} onChange={(event) => { setDisplayName(event.target.value); setMessage('') }} autoComplete="name" />
+          <Input icon={<Icon name="planet" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" />
+          <Input icon={<Icon name="key" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" />
+        </div>
+        <Button type="submit" disabled={busy || !changed || !valid}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button>
+        {message && <p className="form-hint">{message}</p>}
+      </form>
+    </main>
+  )
+}
+
+function TripsScreen({ trips, canCreate, deleteTarget, onOpen, onCreate, onClose, onDelete, onCloseDelete, onConfirmDelete, onExport, onImport }: { trips: ApiTripSummary[]; canCreate: boolean; deleteTarget: ApiTripSummary | null; onOpen: (id: string) => void; onCreate: () => void; onClose: () => void; onDelete: (trip: ApiTripSummary) => void; onCloseDelete: () => void; onConfirmDelete: () => Promise<void>; onExport: (trip: ApiTripSummary) => Promise<void>; onImport: (file: File) => Promise<void> }) {
   const importRef = useRef<HTMLInputElement>(null)
   return (
     <main className="screen auth-screen trips-screen">
@@ -360,9 +440,11 @@ function TripsScreen({ trips, deleteTarget, onOpen, onCreate, onClose, onDelete,
             <div className="trips-list">
               {trips.map((item) => <InfoRow key={item.id} image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="" title={item.name} subtitle={<>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</>} onClick={() => onOpen(item.id)} actionTheme="secondary" actions={item.role === 'owner' ? [{ icon: <Icon name="download" />, label: `Экспортировать поездку ${item.name}`, title: 'Экспортировать', onClick: () => void onExport(item) }, { icon: <Icon name="delete-forever" />, label: `Удалить поездку ${item.name}`, title: 'Удалить', className: 'trip-delete-trigger', onClick: () => onDelete(item) }] : []} />)}
             </div>
-            <AddRow icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />
-            <button className="auth-mode-switch trips-import-link" type="button" onClick={() => importRef.current?.click()}>Импортировать поездку из файла</button>
-            <input ref={importRef} className="hidden-file-input" type="file" accept=".travelspace,application/vnd.travel-space+json,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onImport(file); event.currentTarget.value = '' }} />
+            {canCreate && <>
+              <AddRow icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />
+              <button className="auth-mode-switch trips-import-link" type="button" onClick={() => importRef.current?.click()}>Импортировать поездку из файла</button>
+              <input ref={importRef} className="hidden-file-input" type="file" accept=".travelspace,application/vnd.travel-space+json,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onImport(file); event.currentTarget.value = '' }} />
+            </>}
           </div>
         </div>}
       </section>
@@ -390,12 +472,12 @@ function InviteScreen({ trip, onBack, onCreate, onRemove }: { trip: Trip; onBack
     if (left.role === right.role) return 0
     return left.role === 'owner' ? -1 : 1
   })
-  return <main className="screen trip-background setup-screen">
+  return <main className="screen trip-background setup-screen" style={tripBackgroundStyle(trip)}>
     <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
     <section className="glass setup-card invite-screen-card">
       <h1>Участники «{trip.name}»</h1>
       {members.length > 0
-        ? <div className="member-list">{members.map((member) => <InfoRow key={member.id} image={`${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</div>
+        ? <div className="member-list">{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</div>
         : <p>Не удалось загрузить список участников.</p>}
       <div className="invite-divider" />
       <TypographyGroup headingLevel="h2" variant="head-m-text" title="Ссылка-приглашение" text="Ссылка действует 24 часа. Новая ссылка сразу отключит предыдущую. Все вошедшие по ней станут гостями." />
@@ -405,7 +487,7 @@ function InviteScreen({ trip, onBack, onCreate, onRemove }: { trip: Trip; onBack
   </main>
 }
 
-const emptyTransport = (): TransportDetails => ({ departureTime: '', arrivalTime: '', station: '', stationUrl: '' })
+const emptyTransport = (): TransportDetails => ({ departureTime: '', arrivalTime: '', station: '', stationUrl: '', notes: '' })
 const transportPayload = (city: City) => ({
   transportInType: city.transportIn?.type,
   transportOutType: city.transportOut?.type,
@@ -417,21 +499,29 @@ const transportPayload = (city: City) => ({
   transportInStationUrl: city.transportIn?.stationUrl ?? '',
   transportOutStation: city.transportOut?.station ?? '',
   transportOutStationUrl: city.transportOut?.stationUrl ?? '',
+  transportInNotes: city.transportIn?.notes ?? '',
+  transportOutNotes: city.transportOut?.notes ?? '',
 })
-const emptyCity = (): City => ({ id: uid(), name: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotel: '', hotelUrl: '', trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), places: {}, tasks: [], files: [] })
+const hotelPayload = (city: City) => ({ hotel: city.hotel, hotelUrl: city.hotelUrl, hotelCheckInTime: city.hotelCheckInTime ?? '', hotelCheckOutTime: city.hotelCheckOutTime ?? '', hotelNotes: city.hotelNotes ?? '' })
+const emptyCity = (): City => ({ id: uid(), name: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), places: {}, tasks: [], files: [] })
 
 function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: City; onSave: (city: City) => void; onClose: () => void }) {
   const [city, setCity] = useState<City>(() => initial ? { ...initial, arrivalPeriod: initial.arrivalPeriod ?? 'morning', departurePeriod: initial.departurePeriod ?? 'evening' } : emptyCity())
+  const imageFileRef = useRef<HTMLInputElement>(null)
+  const imagePreviewUrlRef = useRef<string | null>(null)
   const sameDayPeriodsValid = city.arrival !== city.departure || periodOrder[city.departurePeriod ?? 'evening'] >= periodOrder[city.arrivalPeriod ?? 'morning']
   const valid = city.name.trim() && city.arrival && city.departure && city.departure >= city.arrival && sameDayPeriodsValid
   const tripDates = dateRange(trip.startDate, trip.endDate)
   const departureDates = tripDates.filter((date) => !city.arrival || date >= city.arrival)
+  const hasImage = Boolean(city.imageFile || city.image || city.imageUrl)
   return (
     <form className="city-editor-view setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
       <div className="modal-title">
         <div>{!initial && <span className="eyebrow">Новая локация</span>}<h2>{initial ? city.name : 'Добавить город'}</h2></div>
         <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
       </div>
+      <InfoRow className="city-image-row" image={hasImage ? city.imageUrl || cityPlaceholder : undefined} imageAlt="Фото города" title={hasImage ? 'Фото города' : 'Прикрепить фото города'} subtitle={hasImage ? city.imageFile?.name || city.image?.name || 'Фото города' : 'Лучше в вертикальном формате'} actions={hasImage ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фото города', onClick: () => imageFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото города', onClick: () => setCity((current) => ({ ...current, imageDeleteId: current.image?.id, image: undefined, imageFile: undefined, imageUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото города', onClick: () => imageFileRef.current?.click() }]} />
+      <input ref={imageFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current); imagePreviewUrlRef.current = URL.createObjectURL(file); setCity((current) => ({ ...current, imageFile: file, imageUrl: imagePreviewUrlRef.current ?? undefined })); event.currentTarget.value = '' }} />
       <div className="field-grid">
         <label className="field span-2"><span>Город</span><Input value={city.name} onChange={(e) => setCity({ ...city, name: e.target.value })} placeholder="Например, Осака" autoFocus /></label>
         <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(e) => { const value = e.target.value; setCity((current) => ({ ...current, arrival: value, departure: current.departure < value ? '' : current.departure })) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(e) => setCity((current) => ({ ...current, arrivalPeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
@@ -481,8 +571,10 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
   const [editingAll, setEditingAll] = useState(false)
   const startDateRef = useRef<HTMLInputElement>(null)
   const endDateRef = useRef<HTMLInputElement>(null)
+  const backgroundFileRef = useRef<HTMLInputElement>(null)
   const datesValid = trip.startDate && trip.endDate && trip.endDate >= trip.startDate
   const tripDays = datesValid ? daysBetween(trip.startDate, trip.endDate) : 0
+  const hasBackground = !trip.backgroundRemoved && Boolean(trip.backgroundFile || trip.background || trip.backgroundUrl)
   const openDatePicker = (ref: React.RefObject<HTMLInputElement | null>) => {
     const input = ref.current
     if (!input) return
@@ -496,7 +588,7 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
     setEditing(undefined)
   }
   return (
-    <main className="screen trip-background setup-screen">
+    <main className="screen trip-background setup-screen" style={tripBackgroundStyle(trip)}>
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onExit} aria-label="Назад" />
       <section className={`glass setup-card${editingAll ? ' editing-all' : ''}`}>
         {editingAll ? (
@@ -505,7 +597,6 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
           <CityEditor trip={trip} initial={editing ?? undefined} onSave={upsertCity} onClose={() => setEditing(undefined)} />
         ) : (
           <div className="setup-content setup-transition">
-            {trip.cities.length > 0 && <IconButton type="button" className="bulk-edit-button" icon={<Icon name="edit" />} onClick={() => setEditingAll(true)} aria-label="Редактировать все города" />}
             <div className="trip-fields">
               <input className="title-input" value={trip.name} onChange={(e) => setTrip((current) => ({ ...current, name: e.target.value }))} placeholder="Название поездки" />
               <div className="date-summary">
@@ -517,9 +608,12 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
                 <input ref={endDateRef} className="native-date-input" aria-label="Дата окончания поездки" type="date" min={trip.startDate} value={trip.endDate} onInput={(e) => { const value = e.currentTarget.value; setTrip((current) => ({ ...current, endDate: value, cities: [] })) }} />
               </div>
             </div>
+            <InfoRow className="trip-background-row" image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'Лучше в горизонтальном формате'} actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: () => backgroundFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: () => backgroundFileRef.current?.click() }]} />
+            <input ref={backgroundFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: URL.createObjectURL(file), backgroundRemoved: false })); event.currentTarget.value = '' }} />
             <div className="city-editor-group">
-              {trip.cities.length > 0 && <div className="city-list setup-list">{trip.cities.map((city) => <button className="city-row" key={city.id} onClick={() => setEditing(city)}><strong>{city.name}</strong><span>{formatShortRange(city.arrival, city.departure)}</span><span>{formatDays(cityDays(city))}</span></button>)}</div>}
+              {trip.cities.length > 0 && <div className="city-list setup-list">{trip.cities.map((city) => <CityRow key={city.id} city={city.name} dates={formatShortRange(city.arrival, city.departure)} duration={formatDays(cityDays(city))} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" onClick={() => setEditing(city)} />)}</div>}
               <AddRow icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
+              {trip.cities.length > 0 && <button className="route-overview-link" type="button" onClick={() => setEditingAll(true)}><SecondaryText interactive>Посмотреть весь маршрут</SecondaryText></button>}
             </div>
             {trip.cities.length > 0 && <Button disabled={!trip.name.trim()} onClick={() => onCreate(trip)}>{initial ? 'Сохранить' : 'Создать'}</Button>}
           </div>
@@ -530,7 +624,7 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
 }
 
 function DocumentStatus({ checked, children, onClick }: { checked: boolean; children: React.ReactNode; onClick?: () => void }) {
-  return <button type="button" className="document-row" onClick={onClick}><span className={`document-check${checked ? ' checked' : ''}`} role="checkbox" aria-checked={checked} />{children}</button>
+  return <button type="button" className="document-row" onClick={onClick}><span className={`document-check${checked ? ' checked' : ''}`} role="checkbox" aria-checked={checked} /><SecondaryText interactive>{children}</SecondaryText></button>
 }
 
 const isTransportComplete = (details: TransportDetails | undefined, ticketName: string) => Boolean(
@@ -542,16 +636,20 @@ const isTransportComplete = (details: TransportDetails | undefined, ticketName: 
   && details.stationUrl.trim(),
 )
 
+const isHotelComplete = (city: City) => Boolean(city.hotel.trim() && city.hotelUrl.trim() && city.hotelCheckInTime?.trim() && city.hotelCheckOutTime?.trim() && city.files.some((file) => file.category === 'hotel-booking'))
+
 const transportEmoji: Record<TransportType, string> = { train: '🚅', plane: '✈️', bus: '🚌', ship: '⛵' }
 const withTransportEmoji = (label: string, type?: TransportType) => type ? `${transportEmoji[type]} ${label}` : label
 
-function TripSidebar({ trip, selectedCityId, onCity, onHotel, onTransport, onEdit, onInvite }: { trip: Trip; selectedCityId?: string | null; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onEdit: () => void; onInvite: () => void }) {
+function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, onTransport, onEdit, onInvite, onTrips, onProfile }: { trip: Trip; user: CurrentUser | null; tripCount: number; selectedCityId?: string | null; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onEdit: () => void; onInvite: () => void; onTrips: () => void; onProfile: () => void }) {
   const daysLeft = Math.ceil((parseDate(trip.startDate).getTime() - new Date().getTime()) / 86400000)
+  const isAdmin = user?.email.toLowerCase() === ADMIN_EMAIL
+  const showTrips = tripCount > 1 || isAdmin
   return (
     <aside className="sidebar">
       <section className="glass sidebar-card trip-summary">
         <TypographyGroup title={trip.name} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {trip.role === 'owner' ? <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button> : formatParticipants(Math.max(1, trip.members?.length ?? 0))}</>} />
-        <div className="city-list">{trip.cities.map((city) => <button className={`city-row${city.id === selectedCityId ? ' selected' : ''}`} key={city.id} aria-current={city.id === selectedCityId ? 'true' : undefined} onClick={() => onCity(city)}><strong>{city.id === selectedCityId && '📌 '}{city.name}</strong><span>{formatShortRange(city.arrival, city.departure)}</span><span>{formatDays(cityDays(city))}</span></button>)}</div>
+        <div className="city-list">{trip.cities.map((city) => <CityRow key={city.id} city={`${city.id === selectedCityId ? '📌 ' : ''}${city.name}`} dates={formatShortRange(city.arrival, city.departure)} duration={formatDays(cityDays(city))} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" selected={city.id === selectedCityId} aria-current={city.id === selectedCityId ? 'true' : undefined} onClick={() => onCity(city)} />)}</div>
         {trip.role === 'owner' && <div className="trip-summary-actions">
           <Button onClick={onEdit}>Редактировать</Button>
           <Button theme="secondary" onClick={onInvite}>Пригласить</Button>
@@ -559,10 +657,10 @@ function TripSidebar({ trip, selectedCityId, onCity, onHotel, onTransport, onEdi
         <p className="countdown">{daysLeft > 0 ? `🎉 Едем через ${formatDays(daysLeft)}` : daysLeft === 0 ? '🎉 Поездка начинается сегодня' : '🎉 Путешествие уже началось'}</p>
       </section>
       <section className="glass sidebar-card links-card">
-        <h3>Отели <IconButton type="button" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Добавить бронь отеля" /></h3>
-        {trip.cities.map((city) => <DocumentStatus key={city.id} checked={Boolean(city.hotel)} onClick={() => onHotel(city)}>{city.name}</DocumentStatus>)}
+        <h3>Отели</h3>
+        {trip.cities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{city.name}</DocumentStatus>)}
         <div className="divider" />
-        <h3>Транспорт <IconButton type="button" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Добавить транспорт" /></h3>
+        <h3>Транспорт</h3>
         {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}>{withTransportEmoji('Приезд', trip.cities[0].transportIn?.type)}</DocumentStatus>}
         {trip.cities.slice(0, -1).map((city, index) => {
           const nextCity = trip.cities[index + 1]
@@ -572,6 +670,11 @@ function TripSidebar({ trip, selectedCityId, onCity, onHotel, onTransport, onEdi
         })}
         {trip.cities.at(-1) && <DocumentStatus checked={isTransportComplete(trip.cities.at(-1)!.transportOut, trip.cities.at(-1)!.trainOut)} onClick={() => onTransport(trip.cities.at(-1)!, 'out')}>{withTransportEmoji('Отъезд', trip.cities.at(-1)!.transportOut?.type)}</DocumentStatus>}
       </section>
+      {user && <section className="glass sidebar-card profile-card">
+        <InfoRow image={user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`} imageAlt="Аватар профиля" imageShape="circle" title={user.displayName} subtitle={user.email} onClick={onProfile} />
+        {showTrips && <Button onClick={onTrips}>Мои поездки</Button>}
+        {isAdmin && <Button theme="secondary" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}components`)}>Компоненты</Button>}
+      </section>}
     </aside>
   )
 }
@@ -595,12 +698,19 @@ const manualTime = (value: string) => {
   const digits = value.replace(/\D/g, '').slice(0, 4)
   return digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits
 }
+const documentMetadata = (file: TravelFile) => {
+  if (!file.uploadedBy && !file.uploadedAt) return undefined
+  const uploadedAt = file.uploadedAt ? new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }).format(new Date(file.uploadedAt)) : ''
+  return [file.uploadedBy, uploadedAt].filter(Boolean).join(' · ')
+}
 
-function TransportDialog({ title, value, ticketName, ticket, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; value: TransportDetails; ticketName: string; ticket?: TravelFile; onSave: (value: TransportDetails) => void; onTicket: () => void; onOpenTicket?: () => void; onDownloadTicket?: () => void; onDeleteTicket?: () => void; onClose: () => void }) {
+function TransportDialog({ title, value, ticketName, tickets, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; value: TransportDetails; ticketName: string; tickets: TravelFile[]; onSave: (value: TransportDetails) => void; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
   const [draft, setDraft] = useState<TransportDetails>({ ...value })
-  const hasTicket = Boolean(ticketName)
+  const visibleTickets = tickets.slice(0, 2)
+  const legacyTicketName = visibleTickets.length === 0 ? ticketName : ''
+  const ticketCount = visibleTickets.length + Number(Boolean(legacyTicketName))
   return (
-    <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+    <div className="overlay" role="presentation">
       <form className="glass modal editor transport-dialog" role="dialog" aria-modal="true" aria-labelledby="transport-title" onSubmit={(event) => { event.preventDefault(); if (draft.type) onSave(draft) }}>
         <div className="modal-title transport-dialog-title">
           <div id="transport-title"><TypographyGroup headingLevel="h2" title={withTransportEmoji(title, draft.type)} text="Галочка в меню появится, когда все поля будут заполнены и появится файл с билетом" /></div>
@@ -612,8 +722,13 @@ function TransportDialog({ title, value, ticketName, ticket, onSave, onTicket, o
           <Input label="Время приезда" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.arrivalTime} onChange={(event) => setDraft({ ...draft, arrivalTime: manualTime(event.target.value) })} />
           <Input icon={<Icon name="attractions" />} controlClassName="transport-wide" aria-label="Название места" placeholder="Название места" value={draft.station} onChange={(event) => setDraft({ ...draft, station: event.target.value })} />
           <Input icon={<Icon name="add-pin" />} trailingIcon={draft.stationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.stationUrl.trim() ? () => void navigator.clipboard.writeText(draft.stationUrl.trim()) : undefined} controlClassName="transport-wide transport-link-input" aria-label="Ссылка Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.stationUrl} onChange={(event) => setDraft({ ...draft, stationUrl: event.target.value })} />
+          <Textarea controlClassName="transport-wide" aria-label="Заметки" placeholder="Заметки" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
         </div>
-        <InfoRow className={hasTicket ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={hasTicket ? 'Билет' : 'Прикрепить билет'} subtitle={hasTicket ? ticketName : 'Лучше в PDF формате'} onClick={ticket ? onOpenTicket : onTicket} actions={hasTicket ? [{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: onDownloadTicket }, { icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: onDeleteTicket }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />
+        <div className="transport-ticket-list">
+          {visibleTickets.map((ticket) => <div className="document-card-group" key={ticket.id}><InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={ticket.name} onClick={() => onOpenTicket(ticket)} actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, { icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }]} />{documentMetadata(ticket) && <p className="document-card-metadata">{documentMetadata(ticket)}</p>}</div>)}
+          {legacyTicketName && <InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={legacyTicketName} />}
+          {ticketCount < 2 && <InfoRow className="transport-ticket-row transport-ticket-row-empty" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
+        </div>
         <Button type="submit" disabled={!draft.type}>Сохранить</Button>
       </form>
     </div>
@@ -623,17 +738,20 @@ function TransportDialog({ title, value, ticketName, ticket, onSave, onTicket, o
 function HotelDialog({ cityName, value, booking, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; booking?: TravelFile; onSave: (value: HotelDetails) => void; onBooking: () => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(value)
   return (
-    <div className="overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <form className="glass modal editor transport-dialog hotel-dialog" role="dialog" aria-modal="true" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); onSave({ name: draft.name.trim(), url: draft.url.trim() }) }}>
+    <div className="overlay" role="presentation">
+      <form className="glass modal editor transport-dialog hotel-dialog" role="dialog" aria-modal="true" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); onSave({ name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim() }) }}>
         <div className="modal-title transport-dialog-title">
           <div id="hotel-title"><TypographyGroup headingLevel="h2" title={`Отель ${cityName}`} text="Галочка в меню появится, когда все поля будут заполнены и появится файл с бронью отеля" /></div>
           <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
         </div>
         <div className="field-grid">
+          <Input label="Время заселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkInTime} onChange={(event) => setDraft({ ...draft, checkInTime: manualTime(event.target.value) })} />
+          <Input label="Время выселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkOutTime} onChange={(event) => setDraft({ ...draft, checkOutTime: manualTime(event.target.value) })} />
           <Input icon={<Icon name="attractions" />} controlClassName="transport-wide" aria-label="Название отеля" placeholder="Название отеля" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoFocus />
           <Input icon={<Icon name="add-pin" />} trailingIcon={draft.url.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.url.trim() ? () => void navigator.clipboard.writeText(draft.url.trim()) : undefined} controlClassName="transport-wide transport-link-input" aria-label="Ссылка на отель в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} />
+          <Textarea controlClassName="transport-wide" aria-label="Заметки" placeholder="Заметки" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
         </div>
-        <InfoRow className={booking ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" title={booking ? 'Бронь отеля' : 'Прикрепить бронь'} subtitle={booking ? booking.name : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, { icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />
+        <div className={booking ? 'document-card-group' : ''}><InfoRow className={booking ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" title={booking ? 'Бронь отеля' : 'Прикрепить бронь'} subtitle={booking ? booking.name : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, { icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />{booking && documentMetadata(booking) && <p className="document-card-metadata">{documentMetadata(booking)}</p>}</div>
         <Button type="submit">Сохранить</Button>
       </form>
     </div>
@@ -659,16 +777,19 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
     const next = { ...draft, places: { ...draft.places, [selectedDate]: [...(draft.places[selectedDate] ?? []), { id: uid(), name: place.trim(), url: placeUrl.trim(), ...coordinates }] } }
     setDraft(next); onAddPlace(next, selectedDate, next.places[selectedDate].at(-1)!); setPlace(''); setPlaceUrl(''); setPlaceCoordinates(undefined)
   }
-  const addTrainFile = (files: FileList | null, direction: 'in' | 'out') => {
-    const file = files?.[0]
-    if (!file) return
-    const fileRecord = { id: uid(), name: file.name, category: direction === 'in' ? 'Транспорт сюда' : 'Транспорт дальше' }
-    const next = { ...draft, [direction === 'in' ? 'trainIn' : 'trainOut']: file.name, files: [...draft.files, fileRecord] }
+  const addTrainFiles = (files: FileList | null, direction: 'in' | 'out') => {
+    const existingCount = draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).length
+    const selected = Array.from(files ?? []).slice(0, Math.max(0, 2 - existingCount))
+    if (selected.length === 0) return
+    const uploads = selected.map((file) => ({ file, record: { id: uid(), name: file.name, category: `train-${direction}:pending:${uid()}` } }))
+    const next = { ...draft, [direction === 'in' ? 'trainIn' : 'trainOut']: uploads[0].file.name, files: [...draft.files, ...uploads.map(({ record }) => record)] }
     setDraft(next)
-    void onTrainChange(next, direction, fileRecord, file).then((saved) => {
-      if (!saved) return
-      setDraft((current) => ({ ...current, files: [...current.files.filter((item) => item.id !== fileRecord.id), saved] }))
-    }).catch(() => setDraft((current) => ({ ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: '', files: current.files.filter((item) => item.id !== fileRecord.id) })))
+    uploads.forEach(({ file, record }) => {
+      void onTrainChange(next, direction, record, file).then((saved) => {
+        if (!saved) return
+        setDraft((current) => ({ ...current, files: [...current.files.filter((item) => item.id !== record.id), saved] }))
+      }).catch(() => setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== record.id) })))
+    })
   }
   const addHotelFile = (files: FileList | null) => {
     const file = files?.[0]
@@ -682,7 +803,44 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
   }
   const mapPoint = focusedPlace?.name || draft.transportIn.station || draft.transportOut.station || draft.name
   const transportSubtitle = (value: TransportDetails) => [value.departureTime && value.arrivalTime ? `${value.departureTime}–${value.arrivalTime}` : value.departureTime || value.arrivalTime, value.station].filter(Boolean).join(' · ') || 'Добавить детали поездки'
-  const transportDocument = (direction: 'in' | 'out') => draft.files.find((file) => file.category.startsWith(`train-${direction}:`))
+  const transportDocuments = (direction: 'in' | 'out') => draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).slice(0, 2)
+  const openTransportDocuments = (direction: 'in' | 'out') => {
+    const documents = transportDocuments(direction)
+    if (documents.length === 1) { onOpenDocument(documents[0]); return }
+    if (documents.length === 0) return
+    const target = window.open('', '_blank')
+    if (!target) { window.alert('Разрешите открытие новой вкладки, чтобы посмотреть билеты'); return }
+    target.document.title = 'Билеты'
+    target.document.body.textContent = 'Загружаем билеты…'
+    void Promise.all(documents.map(async (document) => ({ document, blob: await api.downloadDocument(document.id) }))).then((items) => {
+      const urls = items.map(({ blob }) => URL.createObjectURL(blob))
+      const page = target.document
+      page.body.replaceChildren()
+      page.body.style.margin = '0'
+      page.body.style.background = '#171717'
+      page.body.style.color = '#fff'
+      page.body.style.fontFamily = 'Inter, sans-serif'
+      items.forEach(({ document }, index) => {
+        const section = page.createElement('section')
+        section.style.height = '100vh'
+        section.style.display = 'grid'
+        section.style.gridTemplateRows = '48px 1fr'
+        const title = page.createElement('div')
+        title.textContent = document.name
+        title.style.padding = '14px 20px'
+        const frame = page.createElement('iframe')
+        frame.src = urls[index]
+        frame.title = document.name
+        frame.style.width = '100%'
+        frame.style.height = '100%'
+        frame.style.border = '0'
+        frame.style.background = '#fff'
+        section.append(title, frame)
+        page.body.append(section)
+      })
+      window.setTimeout(() => urls.forEach((url) => URL.revokeObjectURL(url)), 300_000)
+    }).catch((reason) => { target.close(); window.alert(reason instanceof Error ? reason.message : 'Не удалось открыть билеты') })
+  }
   const hotelDocument = draft.files.find((file) => file.category === 'hotel-booking')
   const saveTransport = (value: TransportDetails) => {
     if (!transportDirection) return
@@ -713,11 +871,11 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
           <TypographyGroup className="city-compact-copy" title={draft.name} text={<>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))}</>} />
         </div>
         <div className="info-strip">
-          <InfoRow title="Твой отель" subtitle={draft.hotel || 'Где будем жить'} onClick={() => setHotelOpen(true)} actions={[{ icon: <Icon name="add-plus" />, label: 'Добавить отель', onClick: () => setHotelOpen(true) }]} />
-          <InfoRow title={withTransportEmoji(previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд', draft.transportIn.type)} subtitle={transportSubtitle(draft.transportIn)} onClick={() => setTransportDirection('in')} actions={transportDocument('in') ? [{ icon: <Icon name="docs" />, label: 'Открыть прикреплённый файл', onClick: () => onOpenDocument(transportDocument('in')!) }] : []} />
-          <InfoRow title={withTransportEmoji(nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд', draft.transportOut.type)} subtitle={transportSubtitle(draft.transportOut)} onClick={() => setTransportDirection('out')} actions={transportDocument('out') ? [{ icon: <Icon name="docs" />, label: 'Открыть прикреплённый файл', onClick: () => onOpenDocument(transportDocument('out')!) }] : []} />
-          <input ref={trainInFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'in')} />
-          <input ref={trainOutFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'out')} />
+          <InfoRow title="Твой отель" subtitle={draft.hotel || 'Где будем жить'} onClick={() => setHotelOpen(true)} />
+          <InfoRow title={withTransportEmoji(previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд', draft.transportIn.type)} subtitle={transportSubtitle(draft.transportIn)} onClick={() => setTransportDirection('in')} actions={transportDocuments('in')[0] ? [{ icon: <Icon name="docs" />, label: 'Открыть прикреплённые билеты', onClick: () => openTransportDocuments('in') }] : []} />
+          <InfoRow title={withTransportEmoji(nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд', draft.transportOut.type)} subtitle={transportSubtitle(draft.transportOut)} onClick={() => setTransportDirection('out')} actions={transportDocuments('out')[0] ? [{ icon: <Icon name="docs" />, label: 'Открыть прикреплённые билеты', onClick: () => openTransportDocuments('out') }] : []} />
+          <input ref={trainInFileRef} className="hidden-file-input" type="file" multiple onChange={(e) => { addTrainFiles(e.target.files, 'in'); e.currentTarget.value = '' }} />
+          <input ref={trainOutFileRef} className="hidden-file-input" type="file" multiple onChange={(e) => { addTrainFiles(e.target.files, 'out'); e.currentTarget.value = '' }} />
           <input ref={hotelFileRef} className="hidden-file-input" type="file" onChange={(e) => addHotelFile(e.target.files)} />
         </div>
         <div className="city-main">
@@ -751,13 +909,13 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
           </div>
         </div>
       </section>
-      {transportDirection && <TransportDialog title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд') : (nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд')} value={transportDirection === 'in' ? draft.transportIn : draft.transportOut} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} ticket={transportDocument(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={transportDocument(transportDirection) ? () => onOpenDocument(transportDocument(transportDirection)!) : undefined} onDownloadTicket={transportDocument(transportDirection) ? () => onDownloadDocument(transportDocument(transportDirection)!) : undefined} onDeleteTicket={transportDocument(transportDirection) ? () => { const direction = transportDirection; const file = transportDocument(direction)!; const previous = draft; setDraft((current) => ({ ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: '', files: current.files.filter((item) => !item.category.startsWith(`train-${direction}:`)) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => setTransportDirection(null)} onSave={saveTransport} />}
-      {hotelOpen && <HotelDialog cityName={draft.name} value={{ name: draft.hotel, url: draft.hotelUrl }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => setHotelOpen(false)} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url }; setDraft(next); onChange(next); setHotelOpen(false) }} />}
+      {transportDirection && <TransportDialog title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд') : (nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд')} value={transportDirection === 'in' ? draft.transportIn : draft.transportOut} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => setTransportDirection(null)} onSave={saveTransport} />}
+      {hotelOpen && <HotelDialog cityName={draft.name} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => setHotelOpen(false)} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes }; setDraft(next); onChange(next); setHotelOpen(false) }} />}
     </>
   )
 }
 
-function Dashboard({ trip, onChange, onEdit, onTrips, onInvite, onCityChange, onAddPlace, onUpdatePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onInvite: () => void; onCityChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
+function Dashboard({ trip, user, tripCount, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onAddPlace, onUpdatePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
   const [showPast, setShowPast] = useState(false)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
   const [selectedPanel, setSelectedPanel] = useState<'hotel' | 'in' | 'out' | null>(null)
@@ -767,9 +925,8 @@ function Dashboard({ trip, onChange, onEdit, onTrips, onInvite, onCityChange, on
   const selectedCity = trip.cities.find((city) => city.id === selectedCityId) ?? null
   const selectedCityIndex = selectedCity ? trip.cities.findIndex((city) => city.id === selectedCity.id) : -1
   return (
-    <main className="screen trip-background dashboard">
-      <nav className="dashboard-tools"><button onClick={onTrips}>Поездки</button></nav>
-      <TripSidebar trip={trip} selectedCityId={selectedCityId} onCity={(city) => { setSelectedCityId(city.id); setSelectedPanel(null) }} onHotel={(city) => { setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setSelectedCityId(city.id); setSelectedPanel(direction) }} onEdit={onEdit} onInvite={onInvite} />
+    <main className="screen trip-background dashboard" style={tripBackgroundStyle(trip)}>
+      <TripSidebar trip={trip} user={user} tripCount={tripCount} selectedCityId={selectedCityId} onCity={(city) => { setSelectedCityId(city.id); setSelectedPanel(null) }} onHotel={(city) => { setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setSelectedCityId(city.id); setSelectedPanel(direction) }} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
       <section className={`calendar-column${selectedCity ? ' city-active' : ''}`}>
         {selectedCity ? (
           <CityPanel
@@ -842,16 +999,34 @@ function Dashboard({ trip, onChange, onEdit, onTrips, onInvite, onCityChange, on
 
 export default function App() {
   const invitationLink = window.location.pathname.includes('/join/') ? window.location.href : ''
+  const backgroundObjectUrlRef = useRef<string | null>(null)
+  const avatarObjectUrlRef = useRef<string | null>(null)
+  const memberAvatarUrlsRef = useRef<string[]>([])
+  const cityImageUrlsRef = useRef<string[]>([])
   const legacyTrip = useRef<Trip | null>((() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') } catch { return null }
   })())
   const [trip, setTrip] = useState<Trip | null>(null)
   const [trips, setTrips] = useState<ApiTripSummary[]>([])
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [screen, setScreen] = useState<Screen>(invitationLink ? 'join' : 'start')
   const [loading, setLoading] = useState(Boolean(session.token))
   const [error, setError] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<ApiTripSummary | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
+
+  const loadCurrentUser = async () => {
+    const account = await api.me()
+    const user: CurrentUser = account.user
+    if (user.hasAvatar) {
+      const blob = await api.downloadAvatar()
+      if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current)
+      avatarObjectUrlRef.current = URL.createObjectURL(blob)
+      user.avatarUrl = avatarObjectUrlRef.current
+    }
+    setCurrentUser(user)
+    return user
+  }
 
   useEffect(() => {
     if (!session.token) return
@@ -860,6 +1035,7 @@ export default function App() {
       if (token) {
         void api.acceptInvitation(token).then(async ({ tripId }) => {
           window.history.replaceState({}, '', '/')
+          await loadCurrentUser()
           await refreshTrips(); await loadTrip(tripId); setScreen('dashboard'); setLoading(false)
         }).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось принять приглашение'); setLoading(false) })
         return
@@ -871,6 +1047,40 @@ export default function App() {
   const loadTrip = async (id: string) => {
     const result = await api.trip(id)
     const value = fromApiTrip(result.trip)
+    cityImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    cityImageUrlsRef.current = []
+    memberAvatarUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    memberAvatarUrlsRef.current = []
+    await Promise.all((value.members ?? []).map(async (member) => {
+      if (!member.hasAvatar) return
+      try {
+        const blob = await api.downloadMemberAvatar(id, member.id)
+        member.avatarUrl = URL.createObjectURL(blob)
+        memberAvatarUrlsRef.current.push(member.avatarUrl)
+      } catch {
+        member.avatarUrl = undefined
+      }
+    }))
+    if (value.background) {
+      const blob = await api.downloadDocument(value.background.id)
+      if (backgroundObjectUrlRef.current) URL.revokeObjectURL(backgroundObjectUrlRef.current)
+      backgroundObjectUrlRef.current = URL.createObjectURL(blob)
+      value.backgroundUrl = backgroundObjectUrlRef.current
+    } else {
+      if (backgroundObjectUrlRef.current) URL.revokeObjectURL(backgroundObjectUrlRef.current)
+      backgroundObjectUrlRef.current = null
+      value.backgroundUrl = defaultTripBackground
+    }
+    await Promise.all(value.cities.map(async (city) => {
+      if (!city.image) return
+      try {
+        const blob = await api.downloadDocument(city.image.id)
+        city.imageUrl = URL.createObjectURL(blob)
+        cityImageUrlsRef.current.push(city.imageUrl)
+      } catch {
+        city.imageUrl = undefined
+      }
+    }))
     setTrip(value)
     return value
   }
@@ -882,20 +1092,22 @@ export default function App() {
   }
 
   const createFromDraft = async (draft: Trip) => {
-    const created = await api.createTrip({ name: draft.name, startDate: draft.startDate, endDate: draft.endDate })
+    const created = await api.createTrip({ name: draft.name, startDate: draft.startDate, endDate: draft.endDate, backgroundRemoved: draft.backgroundRemoved })
     const cityIds = new Map<string, string>()
     for (const [position, city] of draft.cities.entries()) {
       const result = await api.createCity(created.trip.id, {
         name: city.name, position, arrivalDate: city.arrival, departureDate: city.departure,
-        arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, hotel: city.hotel, hotelUrl: city.hotelUrl, ...transportPayload(city),
+        arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...hotelPayload(city), ...transportPayload(city),
       })
       cityIds.set(city.id, result.city.id)
-      if (city.hotel || city.hotelUrl) await api.updateCity(created.trip.id, result.city.id, { hotel: city.hotel, hotelUrl: city.hotelUrl })
+      if (city.imageFile) await api.uploadDocument(created.trip.id, result.city.id, 'city-image', city.imageFile)
+      if (city.hotel || city.hotelUrl || city.hotelCheckInTime || city.hotelCheckOutTime) await api.updateCity(created.trip.id, result.city.id, hotelPayload(city))
       for (const [date, places] of Object.entries(city.places)) {
         for (const place of places) await api.createPlace(created.trip.id, result.city.id, { name: place.name, googleMapsUrl: place.url, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
       }
       for (const task of city.tasks) await api.createTask(created.trip.id, { cityId: result.city.id, title: task.title })
     }
+    if (draft.backgroundFile) await api.uploadDocument(created.trip.id, undefined, 'trip-background', draft.backgroundFile)
     localStorage.removeItem(STORAGE_KEY)
     await refreshTrips()
     return loadTrip(created.trip.id)
@@ -904,7 +1116,7 @@ export default function App() {
   const openAccount = async () => {
     setLoading(true); setError('')
     try {
-      await api.me()
+      await loadCurrentUser()
       const accountTrips = await refreshTrips()
       if (accountTrips.length === 1) {
         await loadTrip(accountTrips[0].id)
@@ -927,14 +1139,18 @@ export default function App() {
       if (!draft.id) {
         await createFromDraft(draft)
       } else {
-        await api.updateTrip(draft.id, { name: draft.name, startDate: draft.startDate, endDate: draft.endDate })
+        await api.updateTrip(draft.id, { name: draft.name, startDate: draft.startDate, endDate: draft.endDate, backgroundRemoved: draft.backgroundRemoved })
         const remote = (await api.trip(draft.id)).trip
         const existingIds = new Set(remote.cities.map((city) => city.id))
         for (const [position, city] of draft.cities.entries()) {
-          const payload = { name: city.name, position, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, hotel: city.hotel, hotelUrl: city.hotelUrl, ...transportPayload(city) }
+          const payload = { name: city.name, position, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...hotelPayload(city), ...transportPayload(city) }
+          const cityId = existingIds.has(city.id) ? city.id : (await api.createCity(draft.id, payload)).city.id
           if (existingIds.has(city.id)) await api.updateCity(draft.id, city.id, payload)
-          else await api.createCity(draft.id, payload)
+          if (city.imageDeleteId) await api.deleteDocument(city.imageDeleteId)
+          if (city.imageFile) await api.uploadDocument(draft.id, cityId, 'city-image', city.imageFile)
         }
+        if (draft.backgroundDeleteId) await api.deleteDocument(draft.backgroundDeleteId)
+        if (draft.backgroundFile) await api.uploadDocument(draft.id, undefined, 'trip-background', draft.backgroundFile)
         await loadTrip(draft.id)
       }
       setScreen('dashboard')
@@ -943,7 +1159,7 @@ export default function App() {
 
   const updateCity = async (city: City) => {
     if (!trip?.id) return
-    try { await api.updateCity(trip.id, city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, hotel: city.hotel, hotelUrl: city.hotelUrl, ...transportPayload(city) }) }
+    try { await api.updateCity(trip.id, city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...hotelPayload(city), ...transportPayload(city) }) }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка сохранения') }
   }
 
@@ -970,11 +1186,13 @@ export default function App() {
     const to = direction === 'in' ? city : linked
     const fromId = from?.id ?? 'external'
     const toId = to?.id ?? 'external'
+    const ticketId = uid()
     try {
-      const uploaded = await api.uploadDocument(trip.id, city.id, `${direction === 'in' ? 'train-in' : 'train-out'}:${fromId}:${toId}`, file)
-      if (linked) await api.uploadDocument(trip.id, linked.id, `${direction === 'in' ? 'train-out' : 'train-in'}:${fromId}:${toId}`, file)
+      const routeKey = `${fromId}:${toId}:${ticketId}`
+      const uploaded = await api.uploadDocument(trip.id, city.id, `${direction === 'in' ? 'train-in' : 'train-out'}:${routeKey}`, file)
+      if (linked) await api.uploadDocument(trip.id, linked.id, `${direction === 'in' ? 'train-out' : 'train-in'}:${routeKey}`, file)
       await loadTrip(trip.id)
-      return { id: uploaded.document.id, name: uploaded.document.original_name, category: uploaded.document.category }
+      return { id: uploaded.document.id, name: uploaded.document.original_name, category: uploaded.document.category, uploadedBy: uploaded.document.created_by_name, uploadedAt: uploaded.document.created_at }
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка загрузки файла'); throw reason }
   }
 
@@ -983,7 +1201,7 @@ export default function App() {
     try {
       const uploaded = await api.uploadDocument(trip.id, city.id, 'hotel-booking', file)
       await loadTrip(trip.id)
-      return { id: uploaded.document.id, name: uploaded.document.original_name, category: uploaded.document.category }
+      return { id: uploaded.document.id, name: uploaded.document.original_name, category: uploaded.document.category, uploadedBy: uploaded.document.created_by_name, uploadedAt: uploaded.document.created_at }
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка загрузки брони'); throw reason }
   }
 
@@ -993,6 +1211,7 @@ export default function App() {
     try {
       const auth = mode === 'register' ? await api.register(email, password, name) : await api.login(email, password)
       session.token = auth.token
+      await loadCurrentUser()
       const accepted = await api.acceptInvitation(token)
       window.history.replaceState({}, '', '/')
       await refreshTrips(); await loadTrip(accepted.tripId); setScreen('dashboard')
@@ -1011,9 +1230,19 @@ export default function App() {
       </AuthShell>
     )
   }
-  if (screen === 'trips') return <><TripsScreen trips={trips} deleteTarget={deleteTarget} onOpen={(id) => { void loadTrip(id).then(() => setScreen('dashboard')) }} onCreate={() => { setTrip(null); setScreen('setup') }} onClose={() => { setDeleteTarget(null); setScreen(trip ? 'dashboard' : 'start') }} onDelete={setDeleteTarget} onCloseDelete={() => setDeleteTarget(null)} onConfirmDelete={async () => { if (!deleteTarget) return; await api.deleteTrip(deleteTarget.id, deleteTarget.name); setDeleteTarget(null); const remaining = await refreshTrips(); if (remaining.length === 1) { await loadTrip(remaining[0].id); setScreen('dashboard') } }} onExport={async (item) => { try { const blob = await api.exportTrip(item.id); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${item.name}.travelspace`; anchor.click(); URL.revokeObjectURL(url) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось экспортировать поездку') } }} onImport={async (file) => { try { const result = await api.importTrip(file); await refreshTrips(); await loadTrip(result.trip.id); setScreen('dashboard') } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось импортировать поездку') } }} />{error && <p className="app-error">{error}</p>}</>
+  if (screen === 'profile' && currentUser) return <ProfileScreen user={currentUser} onBack={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onSave={async (value) => { const result = await api.updateProfile(value); setCurrentUser((existing) => ({ ...result.user, avatarUrl: existing?.avatarUrl })) }} onAvatar={async (file) => {
+    await api.uploadAvatar(file)
+    const blob = await api.downloadAvatar()
+    if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current)
+    avatarObjectUrlRef.current = URL.createObjectURL(blob)
+    const avatarUrl = avatarObjectUrlRef.current
+    setCurrentUser((existing) => existing ? { ...existing, hasAvatar: true, avatarUrl } : existing)
+    setTrip((current) => current ? { ...current, members: current.members?.map((member) => member.id === currentUser.id ? { ...member, hasAvatar: true, avatarUrl } : member) } : current)
+    return avatarUrl
+  }} />
+  if (screen === 'trips') return <><TripsScreen trips={trips} canCreate={currentUser?.email.toLowerCase() === ADMIN_EMAIL} deleteTarget={deleteTarget} onOpen={(id) => { void loadTrip(id).then(() => setScreen('dashboard')) }} onCreate={() => { setTrip(null); setScreen('setup') }} onClose={() => { setDeleteTarget(null); setScreen(trip ? 'dashboard' : 'start') }} onDelete={setDeleteTarget} onCloseDelete={() => setDeleteTarget(null)} onConfirmDelete={async () => { if (!deleteTarget) return; await api.deleteTrip(deleteTarget.id, deleteTarget.name); setDeleteTarget(null); const remaining = await refreshTrips(); if (remaining.length === 1) { await loadTrip(remaining[0].id); setScreen('dashboard') } }} onExport={async (item) => { try { const blob = await api.exportTrip(item.id); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${item.name}.travelspace`; anchor.click(); URL.revokeObjectURL(url) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось экспортировать поездку') } }} onImport={async (file) => { try { const result = await api.importTrip(file); await refreshTrips(); await loadTrip(result.trip.id); setScreen('dashboard') } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось импортировать поездку') } }} />{error && <p className="app-error">{error}</p>}</>
   if (screen === 'setup') return <><SetupScreen initial={trip} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={(value) => void saveTrip(value)} />{error && <p className="app-error">{error}</p>}</>
   if (!trip) return null
   if (inviteOpen) return <><InviteScreen trip={trip} onBack={() => setInviteOpen(false)} onCreate={async (hours) => (await api.createInvitation(trip.id!, hours)).invitation} onRemove={async (member) => { await api.removeMember(trip.id!, member.id); await loadTrip(trip.id!) }} />{error && <p className="app-error">{error}</p>}</>
-  return <><Dashboard trip={trip} onChange={setTrip} onEdit={() => setScreen('setup')} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
+  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} onChange={setTrip} onEdit={() => setScreen('setup')} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
 }

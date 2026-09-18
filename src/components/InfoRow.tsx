@@ -12,6 +12,7 @@ type InfoRowAction = {
 export function InfoRow({
   title,
   subtitle,
+  metadata,
   image,
   imageAlt = '',
   imageShape = 'rounded',
@@ -22,6 +23,7 @@ export function InfoRow({
 }: {
   title: ReactNode
   subtitle?: ReactNode
+  metadata?: ReactNode
   image?: string
   imageAlt?: string
   imageShape?: 'rounded' | 'circle'
@@ -30,7 +32,7 @@ export function InfoRow({
   actionTheme?: 'transparent' | 'secondary'
   className?: string
 }) {
-  const copy = <><strong>{title}</strong>{subtitle !== undefined && subtitle !== null && subtitle !== '' && <span>{subtitle}</span>}</>
+  const copy = <><strong>{title}</strong>{subtitle !== undefined && subtitle !== null && subtitle !== '' && <span>{subtitle}</span>}{metadata !== undefined && metadata !== null && metadata !== '' && <small className="info-row-metadata">{metadata}</small>}</>
   const content = <>{image && <img className={`info-row-image info-row-image-${imageShape}`} src={image} alt={imageAlt} />}<div className="info-row-copy">{copy}</div></>
 
   return <div className={`info-row${image ? ' info-row-with-image' : ' info-row-without-image'} ${className}`.trim()}>
