@@ -15,6 +15,7 @@ export function InfoRow({
   metadata,
   image,
   imageAlt = '',
+  imageFallback,
   imageShape = 'rounded',
   onClick,
   actions = [],
@@ -26,6 +27,7 @@ export function InfoRow({
   metadata?: ReactNode
   image?: string
   imageAlt?: string
+  imageFallback?: string
   imageShape?: 'rounded' | 'circle'
   onClick?: ButtonHTMLAttributes<HTMLButtonElement>['onClick']
   actions?: InfoRowAction[]
@@ -33,7 +35,7 @@ export function InfoRow({
   className?: string
 }) {
   const copy = <><strong>{title}</strong>{subtitle !== undefined && subtitle !== null && subtitle !== '' && <span>{subtitle}</span>}{metadata !== undefined && metadata !== null && metadata !== '' && <small className="info-row-metadata">{metadata}</small>}</>
-  const content = <>{image && <img className={`info-row-image info-row-image-${imageShape}`} src={image} alt={imageAlt} />}<div className="info-row-copy">{copy}</div></>
+  const content = <>{image && <img className={`info-row-image info-row-image-${imageShape}`} src={image} alt={imageAlt} onError={(event) => { if (!imageFallback || event.currentTarget.dataset.fallbackApplied) return; event.currentTarget.dataset.fallbackApplied = 'true'; event.currentTarget.src = imageFallback }} />}<div className="info-row-copy">{copy}</div></>
 
   return <div className={`info-row${image ? ' info-row-with-image' : ' info-row-without-image'} ${className}`.trim()}>
     {onClick ? <button type="button" className="info-row-content info-row-trigger" onClick={onClick}>{content}</button> : <div className="info-row-content">{content}</div>}

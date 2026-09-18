@@ -70,6 +70,7 @@ const isoDate = (date: Date) => date.toISOString().slice(0, 10)
 const daysBetween = (from: string, to: string) => Math.max(0, Math.round((parseDate(to).getTime() - parseDate(from).getTime()) / 86400000))
 const periodOrder: Record<DayPeriod, number> = { morning: 0, day: 1, evening: 2 }
 const periodDayPart: Record<DayPeriod, number> = { morning: 0, day: 0.5, evening: 1 }
+const periodAdverb: Record<DayPeriod, string> = { morning: 'утром', day: 'днём', evening: 'вечером' }
 const cityDays = (city: City) => {
   const dateDays = daysBetween(city.arrival, city.departure)
   const arrivalPeriod = city.arrivalPeriod ?? 'morning'
@@ -98,6 +99,12 @@ const formatParticipants = (value: number) => {
   const mod100 = Math.abs(value) % 100
   const mod10 = mod100 % 10
   const word = mod100 >= 11 && mod100 <= 14 ? 'участников' : mod10 === 1 ? 'участник' : mod10 >= 2 && mod10 <= 4 ? 'участника' : 'участников'
+  return `${value} ${word}`
+}
+const formatLocations = (value: number) => {
+  const mod100 = Math.abs(value) % 100
+  const mod10 = mod100 % 10
+  const word = mod100 >= 11 && mod100 <= 14 ? 'локаций' : mod10 === 1 ? 'локация' : mod10 >= 2 && mod10 <= 4 ? 'локации' : 'локаций'
   return `${value} ${word}`
 }
 const formatDate = (value: string) => {
@@ -618,10 +625,10 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
                 <input ref={endDateRef} className="native-date-input" aria-label="Дата окончания поездки" type="date" min={trip.startDate} value={trip.endDate} onInput={(e) => { const value = e.currentTarget.value; setTrip((current) => ({ ...current, endDate: value, cities: [] })) }} />
               </div>
             </div>
-            <InfoRow className="trip-background-row" image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'Лучше в горизонтальном формате'} actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: () => backgroundFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: () => backgroundFileRef.current?.click() }]} />
+            <InfoRow className="trip-background-row" image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'Лучше в горизонтальном формате'} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: () => backgroundFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: () => backgroundFileRef.current?.click() }]} />
             <input ref={backgroundFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: URL.createObjectURL(file), backgroundRemoved: false })); event.currentTarget.value = '' }} />
             <div className="city-editor-group">
-              {trip.cities.length > 0 && <div className="city-list setup-list">{trip.cities.map((city) => <CityRow key={city.id} city={city.name} dates={formatShortRange(city.arrival, city.departure)} duration={formatDays(cityDays(city))} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} onClick={() => setEditing(city)} />)}</div>}
+              {trip.cities.length > 0 && <div className="city-list setup-list">{trip.cities.map((city) => <InfoRow key={city.id} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} title={city.name} subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}`} onClick={() => setEditing(city)} actionTheme="secondary" actions={[{ icon: <Icon name="delete-forever" />, label: `Удалить город ${city.name}`, onClick: () => { if (!window.confirm(`Удалить город «${city.name}» из маршрута?`)) return; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id) })) } }]} />)}</div>}
               <AddRow icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
               {trip.cities.length > 0 && <button className="route-overview-link" type="button" onClick={() => setEditingAll(true)}><SecondaryText interactive>Посмотреть весь маршрут</SecondaryText></button>}
             </div>
@@ -717,13 +724,30 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, o
   )
 }
 
-function DayCard({ date, cities, hidden }: { date: string; cities: City[]; hidden: boolean }) {
+function DayCard({ date, cities, allCities, hidden, onCity }: { date: string; cities: City[]; allCities: City[]; hidden: boolean; onCity: (city: City) => void }) {
   const day = parseDate(date)
+  const citySubtitle = (city: City) => {
+    if (date === city.arrival) {
+      const cityIndex = allCities.findIndex((item) => item.id === city.id)
+      const arrivalTime = city.transportIn.arrivalTime.trim() || allCities[cityIndex - 1]?.transportOut.arrivalTime.trim()
+      const arrivalLabel = arrivalTime ? `Прибытие в ${arrivalTime}` : `Прибытие ${periodAdverb[city.arrivalPeriod ?? 'morning']}`
+      const checkInTime = city.hotelCheckInTime.trim()
+      return checkInTime ? `${arrivalLabel} · Заселение в ${checkInTime}` : arrivalLabel
+    }
+    if (date === city.departure) {
+      const departureTime = city.transportOut.departureTime.trim()
+      return departureTime ? `Отъезд в ${departureTime}` : `Отъезд ${periodAdverb[city.departurePeriod ?? 'evening']}`
+    }
+    return 'День в городе'
+  }
   return (
     <article className={`glass day-card${hidden ? ' past' : ''}`}>
       <header><strong>{day.getDate()} {ruMonths[day.getMonth()].slice(0, 3)}</strong><span>{ruWeekdays[day.getDay()]}</span></header>
       <div className="day-content">
-        {cities.map((city) => <InfoRow key={city.id} title={city.name} subtitle={date === city.arrival ? 'Прибытие' : date === city.departure ? 'Отъезд' : 'День в городе'} />)}
+        {cities.map((city) => {
+          const isRouteEvent = date === city.arrival || date === city.departure
+          return <InfoRow key={city.id} title={city.name} subtitle={citySubtitle(city)} onClick={isRouteEvent ? () => onCity(city) : undefined} />
+        })}
         {cities.length === 0 && <p className="empty-text">Свободный день — добавьте город или переезд</p>}
       </div>
     </article>
@@ -763,9 +787,9 @@ function TransportDialog({ title, value, ticketName, tickets, onSave, onTicket, 
           <Textarea controlClassName="transport-wide" aria-label="Заметки" placeholder="Заметки" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
         </div>
         <div className="transport-ticket-list">
-          {visibleTickets.map((ticket) => <div className="document-card-group" key={ticket.id}><InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={ticket.name} onClick={() => onOpenTicket(ticket)} actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, { icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }]} />{documentMetadata(ticket) && <p className="document-card-metadata">{documentMetadata(ticket)}</p>}</div>)}
+          {visibleTickets.map((ticket) => <div className="document-card-group" key={ticket.id}><InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={ticket.name} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, { icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }]} />{documentMetadata(ticket) && <p className="document-card-metadata">{documentMetadata(ticket)}</p>}</div>)}
           {legacyTicketName && <InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={legacyTicketName} />}
-          {ticketCount < 2 && <InfoRow className="transport-ticket-row transport-ticket-row-empty" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
+          {ticketCount < 2 && <InfoRow className="transport-ticket-row transport-ticket-row-empty" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
         </div>
         <Button type="submit" disabled={!draft.type}>Сохранить</Button>
       </form>
@@ -789,14 +813,14 @@ function HotelDialog({ cityName, value, booking, onSave, onBooking, onOpenBookin
           <Input icon={<Icon name="add-pin" />} trailingIcon={draft.url.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.url.trim() ? () => void navigator.clipboard.writeText(draft.url.trim()) : undefined} controlClassName="transport-wide transport-link-input" aria-label="Ссылка на отель в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} />
           <Textarea controlClassName="transport-wide" aria-label="Заметки" placeholder="Заметки" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
         </div>
-        <div className={booking ? 'document-card-group' : ''}><InfoRow className={booking ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" title={booking ? 'Бронь отеля' : 'Прикрепить бронь'} subtitle={booking ? booking.name : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, { icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />{booking && documentMetadata(booking) && <p className="document-card-metadata">{documentMetadata(booking)}</p>}</div>
+        <div className={booking ? 'document-card-group' : ''}><InfoRow className={booking ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" title={booking ? 'Бронь отеля' : 'Прикрепить бронь'} subtitle={booking ? booking.name : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, { icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />{booking && documentMetadata(booking) && <p className="document-card-metadata">{documentMetadata(booking)}</p>}</div>
         <Button type="submit">Сохранить</Button>
       </form>
     </div>
   )
 }
 
-function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAddPlace, onUpdatePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onClose }: { city: City; previousCity?: City; nextCity?: City; initialPanel?: 'hotel' | 'in' | 'out' | null; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onClose: () => void }) {
+function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAddPlace, onUpdatePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; initialPanel?: 'hotel' | 'in' | 'out' | null; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
   const [transportDirection, setTransportDirection] = useState<'in' | 'out' | null>(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
   const [hotelOpen, setHotelOpen] = useState(initialPanel === 'hotel')
@@ -842,6 +866,7 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
   const mapPoint = focusedPlace?.name || draft.transportIn.station || draft.transportOut.station || draft.name
   const transportDocuments = (direction: 'in' | 'out') => draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).slice(0, 2)
   const hotelDocument = draft.files.find((file) => file.category === 'hotel-booking')
+  const pointsCount = Object.values(draft.places).reduce((total, places) => total + places.length, 0)
   const saveTransport = (value: TransportDetails) => {
     if (!transportDirection) return
     let next = { ...draft, [transportDirection === 'in' ? 'transportIn' : 'transportOut']: value }
@@ -862,13 +887,14 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
     setDraft(next)
     onChange(next)
     setTransportDirection(null)
+    onPanelClose()
   }
   return (
     <>
       <section className="glass city-page-card setup-transition">
         <div className="city-compact-header">
           <IconButton type="button" className="city-inline-back" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
-          <TypographyGroup className="city-compact-copy" title={draft.name} text={<>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))}</>} />
+          <TypographyGroup className="city-compact-copy" title={draft.name} text={<>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))} · {formatLocations(pointsCount)}</>} />
         </div>
         <input ref={trainInFileRef} className="hidden-file-input" type="file" multiple onChange={(e) => { addTrainFiles(e.target.files, 'in'); e.currentTarget.value = '' }} />
         <input ref={trainOutFileRef} className="hidden-file-input" type="file" multiple onChange={(e) => { addTrainFiles(e.target.files, 'out'); e.currentTarget.value = '' }} />
@@ -904,8 +930,8 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, onChange, onAdd
           </div>
         </div>
       </section>
-      {transportDirection && <TransportDialog title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд') : (nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд')} value={transportDirection === 'in' ? draft.transportIn : draft.transportOut} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => setTransportDirection(null)} onSave={saveTransport} />}
-      {hotelOpen && <HotelDialog cityName={draft.name} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => setHotelOpen(false)} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes }; setDraft(next); onChange(next); setHotelOpen(false) }} />}
+      {transportDirection && <TransportDialog title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд') : (nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд')} value={transportDirection === 'in' ? draft.transportIn : draft.transportOut} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
+      {hotelOpen && <HotelDialog cityName={draft.name} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes }; setDraft(next); onChange(next); setHotelOpen(false); onPanelClose() }} />}
     </>
   )
 }
@@ -930,6 +956,7 @@ function Dashboard({ trip, user, tripCount, onChange, onEdit, onTrips, onProfile
             initialPanel={selectedPanel}
             previousCity={trip.cities[selectedCityIndex - 1]}
             nextCity={trip.cities[selectedCityIndex + 1]}
+            onPanelClose={() => setSelectedPanel(null)}
             onClose={() => { setSelectedCityId(null); setSelectedPanel(null) }}
             onChange={(nextCity) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onCityChange(nextCity) }}
             onAddPlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onAddPlace(nextCity, date, place) }}
@@ -983,7 +1010,7 @@ function Dashboard({ trip, user, tripCount, onChange, onEdit, onTrips, onProfile
         ) : (
           <div className="calendar-content setup-transition">
             {allDays.some((date) => date < today) && <button className="past-toggle" onClick={() => setShowPast(!showPast)}>{showPast ? 'Скрыть прошедшие дни' : 'Показать прошедшие дни'}</button>}
-            {visibleDays.map((date) => <DayCard key={date} date={date} cities={trip.cities.filter((city) => date >= city.arrival && date <= city.departure)} hidden={date < today} />)}
+            {visibleDays.map((date) => <DayCard key={date} date={date} cities={trip.cities.filter((city) => date >= city.arrival && date <= city.departure)} allCities={trip.cities} hidden={date < today} onCity={(city) => { setSelectedCityId(city.id); setSelectedPanel(null) }} />)}
             {visibleDays.length === 0 && <article className="glass empty-calendar"><h2>Все дни уже прошли</h2><Button onClick={() => setShowPast(true)}>Показать поездку</Button></article>}
           </div>
         )}
@@ -1145,6 +1172,10 @@ export default function App() {
         await api.updateTrip(draft.id, { name: draft.name, startDate: draft.startDate, endDate: draft.endDate, backgroundRemoved: draft.backgroundRemoved })
         const remote = (await api.trip(draft.id)).trip
         const existingIds = new Set(remote.cities.map((city) => city.id))
+        const draftIds = new Set(draft.cities.map((city) => city.id))
+        for (const city of remote.cities) {
+          if (!draftIds.has(city.id)) await api.deleteCity(draft.id, city.id)
+        }
         for (const [position, city] of draft.cities.entries()) {
           const payload = { name: city.name, position, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...hotelPayload(city), ...transportPayload(city) }
           const cityId = existingIds.has(city.id) ? city.id : (await api.createCity(draft.id, payload)).city.id
