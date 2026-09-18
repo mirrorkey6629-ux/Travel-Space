@@ -20,6 +20,7 @@ export const config = {
   basePath: process.env.BASE_PATH ?? '/travel',
   uploadDir: path.resolve(process.env.UPLOAD_DIR ?? './data/uploads'),
   maxUploadBytes: integer(process.env.MAX_UPLOAD_BYTES, 15 * 1024 * 1024),
+  maxImportBytes: integer(process.env.MAX_IMPORT_BYTES, 200 * 1024 * 1024),
   sessionTtlDays: integer(process.env.SESSION_TTL_DAYS, 30),
   nodeEnv: process.env.NODE_ENV ?? 'development',
 }

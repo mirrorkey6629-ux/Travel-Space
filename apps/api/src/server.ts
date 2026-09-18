@@ -1,5 +1,5 @@
 import { createReadStream, createWriteStream } from 'node:fs'
-import { mkdir, unlink } from 'node:fs/promises'
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import cors from '@fastify/cors'
@@ -99,6 +99,98 @@ app.post(`${apiPrefix}/trips`, async (request, reply) => {
   return { trip }
 })
 
+app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
+  const user = await requireUser(request)
+  const upload = await request.file({ limits: { fileSize: config.maxImportBytes, files: 1 } })
+  if (!upload) throw httpError(400, 'Файл импорта не выбран')
+  let bundle: any
+  try { bundle = JSON.parse((await upload.toBuffer()).toString('utf8')) } catch { throw httpError(400, 'Файл поездки повреждён или имеет неверный формат') }
+  if (bundle?.format !== 'travel-space' || bundle?.version !== 1 || !bundle.trip || !Array.isArray(bundle.cities) || !Array.isArray(bundle.places) || !Array.isArray(bundle.tasks) || !Array.isArray(bundle.documents)) throw httpError(400, 'Неподдерживаемый формат файла поездки')
+  const tripName = text(bundle.trip.name)
+  const startDate = text(bundle.trip.startDate)
+  const endDate = text(bundle.trip.endDate)
+  if (!tripName || !datePattern.test(startDate) || !datePattern.test(endDate) || endDate < startDate) throw httpError(400, 'В файле указаны некорректные данные поездки')
+  const totalDocumentBytes = bundle.documents.reduce((sum: number, document: any) => sum + Buffer.byteLength(String(document.contentBase64 || ''), 'base64'), 0)
+  if (totalDocumentBytes > config.maxImportBytes) throw httpError(413, 'Документы в архиве превышают допустимый размер')
+  const writtenFiles: string[] = []
+  await mkdir(config.uploadDir, { recursive: true })
+  try {
+    const trip = await transaction(async (client) => {
+      const createdTrip = (await client.query(
+        'INSERT INTO trips(owner_id,name,start_date,end_date) VALUES ($1,$2,$3,$4) RETURNING *',
+        [user.id, tripName, startDate, endDate],
+      )).rows[0]
+      await client.query("INSERT INTO trip_members(trip_id,user_id,role) VALUES ($1,$2,'owner')", [createdTrip.id, user.id])
+      const cityIds = new Map<string, string>()
+      const cityDates = new Map<string, { arrivalDate: string; departureDate: string }>()
+      for (const [index, source] of bundle.cities.entries()) {
+        const oldId = text(source.id)
+        const name = text(source.name)
+        const arrivalDate = text(source.arrivalDate)
+        const departureDate = text(source.departureDate)
+        const arrivalPeriod = text(source.arrivalPeriod) || 'morning'
+        const departurePeriod = text(source.departurePeriod) || 'evening'
+        if (!oldId || !name || !datePattern.test(arrivalDate) || !datePattern.test(departureDate) || arrivalDate < startDate || departureDate > endDate || departureDate < arrivalDate || !['morning','day','evening'].includes(arrivalPeriod) || !['morning','day','evening'].includes(departurePeriod)) throw httpError(400, 'Некорректные данные города в файле')
+        const city = (await client.query(
+          `INSERT INTO cities(trip_id,name,position,arrival_date,departure_date,arrival_period,departure_period,hotel,train_in,train_out,created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+          [createdTrip.id, name, index, arrivalDate, departureDate, arrivalPeriod, departurePeriod, text(source.hotel), text(source.trainIn), text(source.trainOut), user.id],
+        )).rows[0]
+        cityIds.set(oldId, city.id)
+        cityDates.set(oldId, { arrivalDate, departureDate })
+      }
+      for (const source of bundle.places) {
+        const oldCityId = text(source.cityId)
+        const cityId = cityIds.get(oldCityId)
+        const visitDate = optionalText(source.visitDate) || null
+        const cityRange = cityDates.get(oldCityId)
+        if (!cityId || !text(source.name)) throw httpError(400, 'Некорректное место в файле')
+        if (visitDate && (!datePattern.test(visitDate) || !cityRange || visitDate < cityRange.arrivalDate || visitDate > cityRange.departureDate)) throw httpError(400, 'Дата места находится за пределами дат города')
+        await client.query(
+          `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,position,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+          [createdTrip.id, cityId, visitDate, text(source.name), text(source.googleMapsUrl), Number.isInteger(source.position) ? source.position : 0, user.id],
+        )
+      }
+      for (const source of bundle.tasks) {
+        const cityId = source.cityId ? cityIds.get(text(source.cityId)) : null
+        const dueDate = optionalText(source.dueDate) || null
+        if ((source.cityId && !cityId) || !text(source.title)) throw httpError(400, 'Некорректная задача в файле')
+        if (dueDate && (!datePattern.test(dueDate) || dueDate < startDate || dueDate > endDate)) throw httpError(400, 'Дата задачи находится за пределами поездки')
+        await client.query(
+          'INSERT INTO tasks(trip_id,city_id,due_date,title,done,created_by) VALUES ($1,$2,$3,$4,$5,$6)',
+          [createdTrip.id, cityId, dueDate, text(source.title), Boolean(source.done), user.id],
+        )
+      }
+      for (const source of bundle.documents) {
+        const cityId = source.cityId ? cityIds.get(text(source.cityId)) : null
+        const originalName = text(source.originalName)
+        const category = text(source.category)
+        const encodedContent = String(source.contentBase64 || '')
+        if ((source.cityId && !cityId) || !originalName || !category || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encodedContent)) throw httpError(400, 'Некорректный документ в файле')
+        const content = Buffer.from(encodedContent, 'base64')
+        if (content.length > config.maxUploadBytes) throw httpError(413, `Файл «${text(source.originalName)}» превышает допустимый размер`)
+        const id = crypto.randomUUID()
+        const extension = path.extname(originalName).slice(0, 16)
+        const storageKey = `${id}${extension}`
+        const target = path.join(config.uploadDir, storageKey)
+        await writeFile(target, content, { flag: 'wx' })
+        writtenFiles.push(target)
+        await client.query(
+          `INSERT INTO documents(id,trip_id,city_id,category,original_name,storage_key,mime_type,size_bytes,created_by)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+          [id, createdTrip.id, cityId, category, originalName, storageKey, text(source.mimeType) || 'application/octet-stream', content.length, user.id],
+        )
+      }
+      return createdTrip
+    })
+    reply.code(201)
+    return { trip }
+  } catch (error) {
+    await Promise.all(writtenFiles.map((file) => unlink(file).catch(() => undefined)))
+    throw error
+  }
+})
+
 app.get(`${apiPrefix}/trips/:tripId`, async (request) => {
   const user = await requireUser(request)
   const { tripId } = request.params as { tripId: string }
@@ -114,6 +206,33 @@ app.get(`${apiPrefix}/trips/:tripId`, async (request) => {
   const trip = tripResult.rows[0]
   if (!trip) throw httpError(404, 'Поездка не найдена')
   return { trip: { ...trip, role, cities: cities.rows, places: places.rows, tasks: tasks.rows, documents: documents.rows, members: members.rows } }
+})
+
+app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
+  const user = await requireUser(request)
+  const { tripId } = request.params as { tripId: string }
+  await requireTripRole(tripId, user.id, true)
+  const [tripResult, cities, places, tasks, documents] = await Promise.all([
+    db.query('SELECT name,start_date::text,end_date::text FROM trips WHERE id=$1', [tripId]),
+    db.query('SELECT * FROM cities WHERE trip_id=$1 ORDER BY position', [tripId]),
+    db.query('SELECT * FROM places WHERE trip_id=$1 ORDER BY city_id,visit_date NULLS FIRST,position', [tripId]),
+    db.query('SELECT * FROM tasks WHERE trip_id=$1 ORDER BY created_at', [tripId]),
+    db.query('SELECT * FROM documents WHERE trip_id=$1 ORDER BY created_at', [tripId]),
+  ])
+  const trip = tripResult.rows[0]
+  if (!trip) throw httpError(404, 'Поездка не найдена')
+  const bundle = {
+    format: 'travel-space', version: 1, exportedAt: new Date().toISOString(),
+    trip: { name: trip.name, startDate: trip.start_date, endDate: trip.end_date },
+    cities: cities.rows.map((city) => ({ id: city.id, name: city.name, arrivalDate: String(city.arrival_date).slice(0,10), departureDate: String(city.departure_date).slice(0,10), arrivalPeriod: city.arrival_period, departurePeriod: city.departure_period, hotel: city.hotel, trainIn: city.train_in, trainOut: city.train_out })),
+    places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, position: place.position })),
+    tasks: tasks.rows.map((task) => ({ cityId: task.city_id, dueDate: task.due_date ? String(task.due_date).slice(0,10) : null, title: task.title, done: task.done })),
+    documents: await Promise.all(documents.rows.map(async (document) => ({ cityId: document.city_id, category: document.category, originalName: document.original_name, mimeType: document.mime_type, contentBase64: (await readFile(path.join(config.uploadDir, document.storage_key))).toString('base64') }))),
+  }
+  const safeName = String(trip.name).replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^-|-$/g, '') || 'trip'
+  reply.header('Content-Type', 'application/vnd.travel-space+json; charset=utf-8')
+  reply.header('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${safeName}.travelspace`)}`)
+  return JSON.stringify(bundle)
 })
 
 app.patch(`${apiPrefix}/trips/:tripId`, async (request) => {

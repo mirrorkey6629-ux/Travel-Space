@@ -83,6 +83,17 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return response.json() as Promise<T>
 }
 
+async function checkedResponse(path: string, init: RequestInit = {}) {
+  const headers = new Headers(init.headers)
+  if (session.token) headers.set('Authorization', `Bearer ${session.token}`)
+  const response = await fetch(`${API_BASE}${path}`, { ...init, headers })
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({})) as { error?: string }
+    throw new Error(payload.error || `Ошибка сервера (${response.status})`)
+  }
+  return response
+}
+
 const json = (method: string, body?: unknown): RequestInit => ({ method, body: body === undefined ? undefined : JSON.stringify(body) })
 
 export const api = {
@@ -96,6 +107,15 @@ export const api = {
   deleteTrip: (id: string, confirmation: string) => request<void>(`/trips/${id}`, json('DELETE', { confirmation })),
   createInvitation: (id: string, expiresInHours: number) => request<{ invitation: { id: string; url: string; expiresAt: string } }>(`/trips/${id}/invitations`, json('POST', { expiresInHours })),
   removeMember: (tripId: string, memberId: string) => request<void>(`/trips/${tripId}/members/${memberId}`, { method: 'DELETE' }),
+  exportTrip: async (tripId: string) => {
+    const response = await checkedResponse(`/trips/${tripId}/export`)
+    return response.blob()
+  },
+  importTrip: async (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return request<{ trip: ApiTripSummary }>('/trips/import', { method: 'POST', body: form })
+  },
   createCity: (tripId: string, value: Record<string, unknown>) => request<{ city: ApiCity }>(`/trips/${tripId}/cities`, json('POST', value)),
   updateCity: (tripId: string, cityId: string, value: Record<string, unknown>) => request<{ city: ApiCity }>(`/trips/${tripId}/cities/${cityId}`, json('PATCH', value)),
   deleteCity: (tripId: string, cityId: string) => request<void>(`/trips/${tripId}/cities/${cityId}`, { method: 'DELETE' }),

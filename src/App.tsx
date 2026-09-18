@@ -1,5 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiTripDetails, ApiTripSummary, session } from './api'
+import { Button, IconButton } from './components/Button'
+import { Input, Select } from './components/FormControls'
+import { TypographyGroup } from './components/TypographyGroup'
 
 type Place = { id: string; name: string; url: string }
 type Task = { id: string; title: string; done: boolean }
@@ -22,7 +25,7 @@ type City = {
 }
 type Trip = { id?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; cities: City[]; members?: TripMember[] }
 type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard'
-type IconName = 'link' | 'add-pin' | 'add-circle' | 'add-plus' | 'arrow-back' | 'attractions' | 'calendar-month' | 'time' | 'planet' | 'close' | 'edit-location' | 'pin-home' | 'image' | 'edit' | 'face' | 'key'
+export type IconName = 'link' | 'add-pin' | 'add-circle' | 'add-plus' | 'arrow-back' | 'attractions' | 'calendar-month' | 'time' | 'planet' | 'close' | 'edit-location' | 'pin-home' | 'image' | 'edit' | 'face' | 'key' | 'delete-forever' | 'file-export'
 
 const STORAGE_KEY = 'tabi-trip-v1'
 const UNSCHEDULED_KEY = 'unscheduled'
@@ -122,15 +125,11 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
   return { id: source.id, role: source.role, name: source.name, startDate: source.start_date.slice(0, 10), endDate: source.end_date.slice(0, 10), cities, members: source.members.map((member) => ({ id: member.id, email: member.email, displayName: member.display_name, role: member.role })) }
 }
 
-function Icon({ name, size = 24 }: { name: IconName; size?: number }) {
+export function Icon({ name, size = 24 }: { name: IconName; size?: number }) {
   return <img className="ui-icon" src={`/assets/icons/${name}.svg`} width={size} height={size} alt="" aria-hidden="true" />
 }
 
-function RouteField({ icon, className = '', children }: { icon: IconName; className?: string; children: React.ReactNode }) {
-  return <label className={`route-field${className ? ` ${className}` : ''}`}><Icon name={icon} />{children}</label>
-}
-
-function GalaxyBackground() {
+export function GalaxyBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -236,16 +235,6 @@ function GalaxyBackground() {
   return <canvas className="galaxy-background" ref={canvasRef} aria-hidden="true" />
 }
 
-function GlassInput(props: React.InputHTMLAttributes<HTMLInputElement> & { icon?: IconName }) {
-  const { icon, ...inputProps } = props
-  return (
-    <label className="glass-input">
-      {icon && <Icon name={icon} size={28} />}
-      <input {...inputProps} />
-    </label>
-  )
-}
-
 function AuthShell({ children, onBack }: { children: React.ReactNode; onBack?: () => void }) {
   return (
     <main className="screen auth-screen">
@@ -254,7 +243,7 @@ function AuthShell({ children, onBack }: { children: React.ReactNode; onBack?: (
         <Icon name="planet" size={40} />
         <span className="type-head-l">Travel Space</span>
       </div>
-      {onBack && <button className="back-button" onClick={onBack} aria-label="Назад"><Icon name="arrow-back" /></button>}
+      {onBack && <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" />}
       {children}
     </main>
   )
@@ -291,10 +280,10 @@ function LoginScreen({ onSubmit }: { onSubmit: () => Promise<void> }) {
     <form className="glass auth-modal compact" onSubmit={submit}>
       <h1>{mode === 'login' ? 'Вход' : 'Регистрация'}</h1>
       <div className="form-stack tight">
-        {mode === 'register' && <GlassInput icon="face" value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" autoFocus />}
-        <GlassInput icon="planet" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" autoFocus={mode === 'login'} />
-        <GlassInput icon="key" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
-        <button className="primary" type="submit" disabled={busy || !email.trim() || password.length < 8 || (mode === 'register' && !name.trim())}>{busy ? 'Подожди…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}</button>
+        {mode === 'register' && <Input theme="accent" icon={<Icon name="face" size={28} />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" autoFocus />}
+        <Input theme="accent" icon={<Icon name="planet" size={28} />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" autoFocus={mode === 'login'} />
+        <Input theme="accent" icon={<Icon name="key" size={28} />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+        <Button type="submit" disabled={busy || !email.trim() || password.length < 8 || (mode === 'register' && !name.trim())}>{busy ? 'Подожди…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}</Button>
       </div>
       <button className="auth-mode-switch" type="button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}>
         {mode === 'login' ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
@@ -316,12 +305,12 @@ function JoinScreen({ onSubmit, initialLink = '' }: { onSubmit: (link: string, n
       <h1>Вставляйте ссылку<br />и поехали</h1>
       <div className="form-stack">
         <div className="form-stack tight">
-          <GlassInput icon="link" value={link} onChange={(event) => setLink(event.target.value)} placeholder="Ссылка на поездку" />
-          {mode === 'register' && <GlassInput icon="face" value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" />}
-          <GlassInput icon="planet" type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" />
-          <GlassInput icon="key" type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+          <Input theme="accent" icon={<Icon name="link" size={28} />} value={link} onChange={(event) => setLink(event.target.value)} placeholder="Ссылка на поездку" />
+          {mode === 'register' && <Input theme="accent" icon={<Icon name="face" size={28} />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" />}
+          <Input theme="accent" icon={<Icon name="planet" size={28} />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" />
+          <Input theme="accent" icon={<Icon name="key" size={28} />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
         </div>
-        <button className="primary" type="submit" disabled={!valid}>Я в деле</button>
+        <Button type="submit" disabled={!valid}>Я в деле</Button>
       </div>
       <button className="auth-mode-switch" type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
         {mode === 'login' ? 'Создать новый аккаунт' : 'У меня уже есть аккаунт'}
@@ -330,18 +319,20 @@ function JoinScreen({ onSubmit, initialLink = '' }: { onSubmit: (link: string, n
   )
 }
 
-function TripsScreen({ trips, onOpen, onCreate, onDelete }: { trips: ApiTripSummary[]; onOpen: (id: string) => void; onCreate: () => void; onDelete: (trip: ApiTripSummary) => void }) {
+function TripsScreen({ trips, onOpen, onCreate, onDelete, onExport, onImport }: { trips: ApiTripSummary[]; onOpen: (id: string) => void; onCreate: () => void; onDelete: (trip: ApiTripSummary) => void; onExport: (trip: ApiTripSummary) => Promise<void>; onImport: (file: File) => Promise<void> }) {
+  const importRef = useRef<HTMLInputElement>(null)
   return (
-    <main className="screen trip-background trips-screen">
+    <main className="screen auth-screen trips-screen">
+      <GalaxyBackground />
       <section className="glass trips-card">
-        <header className="trips-header"><div><h1>Мои поездки</h1><p>Выберите план путешествия</p></div><button className="icon-button" onClick={onCreate} aria-label="Создать поездку"><Icon name="add-plus" /></button></header>
+        <header className="trips-header"><h1>Мои поездки</h1><div className="trips-header-actions"><button className="trip-import-trigger" onClick={() => importRef.current?.click()}>Импорт</button><input ref={importRef} className="hidden-file-input" type="file" accept=".travelspace,application/vnd.travel-space+json,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onImport(file); event.currentTarget.value = '' }} /></div></header>
         <div className="trips-list">
           {trips.map((item) => <article className="trip-list-row" key={item.id}>
-            <button className="trip-list-main" onClick={() => onOpen(item.id)}><strong>{item.name}</strong><span>{formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</span><small>{item.role === 'owner' ? 'Владелец' : 'Гость'}</small></button>
-            {item.role === 'owner' && <button className="trip-delete-trigger" onClick={() => onDelete(item)}>Удалить</button>}
+            <button className="trip-list-main" onClick={() => onOpen(item.id)}><strong>{item.name}</strong><small>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</small></button>
+            {item.role === 'owner' && <div className="trip-owner-actions"><IconButton icon={<Icon name="file-export" />} onClick={() => void onExport(item)} aria-label={`Экспортировать поездку ${item.name}`} title="Экспортировать" /><IconButton className="trip-delete-trigger" icon={<Icon name="delete-forever" />} onClick={() => onDelete(item)} aria-label={`Удалить поездку ${item.name}`} title="Удалить" /></div>}
           </article>)}
         </div>
-        <button className="quiet-create-trip" onClick={onCreate}><Icon name="add-plus" size={16} /> Создать ещё одну поездку</button>
+        <IconButton className="trip-create-row" size="l" icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />
       </section>
     </main>
   )
@@ -350,7 +341,7 @@ function TripsScreen({ trips, onOpen, onCreate, onDelete }: { trips: ApiTripSumm
 function DeleteTripDialog({ trip, onClose, onConfirm }: { trip: ApiTripSummary; onClose: () => void; onConfirm: () => Promise<void> }) {
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState(false)
-  return <div className="overlay"><section className="glass modal destructive-dialog"><h2>Удалить «{trip.name}»?</h2><p>Поездка, города, места и документы будут удалены без возможности восстановления. Введите название поездки вручную:</p><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={trip.name} autoFocus /><div className="dialog-actions"><button onClick={onClose}>Отмена</button><button className="danger" disabled={confirmation !== trip.name || busy} onClick={async () => { setBusy(true); try { await onConfirm() } finally { setBusy(false) } }}>{busy ? 'Удаляем…' : 'Удалить поездку'}</button></div></section></div>
+  return <div className="overlay"><section className="glass modal destructive-dialog"><h2>Удалить «{trip.name}»?</h2><p>Поездка, города, места и документы будут удалены без возможности восстановления. Введите название поездки вручную:</p><input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={trip.name} autoFocus /><div className="dialog-actions"><Button theme="secondary" size="m" onClick={onClose}>Отмена</Button><button className="danger" disabled={confirmation !== trip.name || busy} onClick={async () => { setBusy(true); try { await onConfirm() } finally { setBusy(false) } }}>{busy ? 'Удаляем…' : 'Удалить поездку'}</button></div></section></div>
 }
 
 function InviteDialog({ trip, onClose, onCreate, onRemove }: { trip: Trip; onClose: () => void; onCreate: (hours: number) => Promise<{ url: string; expiresAt: string }>; onRemove: (member: TripMember) => Promise<void> }) {
@@ -359,7 +350,7 @@ function InviteDialog({ trip, onClose, onCreate, onRemove }: { trip: Trip; onClo
   const [busy, setBusy] = useState(false)
   const [removeTarget, setRemoveTarget] = useState<TripMember | null>(null)
   const guests = (trip.members ?? []).filter((member) => member.role === 'member')
-  return <div className="overlay"><section className="glass modal invite-dialog"><h2>Участники «{trip.name}»</h2>{guests.length > 0 ? <div className="member-list">{guests.map((member) => <div className="member-row" key={member.id}><div><strong>{member.displayName}</strong><small>{member.email}</small></div>{removeTarget?.id === member.id ? <div className="member-confirm"><button onClick={() => setRemoveTarget(null)}>Отмена</button><button className="danger" onClick={async () => { await onRemove(member); setRemoveTarget(null) }}>Удалить</button></div> : <button className="member-remove" onClick={() => setRemoveTarget(member)}>Убрать</button>}</div>)}</div> : <p>Пока в поездке нет приглашённых друзей.</p>}<div className="invite-divider" /><h2>Ссылка-приглашение</h2><p>Новая ссылка сразу отключит предыдущую. Все вошедшие по ней станут гостями.</p><label className="field"><span>Срок действия</span><select value={hours} onChange={(event) => setHours(Number(event.target.value))}><option value={24}>24 часа</option><option value={72}>3 дня</option><option value={168}>7 дней</option></select></label>{invite && <div className="invite-result"><input readOnly value={invite.url} /><small>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</small><button onClick={() => void navigator.clipboard.writeText(invite.url)}>Скопировать ссылку</button></div>}<div className="dialog-actions"><button onClick={onClose}>Закрыть</button><button className="primary" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(hours)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</button></div></section></div>
+  return <div className="overlay"><section className="glass modal invite-dialog"><h2>Участники «{trip.name}»</h2>{guests.length > 0 ? <div className="member-list">{guests.map((member) => <div className="member-row" key={member.id}><div><strong>{member.displayName}</strong><small>{member.email}</small></div>{removeTarget?.id === member.id ? <div className="member-confirm"><button onClick={() => setRemoveTarget(null)}>Отмена</button><button className="danger" onClick={async () => { await onRemove(member); setRemoveTarget(null) }}>Удалить</button></div> : <button className="member-remove" onClick={() => setRemoveTarget(member)}>Убрать</button>}</div>)}</div> : <p>Пока в поездке нет приглашённых друзей.</p>}<div className="invite-divider" /><h2>Ссылка-приглашение</h2><p>Новая ссылка сразу отключит предыдущую. Все вошедшие по ней станут гостями.</p><label className="field"><span>Срок действия</span><Select content="list" value={hours} onChange={(event) => setHours(Number(event.target.value))}><option value={24}>24 часа</option><option value={72}>3 дня</option><option value={168}>7 дней</option></Select></label>{invite && <div className="invite-result"><input readOnly value={invite.url} /><small>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</small><button onClick={() => void navigator.clipboard.writeText(invite.url)}>Скопировать ссылку</button></div>}<div className="dialog-actions"><Button theme="secondary" size="m" onClick={onClose}>Закрыть</Button><Button size="m" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(hours)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button></div></section></div>
 }
 
 const emptyCity = (): City => ({ id: uid(), name: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotel: '', trainIn: '', trainOut: '', places: {}, tasks: [], files: [] })
@@ -374,14 +365,14 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
     <form className="city-editor-view setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
       <div className="modal-title">
         <div>{!initial && <span className="eyebrow">Новая локация</span>}<h2>{initial ? city.name : 'Добавить город'}</h2></div>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Закрыть"><Icon name="close" /></button>
+        <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
       </div>
       <div className="field-grid">
-        <label className="field span-2"><span>Город</span><input value={city.name} onChange={(e) => setCity({ ...city, name: e.target.value })} placeholder="Например, Осака" autoFocus /></label>
-        <label className="field"><span>Прибытие</span><div className="date-time-fields"><select className="date-select" value={city.arrival} onChange={(e) => { const value = e.target.value; setCity((current) => ({ ...current, arrival: value, departure: current.departure < value ? '' : current.departure })) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</select><select className="time-select" aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(e) => setCity((current) => ({ ...current, arrivalPeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></select></div></label>
-        <label className="field"><span>Отъезд</span><div className="date-time-fields"><select className="date-select" value={city.departure} disabled={!city.arrival} onChange={(e) => setCity((current) => ({ ...current, departure: e.target.value }))}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</select><select className="time-select" aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(e) => setCity((current) => ({ ...current, departurePeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></select></div></label>
+        <label className="field span-2"><span>Город</span><Input value={city.name} onChange={(e) => setCity({ ...city, name: e.target.value })} placeholder="Например, Осака" autoFocus /></label>
+        <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(e) => { const value = e.target.value; setCity((current) => ({ ...current, arrival: value, departure: current.departure < value ? '' : current.departure })) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(e) => setCity((current) => ({ ...current, arrivalPeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+        <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(e) => setCity((current) => ({ ...current, departure: e.target.value }))}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(e) => setCity((current) => ({ ...current, departurePeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
       </div>
-      <button className="primary" type="submit" disabled={!valid}>{initial ? 'Сохранить' : 'Добавить'}</button>
+      <Button type="submit" disabled={!valid}>{initial ? 'Сохранить' : 'Добавить'}</Button>
     </form>
   )
 }
@@ -398,7 +389,7 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
 
   return (
     <form className="all-cities-editor setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(cities) }}>
-      <button type="button" className="icon-button bulk-edit-button" onClick={onClose} aria-label="Закрыть редактирование"><Icon name="close" /></button>
+      <IconButton type="button" className="bulk-edit-button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть редактирование" />
       <div className="all-cities-scroll">
         <h2>Все города</h2>
         <div className="all-cities-list">
@@ -406,14 +397,14 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
             const departureDates = tripDates.filter((date) => !city.arrival || date >= city.arrival)
             return (
               <section className="all-city-fields" key={city.id}>
-                <label className="field city-name-field"><span>Город</span><input value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></label>
-                <label className="field"><span>Прибытие</span><div className="date-time-fields"><select className="date-select" value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</select><select className="time-select" aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></select></div></label>
-                <label className="field"><span>Отъезд</span><div className="date-time-fields"><select className="date-select" value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</select><select className="time-select" aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></select></div></label>
+                <label className="field city-name-field"><span>Город</span><Input value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></label>
+                <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+                <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
               </section>
             )
           })}
         </div>
-        <button className="primary" type="submit" disabled={!valid}>Сохранить</button>
+        <Button type="submit" disabled={!valid}>Сохранить</Button>
       </div>
     </form>
   )
@@ -441,7 +432,7 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
   }
   return (
     <main className="screen trip-background setup-screen">
-      <button className="back-button" onClick={onExit} aria-label="Назад"><Icon name="arrow-back" /></button>
+      <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onExit} aria-label="Назад" />
       <section className={`glass setup-card${editingAll ? ' editing-all' : ''}`}>
         {editingAll ? (
           <AllCitiesEditor trip={trip} onClose={() => setEditingAll(false)} onSave={(cities) => { setTrip((current) => ({ ...current, cities: [...cities].sort((a, b) => a.arrival.localeCompare(b.arrival)) })); setEditingAll(false) }} />
@@ -449,7 +440,7 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
           <CityEditor trip={trip} initial={editing ?? undefined} onSave={upsertCity} onClose={() => setEditing(undefined)} />
         ) : (
           <div className="setup-content setup-transition">
-            {trip.cities.length > 0 && <button type="button" className="icon-button bulk-edit-button" onClick={() => setEditingAll(true)} aria-label="Редактировать все города"><Icon name="edit" /></button>}
+            {trip.cities.length > 0 && <IconButton type="button" className="bulk-edit-button" icon={<Icon name="edit" />} onClick={() => setEditingAll(true)} aria-label="Редактировать все города" />}
             <div className="trip-fields">
               <input className="title-input" value={trip.name} onChange={(e) => setTrip((current) => ({ ...current, name: e.target.value }))} placeholder="Название поездки" />
               <div className="date-summary">
@@ -463,9 +454,9 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
             </div>
             <div className="city-editor-group">
               {trip.cities.length > 0 && <div className="city-list setup-list">{trip.cities.map((city) => <button className="city-row" key={city.id} onClick={() => setEditing(city)}><strong>{city.name}</strong><span>{formatShortRange(city.arrival, city.departure)}</span><span>{formatDays(cityDays(city))}</span></button>)}</div>}
-              <button className="add-city" disabled={!datesValid} onClick={() => setEditing(null)}>{trip.cities.length ? <Icon name="add-plus" /> : 'Добавить города'}</button>
+              <IconButton className="add-city" size="l" icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
             </div>
-            {trip.cities.length > 0 && <button className="primary" disabled={!trip.name.trim()} onClick={() => onCreate(trip)}>{initial ? 'Сохранить' : 'Создать'}</button>}
+            {trip.cities.length > 0 && <Button disabled={!trip.name.trim()} onClick={() => onCreate(trip)}>{initial ? 'Сохранить' : 'Создать'}</Button>}
           </div>
         )}
       </section>
@@ -482,21 +473,20 @@ function TripSidebar({ trip, selectedCityId, onCity, onEdit }: { trip: Trip; sel
   return (
     <aside className="sidebar">
       <section className="glass sidebar-card trip-summary">
-        <h1>{trip.name}</h1>
-        <p>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)}</p>
+        <TypographyGroup title={trip.name} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)}</>} />
         <div className="city-list">{trip.cities.map((city) => <button className={`city-row${city.id === selectedCityId ? ' selected' : ''}`} key={city.id} aria-current={city.id === selectedCityId ? 'true' : undefined} onClick={() => onCity(city)}><strong>{city.id === selectedCityId && '📌 '}{city.name}</strong><span>{formatShortRange(city.arrival, city.departure)}</span><span>{formatDays(cityDays(city))}</span></button>)}</div>
-        {trip.role === 'owner' && <button className="primary edit-trip" onClick={onEdit}>Редактировать</button>}
+        {trip.role === 'owner' && <Button className="edit-trip" onClick={onEdit}>Редактировать</Button>}
         <p className="countdown">{daysLeft > 0 ? `🎉 Едем через ${formatDays(daysLeft)}` : daysLeft === 0 ? '🎉 Поездка начинается сегодня' : '🎉 Путешествие уже началось'}</p>
       </section>
       <section className="glass sidebar-card links-card">
-        <h3>✈️ Самолёты <button type="button" aria-label="Добавить билеты"><Icon name="add-plus" size={16} /></button></h3>
+        <h3>✈️ Самолёты <IconButton type="button" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Добавить билеты" /></h3>
         <DocumentStatus checked={false}>Билеты туда</DocumentStatus>
         <DocumentStatus checked={false}>Билеты обратно</DocumentStatus>
         <div className="divider" />
-        <h3>🏨 Отели <button type="button" aria-label="Добавить бронь отеля"><Icon name="add-plus" size={16} /></button></h3>
+        <h3>🏨 Отели <IconButton type="button" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Добавить бронь отеля" /></h3>
         {trip.cities.map((city) => <DocumentStatus key={city.id} checked={Boolean(city.hotel)}>{city.name}</DocumentStatus>)}
         <div className="divider" />
-        <h3>🚅 Поезда <button type="button" aria-label="Добавить билеты на поезд"><Icon name="add-plus" size={16} /></button></h3>
+        <h3>🚅 Поезда <IconButton type="button" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Добавить билеты на поезд" /></h3>
         {trip.cities.slice(0, -1).map((city, index) => <DocumentStatus key={city.id} checked={Boolean(city.trainOut || trip.cities[index + 1].trainIn)}>{city.name} — {trip.cities[index + 1].name}</DocumentStatus>)}
       </section>
     </aside>
@@ -509,7 +499,7 @@ function DayCard({ date, cities, hidden }: { date: string; cities: City[]; hidde
     <article className={`glass day-card${hidden ? ' past' : ''}`}>
       <header><strong>{day.getDate()} {ruMonths[day.getMonth()].slice(0, 3)}</strong><span>{ruWeekdays[day.getDay()]}</span></header>
       <div className="day-content">
-        {cities.map((city) => <div className="day-city" key={city.id}><span>{city.name}</span><small>{date === city.arrival ? 'Прибытие' : date === city.departure ? 'Отъезд' : 'День в городе'}</small></div>)}
+        {cities.map((city) => <TypographyGroup className="day-city" variant="head-m-text" headingLevel="h3" key={city.id} title={city.name} text={date === city.arrival ? 'Прибытие' : date === city.departure ? 'Отъезд' : 'День в городе'} />)}
         {cities.length === 0 && <p className="empty-text">Свободный день — добавьте город или переезд</p>}
       </div>
     </article>
@@ -542,16 +532,13 @@ function CityPanel({ city, previousCity, nextCity, onChange, onAddPlace, onTrain
   return (
       <section className="glass city-page-card setup-transition">
         <div className="city-compact-header">
-          <button type="button" className="city-inline-back" onClick={onClose} aria-label="Назад"><Icon name="arrow-back" /></button>
-          <div className="city-compact-copy">
-            <h1>{draft.name}</h1>
-            <p>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))}</p>
-          </div>
+          <IconButton type="button" className="city-inline-back" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
+          <TypographyGroup className="city-compact-copy" title={draft.name} text={<>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))}</>} />
         </div>
         <div className="info-strip">
-          <div className="info-field"><div className="info-copy"><b>🏨 Твой отель</b><input ref={hotelInputRef} placeholder="Где будем жить" value={draft.hotel} onChange={(e) => setDraft({ ...draft, hotel: e.target.value })} onBlur={() => onChange(draft)} /></div><button type="button" onClick={() => hotelInputRef.current?.focus()} aria-label="Добавить отель"><Icon name="add-plus" size={20} /></button></div>
-          <div className="info-field"><div className="info-copy"><b>🚅 {previousCity ? `${previousCity.name} — ${draft.name}` : 'Поезд сюда'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainIn} /></div><button type="button" onClick={() => trainInFileRef.current?.click()} aria-label={draft.trainIn ? 'Заменить билет на поезд сюда' : 'Прикрепить билет на поезд сюда'}><Icon name={draft.trainIn ? 'edit' : 'add-plus'} size={20} /></button><input ref={trainInFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'in')} /></div>
-          <div className="info-field"><div className="info-copy"><b>🚅 {nextCity ? `${draft.name} — ${nextCity.name}` : 'Поезд дальше'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainOut} /></div><button type="button" onClick={() => trainOutFileRef.current?.click()} aria-label={draft.trainOut ? 'Заменить билет на поезд дальше' : 'Прикрепить билет на поезд дальше'}><Icon name={draft.trainOut ? 'edit' : 'add-plus'} size={20} /></button><input ref={trainOutFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'out')} /></div>
+          <div className="info-field"><div className="info-copy"><b>🏨 Твой отель</b><input ref={hotelInputRef} placeholder="Где будем жить" value={draft.hotel} onChange={(e) => setDraft({ ...draft, hotel: e.target.value })} onBlur={() => onChange(draft)} /></div><IconButton type="button" icon={<Icon name="add-plus" size={20} />} onClick={() => hotelInputRef.current?.focus()} aria-label="Добавить отель" /></div>
+          <div className="info-field"><div className="info-copy"><b>🚅 {previousCity ? `${previousCity.name} — ${draft.name}` : 'Поезд сюда'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainIn} /></div><IconButton type="button" icon={<Icon name={draft.trainIn ? 'edit' : 'add-plus'} size={20} />} onClick={() => trainInFileRef.current?.click()} aria-label={draft.trainIn ? 'Заменить билет на поезд сюда' : 'Прикрепить билет на поезд сюда'} /><input ref={trainInFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'in')} /></div>
+          <div className="info-field"><div className="info-copy"><b>🚅 {nextCity ? `${draft.name} — ${nextCity.name}` : 'Поезд дальше'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainOut} /></div><IconButton type="button" icon={<Icon name={draft.trainOut ? 'edit' : 'add-plus'} size={20} />} onClick={() => trainOutFileRef.current?.click()} aria-label={draft.trainOut ? 'Заменить билет на поезд дальше' : 'Прикрепить билет на поезд дальше'} /><input ref={trainOutFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'out')} /></div>
         </div>
         <div className="city-main">
           <div className="city-days">
@@ -563,10 +550,10 @@ function CityPanel({ city, previousCity, nextCity, onChange, onAddPlace, onTrain
               <iframe title={`Карта города ${draft.name}`} src={mapUrl} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" />
             </div>
             <form className="route-form" onSubmit={addPlace}>
-              <RouteField icon="calendar-month"><select aria-label="Дата посещения" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}><option value={UNSCHEDULED_KEY}>Без даты</option>{dateRange(draft.arrival, draft.departure).map((date) => <option key={date} value={date}>{formatDate(date)}</option>)}</select></RouteField>
-              <RouteField icon="attractions"><input aria-label="Название места" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="Название места" /></RouteField>
-              <RouteField icon="add-pin" className="map-link-input"><input aria-label="Ссылка Google Maps" value={placeUrl} onChange={(e) => setPlaceUrl(e.target.value)} placeholder="Ссылка Google Maps" /></RouteField>
-              <button className="primary">Добавить точку</button>
+              <Select content="date" icon={<Icon name="calendar-month" />} aria-label="Дата посещения" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}><option value={UNSCHEDULED_KEY}>Без даты</option>{dateRange(draft.arrival, draft.departure).map((date) => <option key={date} value={date}>{formatDate(date)}</option>)}</Select>
+              <Input icon={<Icon name="attractions" />} aria-label="Название места" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="Название места" />
+              <Input icon={<Icon name="add-pin" />} controlClassName="map-link-input" aria-label="Ссылка Google Maps" value={placeUrl} onChange={(e) => setPlaceUrl(e.target.value)} placeholder="Ссылка Google Maps" />
+              <Button>Добавить точку</Button>
             </form>
           </div>
         </div>
@@ -617,7 +604,7 @@ function Dashboard({ trip, onChange, onEdit, onTrips, onInvite, onCityChange, on
           <div className="calendar-content setup-transition">
             {allDays.some((date) => date < today) && <button className="past-toggle" onClick={() => setShowPast(!showPast)}>{showPast ? 'Скрыть прошедшие дни' : 'Показать прошедшие дни'}</button>}
             {visibleDays.map((date) => <DayCard key={date} date={date} cities={trip.cities.filter((city) => date >= city.arrival && date <= city.departure)} hidden={date < today} />)}
-            {visibleDays.length === 0 && <article className="glass empty-calendar"><h2>Все дни уже прошли</h2><button className="primary" onClick={() => setShowPast(true)}>Показать поездку</button></article>}
+            {visibleDays.length === 0 && <article className="glass empty-calendar"><h2>Все дни уже прошли</h2><Button onClick={() => setShowPast(true)}>Показать поездку</Button></article>}
           </div>
         )}
       </section>
@@ -778,7 +765,7 @@ export default function App() {
       </AuthShell>
     )
   }
-  if (screen === 'trips') return <><TripsScreen trips={trips} onOpen={(id) => { void loadTrip(id).then(() => setScreen('dashboard')) }} onCreate={() => { setTrip(null); setScreen('setup') }} onDelete={setDeleteTarget} />{deleteTarget && <DeleteTripDialog trip={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={async () => { await api.deleteTrip(deleteTarget.id, deleteTarget.name); setDeleteTarget(null); const remaining = await refreshTrips(); if (remaining.length === 1) { await loadTrip(remaining[0].id); setScreen('dashboard') } }} />}{error && <p className="app-error">{error}</p>}</>
+  if (screen === 'trips') return <><TripsScreen trips={trips} onOpen={(id) => { void loadTrip(id).then(() => setScreen('dashboard')) }} onCreate={() => { setTrip(null); setScreen('setup') }} onDelete={setDeleteTarget} onExport={async (item) => { try { const blob = await api.exportTrip(item.id); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${item.name}.travelspace`; anchor.click(); URL.revokeObjectURL(url) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось экспортировать поездку') } }} onImport={async (file) => { try { const result = await api.importTrip(file); await refreshTrips(); await loadTrip(result.trip.id); setScreen('dashboard') } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось импортировать поездку') } }} />{deleteTarget && <DeleteTripDialog trip={deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={async () => { await api.deleteTrip(deleteTarget.id, deleteTarget.name); setDeleteTarget(null); const remaining = await refreshTrips(); if (remaining.length === 1) { await loadTrip(remaining[0].id); setScreen('dashboard') } }} />}{error && <p className="app-error">{error}</p>}</>
   if (screen === 'setup') return <><SetupScreen initial={trip} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={(value) => void saveTrip(value)} />{error && <p className="app-error">{error}</p>}</>
   if (!trip) return null
   return <><Dashboard trip={trip} onChange={setTrip} onEdit={() => setScreen('setup')} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onTrainUpload={(city, direction, file) => void uploadTrain(city, direction, file)} />{inviteOpen && <InviteDialog trip={trip} onClose={() => setInviteOpen(false)} onCreate={async (hours) => (await api.createInvitation(trip.id!, hours)).invitation} onRemove={async (member) => { await api.removeMember(trip.id!, member.id); await loadTrip(trip.id!) }} />}{error && <p className="app-error">{error}</p>}</>
