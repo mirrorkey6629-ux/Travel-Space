@@ -125,8 +125,10 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
   return { id: source.id, role: source.role, name: source.name, startDate: source.start_date.slice(0, 10), endDate: source.end_date.slice(0, 10), cities, members: source.members.map((member) => ({ id: member.id, email: member.email, displayName: member.display_name, role: member.role })) }
 }
 
+// BASE_URL — это vite base, всегда со слэшем на конце. Строки, которые JS собирает
+// сам, Vite префиксом не дополняет, в отличие от путей в HTML и CSS.
 export function Icon({ name, size = 24 }: { name: IconName; size?: number }) {
-  return <img className="ui-icon" src={`/assets/icons/${name}.svg`} width={size} height={size} alt="" aria-hidden="true" />
+  return <img className="ui-icon" src={`${import.meta.env.BASE_URL}assets/icons/${name}.svg`} width={size} height={size} alt="" aria-hidden="true" />
 }
 
 export function GalaxyBackground() {

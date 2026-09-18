@@ -7,3 +7,4 @@ apps/api/dist/
 data/
 *.log
 .DS_Store
+.idea/

@@ -1,13 +1,15 @@
-import { createReadStream, createWriteStream } from 'node:fs'
+import { createReadStream, createWriteStream, existsSync } from 'node:fs'
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pipeline } from 'node:stream/promises'
 import cors from '@fastify/cors'
 import multipart from '@fastify/multipart'
+import fastifyStatic from '@fastify/static'
 import Fastify from 'fastify'
 import { createToken, hashPassword, hashToken, requireTripRole, requireUser, verifyPassword } from './auth.js'
 import { apiPrefix, config } from './config.js'
 import { db, transaction } from './db.js'
+import { runMigrations } from './migrate.js'
 
 type Json = Record<string, unknown>
 const bodyOf = (value: unknown) => (value && typeof value === 'object' ? value as Json : {})
@@ -18,8 +20,25 @@ const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode })
 
 const app = Fastify({ logger: true, bodyLimit: config.maxUploadBytes })
-await app.register(cors, { origin: true, credentials: true })
+await app.register(cors, { origin: [config.publicOrigin], credentials: true })
 await app.register(multipart, { limits: { fileSize: config.maxUploadBytes, files: 1 } })
+
+// Собранный SPA лежит в образе рядом с API. При локальной разработке его нет —
+// статику отдаёт vite dev server, поэтому плагин просто не регистрируется.
+const spaAvailable = existsSync(config.spaDir)
+
+if (spaAvailable) {
+  await app.register(fastifyStatic, {
+    root: config.spaDir,
+    prefix: `${config.basePath}/`,
+    // wildcard: false оставляет несуществующие пути setNotFoundHandler'у.
+    // С wildcard: true плагин сам отвечал бы 404, и вложенные клиентские
+    // маршруты нельзя было бы открыть по прямой ссылке.
+    wildcard: false,
+  })
+
+  app.get(config.basePath, (_request, reply) => reply.redirect(`${config.basePath}/`, 301))
+}
 
 app.setErrorHandler((error, _request, reply) => {
   const statusCode = Number((error as { statusCode?: number }).statusCode) || 500
@@ -482,11 +501,30 @@ app.get(`${apiPrefix}/documents/:documentId/download`, async (request, reply) =>
   return reply.send(createReadStream(path.join(config.uploadDir, document.storage_key)))
 })
 
+
+// Клиентские маршруты вроде /travel/join/<token> существуют только в браузере:
+// сервер отдаёт на них index.html, а разбирает путь уже само приложение.
+app.setNotFoundHandler((request, reply) => {
+  const pathname = request.url.split('?')[0]
+  const isApi = pathname === apiPrefix || pathname.startsWith(`${apiPrefix}/`)
+  const isSpaRoute = pathname === config.basePath || pathname.startsWith(`${config.basePath}/`)
+  if (spaAvailable && request.method === 'GET' && isSpaRoute && !isApi) return reply.sendFile('index.html')
+  return reply.code(404).send({ error: 'Не найдено' })
+})
+
 const close = async () => {
   await app.close()
   await db.end()
 }
 process.on('SIGINT', close)
 process.on('SIGTERM', close)
+
+// Схема приводится в актуальное состояние до того, как откроется порт, поэтому
+// работающий контейнер никогда не обслуживает запросы на устаревшей базе.
+if (config.skipMigrations) {
+  app.log.warn('TRAVEL_SKIP_MIGRATIONS=true — миграции пропущены')
+} else {
+  await runMigrations((message) => app.log.info(message))
+}
 
 await app.listen({ host: config.host, port: config.port })

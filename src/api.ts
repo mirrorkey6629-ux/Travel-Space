@@ -1,4 +1,6 @@
-const API_BASE = '/travel/api'
+// Базовый URL API выводится из vite base, а не задаётся отдельной константой:
+// иначе префикс приложения пришлось бы менять в двух местах.
+const API_BASE = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/api`
 const TOKEN_KEY = 'travel-api-token'
 
 export type ApiRole = 'owner' | 'member'

@@ -1,20 +1,59 @@
+# Эталонный compose приложения — исполняемая документация того, что нужно для
+# запуска: база, образ, переменные, healthcheck и том для загрузок.
+#
+# Для локальной разработки достаточно поднять только базу:
+#   pnpm db:up          (docker compose up -d postgres)
+# Полный запуск в контейнерах, как на сервере:
+#   docker compose up -d --build
+#
+# На VPS используется собственный compose, который берёт готовый образ из ghcr
+# и задаёт домен, сеть reverse proxy, лимиты и секреты. Здесь их быть не должно.
+
+name: travel-space
+
 services:
   postgres:
     image: postgres:17-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: travel
-      POSTGRES_USER: travel
-      POSTGRES_PASSWORD: travel
+      POSTGRES_DB: ${POSTGRES_DB:-travel}
+      POSTGRES_USER: ${POSTGRES_USER:-travel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-travel}
     ports:
+      # Только на петлевом интерфейсе: база не должна торчать наружу.
       - "127.0.0.1:5432:5432"
     volumes:
       - travel-postgres:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U travel -d travel"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-travel} -d ${POSTGRES_DB:-travel}"]
       interval: 5s
       timeout: 3s
       retries: 10
 
+  app:
+    # Локально образ собирается из исходников, на сервере — берётся из registry.
+    build:
+      context: .
+      args:
+        BASE_PATH: ${BASE_PATH:-/travel}
+    image: ghcr.io/mirrorkey6629-ux/travel-space:${TRAVEL_IMAGE_TAG:-latest}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-travel}:${POSTGRES_PASSWORD:-travel}@postgres:5432/${POSTGRES_DB:-travel}
+      # Запасной публичный origin для ссылок-приглашений: используется, когда в
+      # запросе нет заголовка Origin.
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:-http://127.0.0.1:8080}
+      BASE_PATH: ${BASE_PATH:-/travel}
+    ports:
+      - "127.0.0.1:8080:3000"
+    volumes:
+      - travel-uploads:/app/data/uploads
+    depends_on:
+      postgres:
+        # Контейнер применяет миграции при старте, поэтому база должна быть
+        # готова принимать соединения раньше него.
+        condition: service_healthy
+
 volumes:
   travel-postgres:
-
+  travel-uploads:

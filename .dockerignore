@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+node_modules
+**/node_modules
+dist
+apps/api/dist
+data
+.env
+*.log
+*.tsbuildinfo
+Dockerfile
+.dockerignore
+compose.yaml
