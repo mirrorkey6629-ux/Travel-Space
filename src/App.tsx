@@ -25,7 +25,7 @@ type City = {
 }
 type Trip = { id?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; cities: City[]; members?: TripMember[] }
 type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard'
-export type IconName = 'link' | 'add-pin' | 'add-circle' | 'add-plus' | 'arrow-back' | 'attractions' | 'calendar-month' | 'time' | 'planet' | 'close' | 'edit-location' | 'pin-home' | 'image' | 'edit' | 'face' | 'key' | 'delete-forever' | 'file-export'
+export type IconName = 'link' | 'add-pin' | 'add-circle' | 'add-plus' | 'arrow-back' | 'attractions' | 'calendar-month' | 'time' | 'planet' | 'close' | 'edit-location' | 'pin-home' | 'image' | 'edit' | 'face' | 'key' | 'delete-forever' | 'file-export' | 'upload-file'
 
 const STORAGE_KEY = 'tabi-trip-v1'
 const UNSCHEDULED_KEY = 'unscheduled'
@@ -60,6 +60,12 @@ const formatDays = (value: number) => {
   const mod100 = Math.abs(value) % 100
   const mod10 = mod100 % 10
   const word = mod100 >= 11 && mod100 <= 14 ? 'дней' : mod10 === 1 ? 'день' : mod10 >= 2 && mod10 <= 4 ? 'дня' : 'дней'
+  return `${value} ${word}`
+}
+const formatParticipants = (value: number) => {
+  const mod100 = Math.abs(value) % 100
+  const mod10 = mod100 % 10
+  const word = mod100 >= 11 && mod100 <= 14 ? 'участников' : mod10 === 1 ? 'участник' : mod10 >= 2 && mod10 <= 4 ? 'участника' : 'участников'
   return `${value} ${word}`
 }
 const formatDate = (value: string) => {
@@ -327,14 +333,16 @@ function TripsScreen({ trips, onOpen, onCreate, onDelete, onExport, onImport }: 
     <main className="screen auth-screen trips-screen">
       <GalaxyBackground />
       <section className="glass trips-card">
-        <header className="trips-header"><h1>Мои поездки</h1><div className="trips-header-actions"><button className="trip-import-trigger" onClick={() => importRef.current?.click()}>Импорт</button><input ref={importRef} className="hidden-file-input" type="file" accept=".travelspace,application/vnd.travel-space+json,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onImport(file); event.currentTarget.value = '' }} /></div></header>
-        <div className="trips-list">
-          {trips.map((item) => <article className="trip-list-row" key={item.id}>
-            <button className="trip-list-main" onClick={() => onOpen(item.id)}><strong>{item.name}</strong><small>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</small></button>
-            {item.role === 'owner' && <div className="trip-owner-actions"><IconButton icon={<Icon name="file-export" />} onClick={() => void onExport(item)} aria-label={`Экспортировать поездку ${item.name}`} title="Экспортировать" /><IconButton className="trip-delete-trigger" icon={<Icon name="delete-forever" />} onClick={() => onDelete(item)} aria-label={`Удалить поездку ${item.name}`} title="Удалить" /></div>}
-          </article>)}
+        <header className="trips-header"><h1>Мои поездки</h1><div className="trips-header-actions"><IconButton size="m" icon={<Icon name="upload-file" />} onClick={() => importRef.current?.click()} aria-label="Импортировать поездку" title="Импортировать поездку" /><input ref={importRef} className="hidden-file-input" type="file" accept=".travelspace,application/vnd.travel-space+json,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onImport(file); event.currentTarget.value = '' }} /></div></header>
+        <div className="trips-content">
+          <div className="trips-list">
+            {trips.map((item) => <article className="trip-list-row" key={item.id}>
+              <button className="trip-list-main" onClick={() => onOpen(item.id)}><strong>{item.name}</strong><small>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</small></button>
+              {item.role === 'owner' && <div className="trip-owner-actions"><IconButton icon={<Icon name="file-export" />} onClick={() => void onExport(item)} aria-label={`Экспортировать поездку ${item.name}`} title="Экспортировать" /><IconButton className="trip-delete-trigger" icon={<Icon name="delete-forever" />} onClick={() => onDelete(item)} aria-label={`Удалить поездку ${item.name}`} title="Удалить" /></div>}
+            </article>)}
+          </div>
+          <IconButton className="trip-create-row" size="l" icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />
         </div>
-        <IconButton className="trip-create-row" size="l" icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />
       </section>
     </main>
   )
@@ -470,14 +478,17 @@ function DocumentStatus({ checked, children }: { checked: boolean; children: Rea
   return <p className="document-row"><span className={`document-check${checked ? ' checked' : ''}`} role="checkbox" aria-checked={checked} />{children}</p>
 }
 
-function TripSidebar({ trip, selectedCityId, onCity, onEdit }: { trip: Trip; selectedCityId?: string | null; onCity: (city: City) => void; onEdit: () => void }) {
+function TripSidebar({ trip, selectedCityId, onCity, onEdit, onInvite }: { trip: Trip; selectedCityId?: string | null; onCity: (city: City) => void; onEdit: () => void; onInvite: () => void }) {
   const daysLeft = Math.ceil((parseDate(trip.startDate).getTime() - new Date().getTime()) / 86400000)
   return (
     <aside className="sidebar">
       <section className="glass sidebar-card trip-summary">
-        <TypographyGroup title={trip.name} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)}</>} />
+        <TypographyGroup title={trip.name} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {trip.role === 'owner' ? <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button> : formatParticipants(Math.max(1, trip.members?.length ?? 0))}</>} />
         <div className="city-list">{trip.cities.map((city) => <button className={`city-row${city.id === selectedCityId ? ' selected' : ''}`} key={city.id} aria-current={city.id === selectedCityId ? 'true' : undefined} onClick={() => onCity(city)}><strong>{city.id === selectedCityId && '📌 '}{city.name}</strong><span>{formatShortRange(city.arrival, city.departure)}</span><span>{formatDays(cityDays(city))}</span></button>)}</div>
-        {trip.role === 'owner' && <Button className="edit-trip" onClick={onEdit}>Редактировать</Button>}
+        {trip.role === 'owner' && <div className="trip-summary-actions">
+          <Button onClick={onEdit}>Редактировать</Button>
+          <Button theme="secondary" onClick={onInvite}>Пригласить</Button>
+        </div>}
         <p className="countdown">{daysLeft > 0 ? `🎉 Едем через ${formatDays(daysLeft)}` : daysLeft === 0 ? '🎉 Поездка начинается сегодня' : '🎉 Путешествие уже началось'}</p>
       </section>
       <section className="glass sidebar-card links-card">
@@ -538,9 +549,9 @@ function CityPanel({ city, previousCity, nextCity, onChange, onAddPlace, onTrain
           <TypographyGroup className="city-compact-copy" title={draft.name} text={<>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))}</>} />
         </div>
         <div className="info-strip">
-          <div className="info-field"><div className="info-copy"><b>🏨 Твой отель</b><input ref={hotelInputRef} placeholder="Где будем жить" value={draft.hotel} onChange={(e) => setDraft({ ...draft, hotel: e.target.value })} onBlur={() => onChange(draft)} /></div><IconButton type="button" icon={<Icon name="add-plus" size={20} />} onClick={() => hotelInputRef.current?.focus()} aria-label="Добавить отель" /></div>
-          <div className="info-field"><div className="info-copy"><b>🚅 {previousCity ? `${previousCity.name} — ${draft.name}` : 'Поезд сюда'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainIn} /></div><IconButton type="button" icon={<Icon name={draft.trainIn ? 'edit' : 'add-plus'} size={20} />} onClick={() => trainInFileRef.current?.click()} aria-label={draft.trainIn ? 'Заменить билет на поезд сюда' : 'Прикрепить билет на поезд сюда'} /><input ref={trainInFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'in')} /></div>
-          <div className="info-field"><div className="info-copy"><b>🚅 {nextCity ? `${draft.name} — ${nextCity.name}` : 'Поезд дальше'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainOut} /></div><IconButton type="button" icon={<Icon name={draft.trainOut ? 'edit' : 'add-plus'} size={20} />} onClick={() => trainOutFileRef.current?.click()} aria-label={draft.trainOut ? 'Заменить билет на поезд дальше' : 'Прикрепить билет на поезд дальше'} /><input ref={trainOutFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'out')} /></div>
+          <div className="info-field"><div className="info-copy"><b>🏨 Твой отель</b><input ref={hotelInputRef} placeholder="Где будем жить" value={draft.hotel} onChange={(e) => setDraft({ ...draft, hotel: e.target.value })} onBlur={() => onChange(draft)} /></div><IconButton type="button" theme="transparent" icon={<Icon name="add-plus" size={20} />} onClick={() => hotelInputRef.current?.focus()} aria-label="Добавить отель" /></div>
+          <div className="info-field"><div className="info-copy"><b>🚅 {previousCity ? `${previousCity.name} — ${draft.name}` : 'Поезд сюда'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainIn} /></div><IconButton type="button" theme="transparent" icon={<Icon name={draft.trainIn ? 'edit' : 'add-plus'} size={20} />} onClick={() => trainInFileRef.current?.click()} aria-label={draft.trainIn ? 'Заменить билет на поезд сюда' : 'Прикрепить билет на поезд сюда'} /><input ref={trainInFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'in')} /></div>
+          <div className="info-field"><div className="info-copy"><b>🚅 {nextCity ? `${draft.name} — ${nextCity.name}` : 'Поезд дальше'}</b><input readOnly placeholder="Прикрепить билет" value={draft.trainOut} /></div><IconButton type="button" theme="transparent" icon={<Icon name={draft.trainOut ? 'edit' : 'add-plus'} size={20} />} onClick={() => trainOutFileRef.current?.click()} aria-label={draft.trainOut ? 'Заменить билет на поезд дальше' : 'Прикрепить билет на поезд дальше'} /><input ref={trainOutFileRef} className="hidden-file-input" type="file" onChange={(e) => addTrainFile(e.target.files, 'out')} /></div>
         </div>
         <div className="city-main">
           <div className="city-days">
@@ -573,8 +584,8 @@ function Dashboard({ trip, onChange, onEdit, onTrips, onInvite, onCityChange, on
   const selectedCityIndex = selectedCity ? trip.cities.findIndex((city) => city.id === selectedCity.id) : -1
   return (
     <main className="screen trip-background dashboard">
-      <nav className="dashboard-tools"><button onClick={onTrips}>Поездки</button>{trip.role === 'owner' && <button onClick={onInvite}>Пригласить</button>}</nav>
-      <TripSidebar trip={trip} selectedCityId={selectedCityId} onCity={(city) => setSelectedCityId(city.id)} onEdit={onEdit} />
+      <nav className="dashboard-tools"><button onClick={onTrips}>Поездки</button></nav>
+      <TripSidebar trip={trip} selectedCityId={selectedCityId} onCity={(city) => setSelectedCityId(city.id)} onEdit={onEdit} onInvite={onInvite} />
       <section className={`calendar-column${selectedCity ? ' city-active' : ''}`}>
         {selectedCity ? (
           <CityPanel
