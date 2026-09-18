@@ -77,6 +77,16 @@ const cityDays = (city: City) => {
   const duration = dateDays + periodDayPart[departurePeriod] - periodDayPart[arrivalPeriod]
   return Math.max(0, Math.round(duration * 2) / 2)
 }
+const compareCitiesByDate = (left: City, right: City) => {
+  const arrival = left.arrival.localeCompare(right.arrival)
+  if (arrival !== 0) return arrival
+  const arrivalPeriod = periodOrder[left.arrivalPeriod ?? 'morning'] - periodOrder[right.arrivalPeriod ?? 'morning']
+  if (arrivalPeriod !== 0) return arrivalPeriod
+  const departure = left.departure.localeCompare(right.departure)
+  if (departure !== 0) return departure
+  return periodOrder[left.departurePeriod ?? 'evening'] - periodOrder[right.departurePeriod ?? 'evening']
+}
+const sortCitiesByDate = (cities: City[]) => [...cities].sort(compareCitiesByDate)
 const formatDays = (value: number) => {
   if (!Number.isInteger(value)) return `${String(value).replace('.', ',')} дня`
   const mod100 = Math.abs(value) % 100
@@ -168,7 +178,7 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
       files: documents.map((document) => ({ id: document.id, name: document.original_name, category: document.category, uploadedBy: document.created_by_name, uploadedAt: document.created_at })),
       image: imageDocument ? { id: imageDocument.id, name: imageDocument.original_name, category: imageDocument.category, uploadedBy: imageDocument.created_by_name, uploadedAt: imageDocument.created_at } : undefined,
     }
-  })
+  }).sort(compareCitiesByDate)
   return { id: source.id, role: source.role, name: source.name, startDate: source.start_date.slice(0, 10), endDate: source.end_date.slice(0, 10), cities, members: source.members.map((member) => ({ id: member.id, email: member.email, displayName: member.display_name, role: member.role, hasAvatar: member.has_avatar })), background: backgroundDocument ? { id: backgroundDocument.id, name: backgroundDocument.original_name, category: backgroundDocument.category } : undefined, backgroundUrl: source.background_removed ? undefined : defaultTripBackground, backgroundRemoved: Boolean(source.background_removed) }
 }
 
@@ -584,7 +594,7 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
   const upsertCity = (city: City) => {
     const exists = trip.cities.some((item) => item.id === city.id)
     const cities = exists ? trip.cities.map((item) => item.id === city.id ? city : item) : [...trip.cities, city]
-    setTrip({ ...trip, cities: cities.sort((a, b) => a.arrival.localeCompare(b.arrival)) })
+    setTrip({ ...trip, cities: sortCitiesByDate(cities) })
     setEditing(undefined)
   }
   return (
@@ -592,7 +602,7 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onExit} aria-label="Назад" />
       <section className={`glass setup-card${editingAll ? ' editing-all' : ''}`}>
         {editingAll ? (
-          <AllCitiesEditor trip={trip} onClose={() => setEditingAll(false)} onSave={(cities) => { setTrip((current) => ({ ...current, cities: [...cities].sort((a, b) => a.arrival.localeCompare(b.arrival)) })); setEditingAll(false) }} />
+          <AllCitiesEditor trip={trip} onClose={() => setEditingAll(false)} onSave={(cities) => { setTrip((current) => ({ ...current, cities: sortCitiesByDate(cities) })); setEditingAll(false) }} />
         ) : editing !== undefined ? (
           <CityEditor trip={trip} initial={editing ?? undefined} onSave={upsertCity} onClose={() => setEditing(undefined)} />
         ) : (
