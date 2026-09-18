@@ -10,9 +10,10 @@ import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
 import './component-library.css'
 
-const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'calendar-month', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'face', 'image', 'key', 'link', 'pin-home', 'planet', 'time', 'upload-file']
+const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'bed', 'calendar-month', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'face', 'image', 'key', 'link', 'pin-home', 'planet', 'ticket', 'time', 'upload-file']
 
 const navigation = [
+  { id: 'colors', label: 'Цвета' },
   { id: 'typography', label: 'Типографика' },
   { id: 'typography-groups', label: 'Группы текста' },
   { id: 'buttons', label: 'Кнопки' },
@@ -65,6 +66,13 @@ export default function ComponentLibrary() {
         </aside>
 
         <div className="kit-content">
+        <Section id="colors" title="Цвета" description="Семантические цвета текста и фонов компонентов">
+          <Specimen name="Основной текст"><Variant label="#FFFFFF"><div className="kit-color-token"><span className="kit-color-swatch kit-color-swatch-primary" /><div><strong>Primary</strong><p>Заголовки, введённый текст и выбранные значения</p><code>--color-text-primary</code></div></div></Variant></Specimen>
+          <Specimen name="Второстепенный текст"><Variant label="White · 60%"><div className="kit-color-token"><span className="kit-color-swatch kit-color-swatch-secondary" /><div><strong>Secondary</strong><p>Обычный текст, подписи и пояснения</p><code>--color-text-secondary</code></div></div></Variant></Specimen>
+          <Specimen name="Основной фон"><Variant label="#FFFFFF"><div className="kit-color-token"><span className="kit-color-swatch kit-background-swatch-primary" /><div><strong>Primary background</strong><p>Основные кнопки и акцентные действия</p><code>--color-background-primary</code></div></div></Variant></Specimen>
+          <Specimen name="Второстепенный фон"><Variant label="White · 12%"><div className="kit-color-token"><span className="kit-color-swatch kit-background-swatch-secondary" /><div><strong>Secondary background</strong><p>Второстепенные кнопки, поля и вложенные плашки</p><code>--color-background-secondary</code></div></div></Variant></Specimen>
+        </Section>
+
         <Section id="typography" title="Типографика" description="Единая шкала текста проекта" className="kit-typography-section">
           <Specimen name="Head L"><Variant label="32px · Medium"><p className="type-head-l kit-type-line">Название поездки</p></Variant></Specimen>
           <Specimen name="Head M"><Variant label="20px · Medium"><p className="type-head-m kit-type-line">Название города</p></Variant></Specimen>

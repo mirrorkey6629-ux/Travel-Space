@@ -9,6 +9,15 @@
 .kit-navigation a:active { opacity: .62; }
 .kit-back-link { min-height: 48px; margin-top: auto; padding: 16px 8px 0; display: flex; align-items: center; gap: 8px; color: rgba(255,255,255,.68); text-decoration: none; }
 .kit-back-link:hover { color: #fff; }
+.kit-color-token { display: flex; align-items: center; gap: 16px; }
+.kit-color-token > div { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.kit-color-token p { margin: 0; color: var(--color-text-secondary); }
+.kit-color-token code { color: var(--color-text-secondary); }
+.kit-color-swatch { width: 64px; height: 64px; flex: 0 0 64px; border: 1px solid var(--border); border-radius: 16px; }
+.kit-color-swatch-primary { background: var(--color-text-primary); }
+.kit-color-swatch-secondary { background: var(--color-text-secondary); }
+.kit-background-swatch-primary { background: var(--color-background-primary); }
+.kit-background-swatch-secondary { background: var(--color-background-secondary); }
 .kit-content { min-width: 0; min-height: 0; height: 100vh; padding: 32px 2px 32px 0; display: flex; flex-direction: column; gap: 24px; overflow-y: auto; overscroll-behavior: contain; scroll-behavior: smooth; scrollbar-width: none; }
 .kit-section { padding: 32px; border: 1px solid var(--border); border-radius: 24px; background: rgba(255,255,255,.1); backdrop-filter: blur(36px) saturate(115%); scroll-margin-top: 0; }
 .kit-section-title { margin-bottom: 24px; }
