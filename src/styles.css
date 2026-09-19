@@ -328,7 +328,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .form-control textarea,
 .field .form-control input,
 .field .form-control select,
-.field .form-control textarea,
+.field .form-control textarea { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; outline: 0; box-shadow: none; appearance: none; -webkit-appearance: none; background: transparent; color: var(--color-text-primary); font: inherit; }
 .form-control input::placeholder, .form-control textarea::placeholder { color: var(--color-text-secondary); opacity: 1; }
 .form-textarea { height: 112px; padding: 16px; align-items: stretch; }
 .form-textarea textarea { resize: vertical; min-height: 78px; }
@@ -442,7 +442,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .links-card h3 { margin: 0 0 8px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); display: flex; align-items: center; gap: 6px; }
 .readiness-heading { margin: 12px 0 28px; text-align: center; }
 .links-card .readiness-transport-heading { margin-top: 28px; }
-.links-card h3 button, .city-day h3 button { width: 24px; height: 24px; border-radius: 50%; color: #fff; background: var(--glass-soft); display: inline-grid; place-items: center; padding: 4px; }
+.links-card h3 button { width: 24px; height: 24px; border-radius: 50%; color: #fff; background: var(--glass-soft); display: inline-grid; place-items: center; padding: 4px; }
 .links-card h3 button .ui-icon { margin: auto; }
 .links-card .divider { margin: 20px 0; }
 .links-card p { margin: 0 0 10px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
@@ -504,14 +504,20 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .city-compact-header p { margin: 0; color: var(--color-text-secondary); font-size: var(--type-text-size); line-height: var(--type-text-line-height); font-weight: var(--type-text-weight); letter-spacing: var(--type-text-letter-spacing); }
 .hidden-file-input { display: none; }
 .city-main { min-height: 0; margin-top: 8px; flex: 1; display: grid; grid-template-columns: calc((100% - 24px) / 3 - 40px) 1fr; align-items: stretch; gap: 12px; }
-.city-days { min-height: 0; padding: 20px 16px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; border-radius: 16px; background: var(--color-background-secondary); }
+.city-days { min-height: 0; padding: 20px 6px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; border-radius: 16px; background: var(--color-background-secondary); }
 .city-days::-webkit-scrollbar { display: none; width: 0; height: 0; }
-.city-day { padding-bottom: 14px; margin-bottom: 14px; }
+.city-day { padding: 8px 10px 12px; margin-bottom: 6px; border-radius: 12px; }
 .city-day h3 { margin: 0 0 10px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
 .city-day a, .city-day .place-row { display: flex; width: 100%; align-items: flex-start; gap: 6px; margin: 7px 0; padding: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); background: transparent; text-align: left; text-decoration: none; font: inherit; }
 .city-day .place-row:hover { color: #fff; }
 .city-day .place-row .ui-icon { flex: 0 0 16px; margin-top: 3px; opacity: .7; }
 .city-day .place-row:hover .ui-icon { opacity: 1; }
+.city-day .place-row span { flex: 1; min-width: 0; }
+/* Ручка переноса прижата вправо. Видна всегда, иначе о возможности переноса
+   узнать неоткуда; приглушена, чтобы не спорить с названием точки. */
+.city-day .place-row .place-row-handle { margin-left: auto; opacity: .3; transition: opacity .12s; cursor: grab; }
+.city-day .place-row:hover .place-row-handle, .city-day .place-row:focus-visible .place-row-handle { opacity: .75; }
+.city-day .place-row.is-dragging .place-row-handle { opacity: .75; cursor: grabbing; }
 .city-route-content { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .city-map { min-height: 300px; flex: 1; margin-bottom: 12px; overflow: hidden; border-radius: 16px; background: rgba(255,255,255,.1); }
 .city-map iframe { display: block; width: 100%; height: 100%; border: 0; }
@@ -595,8 +601,15 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .map-search-results button { width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; color: var(--color-text-secondary); background: transparent; text-align: left; font: inherit; cursor: pointer; }
 .map-search-results button:hover { color: #fff; background: var(--glass-soft); }
 
-.city-day-title { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.city-day-title { display: block; width: 100%; height: auto; padding: 0; border: 0; border-radius: 0; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; }
 .city-day.is-active > h3 .city-day-title { color: #fff; }
-.city-day.is-active { border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); padding-left: 10px; padding-right: 10px; }
-.city-day.is-over { border-radius: 12px; background: var(--glass-soft); }
-.city-day .place-row.is-dragging { opacity: .5; }
+/* Отступы одинаковы у всех дней: иначе выделение активного сдвигало бы содержимое. */
+.city-day.is-active { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
+.city-day.is-over { background: var(--glass-soft); }
+/* Исходная строка почти гаснет: её роль на время переноса берёт плавающая копия,
+   а на освободившемся месте уже видно, куда точка встанет. */
+.city-day .place-row.is-dragging { opacity: .25; }
+.place-row-overlay { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(24,24,32,.94); backdrop-filter: blur(12px); color: #fff; text-align: left; cursor: grabbing; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+.place-row-overlay span { flex: 1; min-width: 0; }
+.place-row-overlay .ui-icon { flex: 0 0 16px; margin-top: 3px; }
+.place-row-overlay .place-row-handle { margin-left: auto; opacity: .75; }

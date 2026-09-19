@@ -126,6 +126,8 @@ export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDa
     const map = mapRef.current
     if (!map || readOnly) return
     const listener = map.addListener('click', (event: any) => {
+      // У кликов по элементам поверх карты latLng отсутствует — такой клик не наш.
+      if (!event.latLng) return
       setSelectedId(null)
       setEditing(false)
       setDraft(null)
