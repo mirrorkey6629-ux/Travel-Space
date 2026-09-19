@@ -8,11 +8,13 @@ import { TypographyGroup } from './components/TypographyGroup'
 import { Tabs } from './components/Tabs'
 import { Icon, type IconName } from './components/Icon'
 import { UNSCHEDULED_KEY } from './places'
-import { GoogleMapPicker } from './components/GoogleMapPicker'
+import { PlacesMap } from './components/PlacesMap'
+import { PlaceDayList } from './components/PlaceDayList'
+import type { PlaceIconKey } from './placeIcons'
 import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
 
-type Place = { id: string; name: string; url: string; latitude?: number; longitude?: number }
+type Place = { id: string; name: string; url: string; icon: PlaceIconKey; latitude?: number; longitude?: number }
 type Task = { id: string; title: string; done: boolean }
 type TravelFile = { id: string; name: string; category: string; uploadedBy?: string; uploadedAt?: string }
 type HotelDetails = { name: string; url: string; checkInTime: string; checkOutTime: string; notes: string }
@@ -196,13 +198,6 @@ const dateRange = (from: string, to: string) => {
 
 const tripBackgroundStyle = (trip: Trip): CSSProperties => ({ '--trip-background-image': trip.backgroundRemoved ? 'none' : `url("${trip.backgroundUrl || defaultTripBackground}")` } as CSSProperties)
 
-const coordinatesFromGoogleMapsUrl = (value: string) => {
-  const match = value.match(/[?&]q=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/) ?? value.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
-  if (!match) return undefined
-  const latitude = Number(match[1])
-  const longitude = Number(match[2])
-  return Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude } : undefined
-}
 
 const fromApiTrip = (source: ApiTripDetails): Trip => {
   const backgroundDocument = source.documents.find((document) => !document.city_id && document.category === 'trip-background')
@@ -210,7 +205,7 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
     const places: Record<string, Place[]> = {}
     source.places.filter((place) => place.city_id === city.id).forEach((place) => {
       const key = place.visit_date?.slice(0, 10) || UNSCHEDULED_KEY
-      ;(places[key] ??= []).push({ id: place.id, name: place.name, url: place.google_maps_url, latitude: place.latitude ?? undefined, longitude: place.longitude ?? undefined })
+      ;(places[key] ??= []).push({ id: place.id, name: place.name, url: place.google_maps_url, icon: place.icon ?? 'default', latitude: place.latitude ?? undefined, longitude: place.longitude ?? undefined })
     })
     const documents = source.documents.filter((document) => document.city_id === city.id)
     const trainIn = documents.find((document) => document.category.startsWith('train-in:'))?.original_name || city.train_in
@@ -1122,16 +1117,13 @@ function HotelDialog({ cityName, value, booking, onSave, onBooking, onOpenBookin
   )
 }
 
-function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, onChange, onAddPlace, onUpdatePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onPanelClose: () => void; onClose: () => void }) {
+function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; readOnly?: boolean; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
   const [contentTransition, setContentTransition] = useState<'idle' | 'out' | 'in'>('idle')
   const [transportDirection, setTransportDirection] = useState<'in' | 'out' | null>(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
   const [hotelOpen, setHotelOpen] = useState(initialPanel === 'hotel')
-  const [place, setPlace] = useState('')
-  const [placeUrl, setPlaceUrl] = useState('')
-  const [placeCoordinates, setPlaceCoordinates] = useState<{ latitude: number; longitude: number } | undefined>()
-  const [selectedDate, setSelectedDate] = useState(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : dateRange(city.arrival, city.departure)[0])
-  const [focusedPlace, setFocusedPlace] = useState<Place | null>(null)
+  const [activeDate, setActiveDate] = useState<string | null>(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : null)
+  const [focusRequest, setFocusRequest] = useState<string | null>(null)
   const hotelFileRef = useRef<HTMLInputElement>(null)
   const trainInFileRef = useRef<HTMLInputElement>(null)
   const trainOutFileRef = useRef<HTMLInputElement>(null)
@@ -1144,11 +1136,8 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
       setDraft({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() })
       setTransportDirection(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
       setHotelOpen(initialPanel === 'hotel')
-      setPlace('')
-      setPlaceUrl('')
-      setPlaceCoordinates(undefined)
-      setSelectedDate(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : dateRange(city.arrival, city.departure)[0])
-      setFocusedPlace(null)
+      setActiveDate(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : null)
+      setFocusRequest(null)
       setContentTransition('in')
     }, 150)
     const finishTimer = window.setTimeout(() => setContentTransition('idle'), 350)
@@ -1161,15 +1150,8 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
     if (displayedCityIdRef.current !== city.id) return
     setTransportDirection(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
     setHotelOpen(initialPanel === 'hotel')
-    setSelectedDate(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : dateRange(city.arrival, city.departure)[0])
+    setActiveDate(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : null)
   }, [city.id, initialDate, initialPanel])
-  const addPlace = (event: FormEvent) => {
-    event.preventDefault()
-    if (!place.trim()) return
-    const coordinates = placeCoordinates ?? coordinatesFromGoogleMapsUrl(placeUrl)
-    const next = { ...draft, places: { ...draft.places, [selectedDate]: [...(draft.places[selectedDate] ?? []), { id: uid(), name: place.trim(), url: placeUrl.trim(), ...coordinates }] } }
-    setDraft(next); onAddPlace(next, selectedDate, next.places[selectedDate].at(-1)!); setPlace(''); setPlaceUrl(''); setPlaceCoordinates(undefined)
-  }
   const addTrainFiles = (files: FileList | null, direction: 'in' | 'out') => {
     const existingCount = draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).length
     const selected = Array.from(files ?? []).slice(0, Math.max(0, 2 - existingCount))
@@ -1194,7 +1176,7 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
       setDraft((current) => ({ ...current, files: [...current.files.filter((item) => item.id !== fileRecord.id), saved] }))
     }).catch(() => setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== fileRecord.id) })))
   }
-  const mapPoint = focusedPlace?.name || draft.transportIn.arrivalStation || draft.transportOut.departureStation || draft.name
+  const mapPoint = draft.transportIn.arrivalStation || draft.transportOut.departureStation || draft.name
   const transportDocuments = (direction: 'in' | 'out') => draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).slice(0, 2)
   const hotelDocument = draft.files.find((file) => file.category === 'hotel-booking')
   const pointsCount = Object.values(draft.places).reduce((total, places) => total + places.length, 0)
@@ -1206,11 +1188,11 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
       const previousUrl = draft.transportIn.arrivalStationUrl.trim()
       const existing = arrivalPlaces.find((item) => item.url.trim() === previousUrl || item.url.trim() === value.arrivalStationUrl.trim())
       if (existing) {
-        const place = { ...existing, name: value.arrivalStation.trim() || 'Место приезда', url: value.arrivalStationUrl.trim() }
+        const place = { ...existing, name: value.arrivalStation.trim() || 'Место приезда', url: value.arrivalStationUrl.trim(), icon: 'transport' as const }
         next = { ...next, places: { ...next.places, [next.arrival]: arrivalPlaces.map((item) => item.id === place.id ? place : item) } }
         onUpdatePlace(next, next.arrival, place)
       } else {
-        const place = { id: uid(), name: value.arrivalStation.trim() || 'Место приезда', url: value.arrivalStationUrl.trim() }
+        const place = { id: uid(), name: value.arrivalStation.trim() || 'Место приезда', url: value.arrivalStationUrl.trim(), icon: 'transport' as const }
         next = { ...next, places: { ...next.places, [next.arrival]: [...arrivalPlaces, place] } }
         onAddPlace(next, next.arrival, place)
       }
@@ -1231,17 +1213,62 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
         <input ref={trainOutFileRef} className="hidden-file-input" type="file" multiple onChange={(e) => { addTrainFiles(e.target.files, 'out'); e.currentTarget.value = '' }} />
         <input ref={hotelFileRef} className="hidden-file-input" type="file" onChange={(e) => addHotelFile(e.target.files)} />
         <div className={`city-main city-panel-content city-panel-content-${contentTransition}`}>
-          <div className="city-days">
-            <div className="city-day unscheduled-day"><h3>Без даты</h3>{(draft.places[UNSCHEDULED_KEY] ?? []).map((item, index) => <button key={item.id} type="button" onClick={() => setFocusedPlace(item)}>{index + 1}. {item.name}</button>)}</div>
-            {dateRange(draft.arrival, draft.departure).map((date) => <div className="city-day" key={date}><h3>{formatDate(date)}</h3>{(draft.places[date] ?? []).map((item, index) => <button key={item.id} type="button" onClick={() => setFocusedPlace(item)}>{index + 1}. {item.name}</button>)}</div>)}
-          </div>
+          <PlaceDayList
+            dates={dateRange(draft.arrival, draft.departure)}
+            placesByDate={draft.places}
+            activeDate={activeDate}
+            readOnly={readOnly}
+            formatDate={formatDate}
+            onActivateDate={setActiveDate}
+            onFocusPlace={setFocusRequest}
+            onMove={(placeId, date, position) => {
+              const from = Object.keys(draft.places).find((key) => (draft.places[key] ?? []).some((item) => item.id === placeId))
+              const moved = from ? (draft.places[from] ?? []).find((item) => item.id === placeId) : undefined
+              if (!from || !moved) return
+              const to = date ?? UNSCHEDULED_KEY
+              const source = (draft.places[from] ?? []).filter((item) => item.id !== placeId)
+              const target = from === to ? source : [...(draft.places[to] ?? [])]
+              target.splice(Math.max(0, Math.min(position, target.length)), 0, moved)
+              setDraft((latest) => ({ ...latest, places: { ...latest.places, [from]: from === to ? target : source, [to]: target } }))
+              onMovePlace(placeId, date, position)
+            }}
+          />
           <div className="city-route-content">
             <div className="city-map">
-              <GoogleMapPicker
+              <PlacesMap
                 query={mapPoint}
-                queryCoordinates={focusedPlace?.latitude !== undefined && focusedPlace.longitude !== undefined ? { lat: focusedPlace.latitude, lng: focusedPlace.longitude } : undefined}
-                places={Object.values(draft.places).flat()}
-                onSelect={(url, coordinates) => { setPlaceUrl(url); setPlaceCoordinates({ latitude: coordinates.lat, longitude: coordinates.lng }) }}
+                places={Object.entries(draft.places).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude })))}
+                dates={dateRange(draft.arrival, draft.departure)}
+                activeDate={activeDate}
+                readOnly={readOnly}
+                formatDate={formatDate}
+                focusRequest={focusRequest}
+                onFocusHandled={() => setFocusRequest(null)}
+                onAdd={({ name, icon, date, position }) => {
+                  const place = { id: uid(), name, url: `https://www.google.com/maps?q=${position.lat.toFixed(6)},${position.lng.toFixed(6)}`, icon, latitude: position.lat, longitude: position.lng }
+                  const next = { ...draft, places: { ...draft.places, [date]: [...(draft.places[date] ?? []), place] } }
+                  setDraft(next)
+                  onAddPlace(next, date, place)
+                }}
+                onUpdate={(id, value) => {
+                  const from = Object.keys(draft.places).find((key) => (draft.places[key] ?? []).some((item) => item.id === id))
+                  const current = from ? (draft.places[from] ?? []).find((item) => item.id === id) : undefined
+                  if (!from || !current) return
+                  const place = { ...current, name: value.name, icon: value.icon }
+                  // Смена даты в тултипе — это тот же перенос, что и драг-н-дроп,
+                  // поэтому позиция считается концом целевого дня.
+                  const to = value.date
+                  const source = (draft.places[from] ?? []).filter((item) => item.id !== id)
+                  const target = from === to ? (draft.places[from] ?? []).map((item) => item.id === id ? place : item) : [...(draft.places[to] ?? []), place]
+                  setDraft((latest) => ({ ...latest, places: { ...latest.places, [from]: from === to ? target : source, [to]: target } }))
+                  onUpdatePlace(draft, to, place)
+                }}
+                onDelete={(id) => {
+                  const from = Object.keys(draft.places).find((key) => (draft.places[key] ?? []).some((item) => item.id === id))
+                  if (!from) return
+                  setDraft((latest) => ({ ...latest, places: { ...latest.places, [from]: (latest.places[from] ?? []).filter((item) => item.id !== id) } }))
+                  onDeletePlace(id)
+                }}
                 onResolvePlace={(id, coordinates) => {
                   const entry = Object.entries(draft.places).find(([, items]) => items.some((item) => item.id === id))
                   const current = entry?.[1].find((item) => item.id === id)
@@ -1252,12 +1279,6 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
                 }}
               />
             </div>
-            <form className="route-form" onSubmit={addPlace}>
-              <Select content="date" icon={<Icon name="calendar-month" />} aria-label="Дата посещения" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)}><option value={UNSCHEDULED_KEY}>Без даты</option>{dateRange(draft.arrival, draft.departure).map((date) => <option key={date} value={date}>{formatDate(date)}</option>)}</Select>
-              <Input icon={<Icon name="attractions" />} aria-label="Название места" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="Название места" />
-              <Input icon={<Icon name="add-pin" />} controlClassName="map-link-input" aria-label="Ссылка Google Maps" value={placeUrl} onChange={(e) => { setPlaceUrl(e.target.value); setPlaceCoordinates(undefined) }} placeholder="Ссылка Google Maps" />
-              <Button>Добавить точку</Button>
-            </form>
           </div>
         </div>
       </section>
@@ -1267,7 +1288,7 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
   )
 }
 
-function Dashboard({ trip, user, tripCount, readOnly = false, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; readOnly?: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => void; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
+function Dashboard({ trip, user, tripCount, readOnly = false, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; readOnly?: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => void; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
   const [showPast, setShowPast] = useState(false)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
   const [selectedPanel, setSelectedPanel] = useState<'hotel' | 'in' | 'out' | null>(null)
@@ -1295,8 +1316,11 @@ function Dashboard({ trip, user, tripCount, readOnly = false, onChange, onEdit, 
             onPanelClose={() => { setSelectedCityId(panelReturnCityId); setSelectedPanel(null) }}
             onClose={() => { setSelectedCityId(null); setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedPanel(null) }}
             onChange={(nextCity) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onCityChange(nextCity) }}
+            readOnly={readOnly}
             onAddPlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onAddPlace(nextCity, date, place) }}
             onUpdatePlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onUpdatePlace(nextCity, date, place) }}
+            onDeletePlace={onDeletePlace}
+            onMovePlace={onMovePlace}
             onTrainChange={async (nextCity, direction, file, source) => {
               const linkedCity = direction === 'in' ? trip.cities[selectedCityIndex - 1] : trip.cities[selectedCityIndex + 1]
               onChange({
@@ -1561,7 +1585,7 @@ export default function App() {
   const addPlace = async (city: City, date: string, place: Place) => {
     if (!trip?.id) return
     try {
-      await api.createPlace(trip.id, city.id, { name: place.name, googleMapsUrl: place.url, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
+      await api.createPlace(trip.id, city.id, { name: place.name, googleMapsUrl: place.url, icon: place.icon, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
       await loadTrip(trip.id)
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка добавления места') }
   }
@@ -1569,8 +1593,29 @@ export default function App() {
   const updatePlace = async (city: City, date: string, place: Place) => {
     if (!trip?.id) return
     try {
-      await api.updatePlace(trip.id, place.id, { name: place.name, googleMapsUrl: place.url, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
+      // visitDate: null здесь обязателен — иначе точку нельзя вернуть в «Без даты».
+      await api.updatePlace(trip.id, place.id, { name: place.name, googleMapsUrl: place.url, icon: place.icon, latitude: place.latitude, longitude: place.longitude, visitDate: date === UNSCHEDULED_KEY ? null : date })
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка обновления места') }
+  }
+
+  const deletePlace = async (placeId: string) => {
+    if (!trip?.id) return
+    try {
+      await api.deletePlace(trip.id, placeId)
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Не удалось удалить точку')
+      await loadTrip(trip.id)
+    }
+  }
+
+  const movePlace = async (placeId: string, date: string | null, position: number) => {
+    if (!trip?.id) return
+    try {
+      await api.movePlace(trip.id, placeId, { visitDate: date, position })
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Не удалось перенести точку')
+      await loadTrip(trip.id)
+    }
   }
 
   const uploadTrain = async (city: City, direction: 'in' | 'out', file: File): Promise<TravelFile | undefined> => {
@@ -1619,7 +1664,7 @@ export default function App() {
     if (!trip) return <AuthShell><div className="glass auth-modal compact"><h1>{error || 'Поездка не найдена'}</h1></div></AuthShell>
     const noop = () => undefined
     const noopAsync = async () => undefined
-    return <Dashboard trip={trip} user={null} tripCount={0} readOnly onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noop} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
+    return <Dashboard trip={trip} user={null} tripCount={0} readOnly onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noop} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
   }
 
   if (screen === 'start' || screen === 'login' || screen === 'join') {
@@ -1664,5 +1709,5 @@ export default function App() {
   if (screen === 'setup') return <><SetupScreen initial={trip} user={currentUser} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={(value) => void saveTrip(value)} />{error && <p className="app-error">{error}</p>}</>
   if (!trip) return null
   if (inviteOpen) return <><InviteScreen trip={trip} onBack={() => setInviteOpen(false)} onCreate={async (hours) => (await api.createInvitation(trip.id!, hours)).invitation} onViewLink={async () => (await api.viewLink(trip.id!)).viewLink.url} onRemove={async (member) => { await api.removeMember(trip.id!, member.id); await loadTrip(trip.id!) }} />{error && <p className="app-error">{error}</p>}</>
-  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} onChange={setTrip} onEdit={() => setScreen('setup')} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
+  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} onChange={setTrip} onEdit={() => setScreen('setup')} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
 }
