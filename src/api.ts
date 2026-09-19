@@ -23,6 +23,7 @@ export type ApiCity = {
   departure_date: string
   arrival_period: 'morning' | 'day' | 'evening'
   departure_period: 'morning' | 'day' | 'evening'
+  hotel_not_needed: boolean
   hotel: string
   hotel_url: string
   hotel_check_in_time: string

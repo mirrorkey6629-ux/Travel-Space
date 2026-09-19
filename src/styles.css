@@ -326,6 +326,10 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .city-editor-view .eyebrow { color: var(--color-text-secondary); font-size: var(--type-text-size); }
 .city-editor-view .modal-title h2 { font-size: var(--type-head-l-size); }
 .city-editor-view .field { gap: 8px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
+.city-hotel-toggle { position: relative; width: max-content; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.city-hotel-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+.city-hotel-toggle:has(input:focus-visible) .document-check { outline: 2px solid var(--color-text-primary); outline-offset: 3px; }
+.all-city-fields .all-city-hotel-toggle { min-height: 24px; grid-column: 1 / -1; }
 .city-editor-view .field input,
 .city-editor-view .field select { height: 60px; padding: 0 20px; border-color: transparent; border-radius: 16px; background: var(--glass-soft); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
 .date-time-fields { display: grid; gap: 8px; }
@@ -388,7 +392,9 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .links-card h3 button .ui-icon { margin: auto; }
 .links-card .divider { margin: 20px 0; }
 .links-card p { margin: 0 0 10px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
-.profile-card { display: flex; flex-direction: column; gap: 12px; }
+.profile-card { display: flex; flex-direction: column; gap: 20px; }
+.profile-card .profile-info-row { width: 100%; min-height: 54px; padding: 0; border-radius: 0; background: transparent; }
+.profile-card .profile-info-row .info-row-content { width: 100%; }
 .profile-card-actions { display: flex; flex-direction: column; gap: 8px; }
 .profile-card .ui-button { width: 100%; }
 .document-row { width: 100%; min-height: 32px; margin: 0; padding: 4px 0; display: flex; align-items: center; gap: 9px; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; }

@@ -25,6 +25,7 @@ type City = {
   departure: string
   arrivalPeriod?: DayPeriod
   departurePeriod?: DayPeriod
+  hotelNotNeeded: boolean
   hotel: string
   hotelUrl: string
   hotelCheckInTime: string
@@ -181,6 +182,7 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
       departure: city.departure_date.slice(0, 10),
       arrivalPeriod: city.arrival_period,
       departurePeriod: city.departure_period,
+      hotelNotNeeded: Boolean(city.hotel_not_needed),
       hotel: city.hotel,
       hotelUrl: city.hotel_url,
       hotelCheckInTime: city.hotel_check_in_time ?? '',
@@ -536,8 +538,8 @@ const transportPayload = (city: City) => ({
   transportInNotes: city.transportIn?.notes ?? '',
   transportOutNotes: city.transportOut?.notes ?? '',
 })
-const hotelPayload = (city: City) => ({ hotel: city.hotel, hotelUrl: city.hotelUrl, hotelCheckInTime: city.hotelCheckInTime ?? '', hotelCheckOutTime: city.hotelCheckOutTime ?? '', hotelNotes: city.hotelNotes ?? '' })
-const emptyCity = (): City => ({ id: uid(), name: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), places: {}, tasks: [], files: [] })
+const hotelPayload = (city: City) => ({ hotelNotNeeded: city.hotelNotNeeded, hotel: city.hotel, hotelUrl: city.hotelUrl, hotelCheckInTime: city.hotelCheckInTime ?? '', hotelCheckOutTime: city.hotelCheckOutTime ?? '', hotelNotes: city.hotelNotes ?? '' })
+const emptyCity = (): City => ({ id: uid(), name: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotelNotNeeded: false, hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), places: {}, tasks: [], files: [] })
 
 function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: City; onSave: (city: City) => void; onClose: () => void }) {
   const [city, setCity] = useState<City>(() => initial ? { ...initial, arrivalPeriod: initial.arrivalPeriod ?? 'morning', departurePeriod: initial.departurePeriod ?? 'evening' } : emptyCity())
@@ -554,12 +556,13 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
         <div>{!initial && <span className="eyebrow">Новая локация</span>}<h2>{initial ? city.name : 'Добавить город'}</h2></div>
         <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
       </div>
-      <InfoRow className="city-image-row" image={hasImage ? city.imageUrl || cityPlaceholder : undefined} imageAlt="Фото города" title={hasImage ? 'Фото города' : 'Прикрепить фото города'} subtitle={hasImage ? city.imageFile?.name || city.image?.name || 'Фото города' : 'Лучше в вертикальном формате'} actions={hasImage ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фото города', onClick: () => imageFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото города', onClick: () => setCity((current) => ({ ...current, imageDeleteId: current.image?.id, image: undefined, imageFile: undefined, imageUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото города', onClick: () => imageFileRef.current?.click() }]} />
+      <InfoRow className="city-image-row" image={hasImage ? city.imageUrl || cityPlaceholder : undefined} imageAlt="Фото города" title={hasImage ? 'Фото города' : 'Прикрепить фото города'} subtitle={hasImage ? city.imageFile?.name || city.image?.name || 'Фото города' : 'Лучше в вертикальном формате'} actionTheme="secondary" actions={hasImage ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фото города', onClick: () => imageFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото города', onClick: () => setCity((current) => ({ ...current, imageDeleteId: current.image?.id, image: undefined, imageFile: undefined, imageUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото города', onClick: () => imageFileRef.current?.click() }]} />
       <input ref={imageFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current); imagePreviewUrlRef.current = URL.createObjectURL(file); setCity((current) => ({ ...current, imageFile: file, imageUrl: imagePreviewUrlRef.current ?? undefined })); event.currentTarget.value = '' }} />
       <div className="field-grid">
         <label className="field span-2"><span>Город</span><Input value={city.name} onChange={(e) => setCity({ ...city, name: e.target.value })} placeholder="Например, Осака" autoFocus /></label>
         <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(e) => { const value = e.target.value; setCity((current) => ({ ...current, arrival: value, departure: current.departure < value ? '' : current.departure })) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(e) => setCity((current) => ({ ...current, arrivalPeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
         <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(e) => setCity((current) => ({ ...current, departure: e.target.value }))}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(e) => setCity((current) => ({ ...current, departurePeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+        <label className="city-hotel-toggle span-2"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => setCity((current) => ({ ...current, hotelNotNeeded: event.target.checked }))} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><SecondaryText>Отель не нужен</SecondaryText></label>
       </div>
       <Button type="submit" disabled={!valid}>{initial ? 'Сохранить' : 'Добавить'}</Button>
     </form>
@@ -589,6 +592,7 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
                 <label className="field city-name-field"><span>Город</span><Input value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></label>
                 <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
                 <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+                <label className="city-hotel-toggle all-city-hotel-toggle"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => updateCity(city.id, { hotelNotNeeded: event.target.checked })} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><SecondaryText>Отель не нужен</SecondaryText></label>
               </section>
             )
           })}
@@ -645,7 +649,7 @@ function SetupScreen({ initial, onCreate, onExit }: { initial: Trip | null; onCr
             <InfoRow className="trip-background-row" image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'Лучше в горизонтальном формате'} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: () => backgroundFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: () => backgroundFileRef.current?.click() }]} />
             <input ref={backgroundFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: URL.createObjectURL(file), backgroundRemoved: false })); event.currentTarget.value = '' }} />
             <div className="city-editor-group">
-              {trip.cities.length > 0 && <div className="city-list setup-list">{trip.cities.map((city) => <InfoRow key={city.id} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} title={city.name} subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}`} onClick={() => setEditing(city)} actionTheme="secondary" actions={[{ icon: <Icon name="delete-forever" />, label: `Удалить город ${city.name}`, onClick: () => { if (!window.confirm(`Удалить город «${city.name}» из маршрута?`)) return; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id) })) } }]} />)}</div>}
+              {trip.cities.length > 0 && <div className="city-list setup-list">{trip.cities.map((city) => <InfoRow key={city.id} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} title={city.name} subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}${city.hotelNotNeeded ? ' · Отель не нужен' : ''}`} onClick={() => setEditing(city)} actionTheme="secondary" actions={[{ icon: <Icon name="delete-forever" />, label: `Удалить город ${city.name}`, onClick: () => { if (!window.confirm(`Удалить город «${city.name}» из маршрута?`)) return; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id) })) } }]} />)}</div>}
               <AddRow icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
               {trip.cities.length > 0 && <button className="route-overview-link" type="button" onClick={() => setEditingAll(true)}><SecondaryText interactive>Посмотреть весь маршрут</SecondaryText></button>}
             </div>
@@ -680,7 +684,8 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, o
   const daysLeft = Math.ceil((parseDate(trip.startDate).getTime() - new Date().getTime()) / 86400000)
   const isAdmin = user?.email.toLowerCase() === ADMIN_EMAIL
   const showTrips = tripCount > 1 || isAdmin
-  const completedHotels = trip.cities.filter(isHotelComplete).length
+  const hotelCities = trip.cities.filter((city) => !city.hotelNotNeeded)
+  const completedHotels = hotelCities.filter(isHotelComplete).length
   const completedArrival = trip.cities[0] && isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn) ? 1 : 0
   const completedTransfers = trip.cities.slice(0, -1).filter((city, index) => {
     const nextCity = trip.cities[index + 1]
@@ -688,7 +693,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, o
   }).length
   const lastCity = trip.cities.at(-1)
   const completedDeparture = lastCity && isTransportComplete(lastCity.transportOut, lastCity.trainOut) ? 1 : 0
-  const readinessTotal = trip.cities.length > 0 ? trip.cities.length * 2 + 1 : 0
+  const readinessTotal = trip.cities.length > 0 ? hotelCities.length + trip.cities.length + 1 : 0
   const readinessPercent = readinessTotal > 0 ? Math.round(((completedHotels + completedArrival + completedTransfers + completedDeparture) / readinessTotal) * 100) : 0
   const countdownText = daysLeft > 0 ? `Едем через ${formatDays(daysLeft)}` : daysLeft === 0 ? 'Поездка начинается сегодня' : 'Путешествие уже началось'
   return (
@@ -705,8 +710,8 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, o
             <div className="sidebar-city-entry" key={city.id}>
               <CityRow city={city.name} dates={formatShortRange(city.arrival, city.departure)} duration={formatDays(cityDays(city))} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} selected={city.id === selectedCityId} aria-current={city.id === selectedCityId ? 'true' : undefined} onClick={() => onCity(city)} />
               <div className="sidebar-city-actions">
+                {!city.hotelNotNeeded && <span className="sidebar-city-action"><IconButton size="m" theme="secondary" icon={<Icon name="hotel" />} aria-label={`Отель в ${city.name}`} title={`Отель в ${city.name}`} onClick={() => onHotel(city)} />{hotelComplete && <span className="city-action-complete" aria-hidden="true"><Icon name="check-small" size={16} /></span>}</span>}
                 <span className="sidebar-city-action"><IconButton size="m" theme="secondary" icon={<Icon name="ticket" />} aria-label={`Билет в ${city.name}`} title={`Билет в ${city.name}`} onClick={() => previousCity ? onTransport(previousCity, 'out') : onTransport(city, 'in')} />{ticketComplete && <span className="city-action-complete" aria-hidden="true"><Icon name="check-small" size={16} /></span>}</span>
-                <span className="sidebar-city-action"><IconButton size="m" theme="secondary" icon={<Icon name="hotel" />} aria-label={`Отель в ${city.name}`} title={`Отель в ${city.name}`} onClick={() => onHotel(city)} />{hotelComplete && <span className="city-action-complete" aria-hidden="true"><Icon name="check-small" size={16} /></span>}</span>
               </div>
             </div>
           )
@@ -718,9 +723,8 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, o
       </section>
       <section className="glass sidebar-card links-card">
         <TypographyGroup className="readiness-heading" title="Готовность к поездке" text={`${countdownText} · Готовность ${readinessPercent}%`} />
-        <h3>Отели</h3>
-        {trip.cities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withNote(city.name, city.hotelNotes)}</DocumentStatus>)}
-        <h3 className="readiness-transport-heading">Транспорт</h3>
+        {hotelCities.length > 0 && <><h3>Отели</h3>{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withNote(city.name, city.hotelNotes)}</DocumentStatus>)}</>}
+        <h3 className={hotelCities.length > 0 ? 'readiness-transport-heading' : undefined}>Транспорт</h3>
         {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}><TransportLabel label={withNote('Приезд', trip.cities[0].transportIn?.notes)} type={trip.cities[0].transportIn?.type} /></DocumentStatus>}
         {trip.cities.slice(0, -1).map((city, index) => {
           const nextCity = trip.cities[index + 1]
@@ -732,7 +736,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, o
         {trip.cities.at(-1) && <DocumentStatus checked={isTransportComplete(trip.cities.at(-1)!.transportOut, trip.cities.at(-1)!.trainOut)} onClick={() => onTransport(trip.cities.at(-1)!, 'out')}><TransportLabel label={withNote('Отъезд', trip.cities.at(-1)!.transportOut?.notes)} type={trip.cities.at(-1)!.transportOut?.type} /></DocumentStatus>}
       </section>
       {user && <section className="glass sidebar-card profile-card">
-        <InfoRow image={user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`} imageAlt="Аватар профиля" imageShape="circle" title={user.displayName} subtitle={user.email} onClick={onProfile} />
+        <InfoRow className="profile-info-row" image={user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`} imageAlt="Аватар профиля" imageShape="circle" title={user.displayName} subtitle={user.email} onClick={onProfile} />
         {(showTrips || isAdmin) && <div className="profile-card-actions">
           {showTrips && <Button size="m" onClick={onTrips}>Мои поездки</Button>}
           {isAdmin && <Button size="m" theme="secondary" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}components`)}>Компоненты</Button>}
@@ -754,8 +758,10 @@ function DayCard({ date, cities, allCities, description, hidden, onEvent, onCity
     if (departureCity.departure !== date || arrivalCity.arrival !== date) return
     transferCityIds.add(departureCity.id)
     transferCityIds.add(arrivalCity.id)
-    const checkOutTime = departureCity.hotelCheckOutTime.trim()
-    events.push({ key: `${departureCity.id}:check-out`, title: departureCity.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение в ${checkOutTime}` : 'Выселение', icon: 'hotel', city: departureCity, panel: 'hotel' })
+    if (!departureCity.hotelNotNeeded) {
+      const checkOutTime = departureCity.hotelCheckOutTime.trim()
+      events.push({ key: `${departureCity.id}:check-out`, title: departureCity.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение в ${checkOutTime}` : 'Выселение', icon: 'hotel', city: departureCity, panel: 'hotel' })
+    }
     const outgoing = departureCity.transportOut
     const incoming = arrivalCity.transportIn
     const departureTime = outgoing.departureTime.trim() || incoming.departureTime.trim()
@@ -764,8 +770,10 @@ function DayCard({ date, cities, allCities, description, hidden, onEvent, onCity
     const arrivalLabel = arrivalTime ? `Прибытие в ${arrivalTime}` : `Прибытие ${periodAdverb[arrivalCity.arrivalPeriod ?? 'morning']}`
     const hasOutgoingDetails = Boolean(departureCity.trainOut || outgoing.type || outgoing.departureTime.trim() || outgoing.arrivalTime.trim() || outgoing.departureStation.trim() || outgoing.arrivalStation.trim())
     events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} — ${arrivalCity.name}`, subtitle: `${departureLabel} · ${arrivalLabel}`, icon: 'ticket', city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in' })
-    const checkInTime = arrivalCity.hotelCheckInTime.trim()
-    events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel' })
+    if (!arrivalCity.hotelNotNeeded) {
+      const checkInTime = arrivalCity.hotelCheckInTime.trim()
+      events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel' })
+    }
   })
   cities.forEach((city) => {
     if (transferCityIds.has(city.id)) return
@@ -782,12 +790,16 @@ function DayCard({ date, cities, allCities, description, hidden, onEvent, onCity
       const departureLabel = departureTime ? `Отъезд в ${departureTime}` : 'Отъезд'
       const arrivalLabel = arrivalTime ? `Прибытие в ${arrivalTime}` : `Прибытие ${periodAdverb[city.arrivalPeriod ?? 'morning']}`
       result.push({ key: `${city.id}:arrival`, title: `${departurePlace} — ${arrivalPlace}`, subtitle: `${departureLabel} · ${arrivalLabel}`, icon: 'ticket', city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out' })
-      const checkInTime = city.hotelCheckInTime.trim()
-      result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel' })
+      if (!city.hotelNotNeeded) {
+        const checkInTime = city.hotelCheckInTime.trim()
+        result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel' })
+      }
     }
     if (date === city.departure) {
-      const checkOutTime = city.hotelCheckOutTime.trim()
-      result.push({ key: `${city.id}:check-out`, title: city.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение в ${checkOutTime}` : 'Выселение', icon: 'hotel', city, panel: 'hotel' })
+      if (!city.hotelNotNeeded) {
+        const checkOutTime = city.hotelCheckOutTime.trim()
+        result.push({ key: `${city.id}:check-out`, title: city.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение в ${checkOutTime}` : 'Выселение', icon: 'hotel', city, panel: 'hotel' })
+      }
       const departureTime = city.transportOut.departureTime.trim()
       const departurePlace = city.transportOut.departureStation.trim() || city.name
       result.push({ key: `${city.id}:departure`, title: departurePlace, subtitle: departureTime ? `Отъезд в ${departureTime}` : `Отъезд ${periodAdverb[city.departurePeriod ?? 'evening']}`, icon: 'ticket', city, panel: 'out' })

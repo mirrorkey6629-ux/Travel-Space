@@ -213,10 +213,10 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
         const departurePeriod = text(source.departurePeriod) || 'evening'
         if (!oldId || !name || !datePattern.test(arrivalDate) || !datePattern.test(departureDate) || arrivalDate < startDate || departureDate > endDate || departureDate < arrivalDate || !['morning','day','evening'].includes(arrivalPeriod) || !['morning','day','evening'].includes(departurePeriod)) throw httpError(400, 'Некорректные данные города в файле')
         const city = (await client.query(
-          `INSERT INTO cities(trip_id,name,position,arrival_date,departure_date,arrival_period,departure_period,hotel,hotel_url,hotel_check_in_time,hotel_check_out_time,train_in,train_out,created_by,
+          `INSERT INTO cities(trip_id,name,position,arrival_date,departure_date,arrival_period,departure_period,hotel_not_needed,hotel,hotel_url,hotel_check_in_time,hotel_check_out_time,train_in,train_out,created_by,
              transport_in_type,transport_out_type,transport_in_departure_time,transport_in_arrival_time,transport_out_departure_time,transport_out_arrival_time,transport_in_departure_station,transport_in_departure_station_url,transport_in_arrival_station,transport_in_arrival_station_url,transport_out_departure_station,transport_out_departure_station_url,transport_out_arrival_station,transport_out_arrival_station_url,hotel_notes,transport_in_notes,transport_out_notes)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31) RETURNING id`,
-          [createdTrip.id, name, index, arrivalDate, departureDate, arrivalPeriod, departurePeriod, text(source.hotel), text(source.hotelUrl), text(source.hotelCheckInTime), text(source.hotelCheckOutTime), text(source.trainIn), text(source.trainOut), user.id,
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32) RETURNING id`,
+          [createdTrip.id, name, index, arrivalDate, departureDate, arrivalPeriod, departurePeriod, source.hotelNotNeeded === true, text(source.hotel), text(source.hotelUrl), text(source.hotelCheckInTime), text(source.hotelCheckOutTime), text(source.trainIn), text(source.trainOut), user.id,
             optionalText(source.transportInType) || null, optionalText(source.transportOutType) || null, text(source.transportInDepartureTime), text(source.transportInArrivalTime), text(source.transportOutDepartureTime), text(source.transportOutArrivalTime), text(source.transportInDepartureStation), text(source.transportInDepartureStationUrl), text(source.transportInArrivalStation ?? source.transportInStation), text(source.transportInArrivalStationUrl ?? source.transportInStationUrl), text(source.transportOutDepartureStation ?? source.transportOutStation), text(source.transportOutDepartureStationUrl ?? source.transportOutStationUrl), text(source.transportOutArrivalStation), text(source.transportOutArrivalStationUrl), text(source.hotelNotes), text(source.transportInNotes), text(source.transportOutNotes)],
         )).rows[0]
         cityIds.set(oldId, city.id)
@@ -356,7 +356,7 @@ app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
   const bundle = {
     format: 'travel-space', version: 1, exportedAt: new Date().toISOString(),
     trip: { name: trip.name, startDate: trip.start_date, endDate: trip.end_date, backgroundRemoved: trip.background_removed },
-    cities: cities.rows.map((city) => ({ id: city.id, name: city.name, arrivalDate: String(city.arrival_date).slice(0,10), departureDate: String(city.departure_date).slice(0,10), arrivalPeriod: city.arrival_period, departurePeriod: city.departure_period, hotel: city.hotel, hotelUrl: city.hotel_url, hotelCheckInTime: city.hotel_check_in_time, hotelCheckOutTime: city.hotel_check_out_time, hotelNotes: city.hotel_notes, trainIn: city.train_in, trainOut: city.train_out,
+    cities: cities.rows.map((city) => ({ id: city.id, name: city.name, arrivalDate: String(city.arrival_date).slice(0,10), departureDate: String(city.departure_date).slice(0,10), arrivalPeriod: city.arrival_period, departurePeriod: city.departure_period, hotelNotNeeded: city.hotel_not_needed, hotel: city.hotel, hotelUrl: city.hotel_url, hotelCheckInTime: city.hotel_check_in_time, hotelCheckOutTime: city.hotel_check_out_time, hotelNotes: city.hotel_notes, trainIn: city.train_in, trainOut: city.train_out,
       transportInType: city.transport_in_type, transportOutType: city.transport_out_type, transportInDepartureTime: city.transport_in_departure_time, transportInArrivalTime: city.transport_in_arrival_time, transportOutDepartureTime: city.transport_out_departure_time, transportOutArrivalTime: city.transport_out_arrival_time, transportInDepartureStation: city.transport_in_departure_station, transportInDepartureStationUrl: city.transport_in_departure_station_url, transportInArrivalStation: city.transport_in_arrival_station, transportInArrivalStationUrl: city.transport_in_arrival_station_url, transportOutDepartureStation: city.transport_out_departure_station, transportOutDepartureStationUrl: city.transport_out_departure_station_url, transportOutArrivalStation: city.transport_out_arrival_station, transportOutArrivalStationUrl: city.transport_out_arrival_station_url, transportInNotes: city.transport_in_notes, transportOutNotes: city.transport_out_notes })),
     places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, latitude: place.latitude, longitude: place.longitude, position: place.position })),
     tasks: tasks.rows.map((task) => ({ cityId: task.city_id, dueDate: task.due_date ? String(task.due_date).slice(0,10) : null, title: task.title, done: task.done })),
@@ -470,9 +470,9 @@ app.post(`${apiPrefix}/trips/:tripId/cities`, async (request, reply) => {
   const position = Number(bodyOf(request.body).position)
   const nextPosition = Number.isInteger(position) ? position : Number((await db.query('SELECT coalesce(max(position), -1) + 1 AS value FROM cities WHERE trip_id = $1', [tripId])).rows[0].value)
   const result = await db.query(
-    `INSERT INTO cities(trip_id, name, position, arrival_date, departure_date, arrival_period, departure_period, hotel, hotel_url, hotel_check_in_time, hotel_check_out_time, hotel_notes, transport_in_notes, transport_out_notes, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING *`,
-    [tripId, input.name, nextPosition, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, text(bodyOf(request.body).hotel), text(bodyOf(request.body).hotelUrl), text(bodyOf(request.body).hotelCheckInTime), text(bodyOf(request.body).hotelCheckOutTime), text(bodyOf(request.body).hotelNotes), text(bodyOf(request.body).transportInNotes), text(bodyOf(request.body).transportOutNotes), user.id],
+    `INSERT INTO cities(trip_id, name, position, arrival_date, departure_date, arrival_period, departure_period, hotel_not_needed, hotel, hotel_url, hotel_check_in_time, hotel_check_out_time, hotel_notes, transport_in_notes, transport_out_notes, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
+    [tripId, input.name, nextPosition, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, bodyOf(request.body).hotelNotNeeded === true, text(bodyOf(request.body).hotel), text(bodyOf(request.body).hotelUrl), text(bodyOf(request.body).hotelCheckInTime), text(bodyOf(request.body).hotelCheckOutTime), text(bodyOf(request.body).hotelNotes), text(bodyOf(request.body).transportInNotes), text(bodyOf(request.body).transportOutNotes), user.id],
   )
   reply.code(201)
   return { city: result.rows[0] }
@@ -495,19 +495,19 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
     departurePeriod: optionalText(body.departurePeriod) ?? current.departure_period,
   })
   const result = await db.query(
-    `UPDATE cities SET name=$3, arrival_date=$4, departure_date=$5, arrival_period=$6, departure_period=$7,
-       hotel=coalesce($8,hotel), train_in=coalesce($9,train_in), train_out=coalesce($10,train_out),
-       transport_in_type=coalesce($11,transport_in_type), transport_out_type=coalesce($12,transport_out_type),
-       transport_in_departure_time=coalesce($13,transport_in_departure_time), transport_in_arrival_time=coalesce($14,transport_in_arrival_time),
-       transport_out_departure_time=coalesce($15,transport_out_departure_time), transport_out_arrival_time=coalesce($16,transport_out_arrival_time),
-       transport_in_departure_station=coalesce($17,transport_in_departure_station), transport_in_departure_station_url=coalesce($18,transport_in_departure_station_url),
-       transport_in_arrival_station=coalesce($19,transport_in_arrival_station), transport_in_arrival_station_url=coalesce($20,transport_in_arrival_station_url),
-       transport_out_departure_station=coalesce($21,transport_out_departure_station), transport_out_departure_station_url=coalesce($22,transport_out_departure_station_url),
-       transport_out_arrival_station=coalesce($23,transport_out_arrival_station), transport_out_arrival_station_url=coalesce($24,transport_out_arrival_station_url),
-       hotel_url=coalesce($25,hotel_url), hotel_check_in_time=coalesce($26,hotel_check_in_time), hotel_check_out_time=coalesce($27,hotel_check_out_time),
-       hotel_notes=coalesce($28,hotel_notes), transport_in_notes=coalesce($29,transport_in_notes), transport_out_notes=coalesce($30,transport_out_notes), updated_at=now()
+    `UPDATE cities SET name=$3, arrival_date=$4, departure_date=$5, arrival_period=$6, departure_period=$7, hotel_not_needed=$8,
+       hotel=coalesce($9,hotel), train_in=coalesce($10,train_in), train_out=coalesce($11,train_out),
+       transport_in_type=coalesce($12,transport_in_type), transport_out_type=coalesce($13,transport_out_type),
+       transport_in_departure_time=coalesce($14,transport_in_departure_time), transport_in_arrival_time=coalesce($15,transport_in_arrival_time),
+       transport_out_departure_time=coalesce($16,transport_out_departure_time), transport_out_arrival_time=coalesce($17,transport_out_arrival_time),
+       transport_in_departure_station=coalesce($18,transport_in_departure_station), transport_in_departure_station_url=coalesce($19,transport_in_departure_station_url),
+       transport_in_arrival_station=coalesce($20,transport_in_arrival_station), transport_in_arrival_station_url=coalesce($21,transport_in_arrival_station_url),
+       transport_out_departure_station=coalesce($22,transport_out_departure_station), transport_out_departure_station_url=coalesce($23,transport_out_departure_station_url),
+       transport_out_arrival_station=coalesce($24,transport_out_arrival_station), transport_out_arrival_station_url=coalesce($25,transport_out_arrival_station_url),
+       hotel_url=coalesce($26,hotel_url), hotel_check_in_time=coalesce($27,hotel_check_in_time), hotel_check_out_time=coalesce($28,hotel_check_out_time),
+       hotel_notes=coalesce($29,hotel_notes), transport_in_notes=coalesce($30,transport_in_notes), transport_out_notes=coalesce($31,transport_out_notes), updated_at=now()
      WHERE id=$1 AND trip_id=$2 RETURNING *`,
-    [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut),
+    [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut),
       optionalText(body.transportInType), optionalText(body.transportOutType), optionalText(body.transportInDepartureTime), optionalText(body.transportInArrivalTime),
       optionalText(body.transportOutDepartureTime), optionalText(body.transportOutArrivalTime), optionalText(body.transportInDepartureStation), optionalText(body.transportInDepartureStationUrl),
       optionalText(body.transportInArrivalStation), optionalText(body.transportInArrivalStationUrl), optionalText(body.transportOutDepartureStation), optionalText(body.transportOutDepartureStationUrl),
