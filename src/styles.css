@@ -251,6 +251,17 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .modal-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
 .modal-title h2 { margin: 4px 0 0; font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
 .transport-dialog { max-height: calc(100vh - 48px); overflow-y: auto; }
+
+/* Поля диалогов завёрнуты в fieldset: нативный disabled гасит разом все контролы
+   внутри, поэтому новое поле нельзя забыть закрыть. Собственное оформление
+   fieldset при этом убирается, а раскладку он повторяет за .editor. */
+.dialog-fields { min-width: 0; margin: 0; padding: 0; border: 0; display: flex; flex-direction: column; gap: 28px; }
+/* Без правок поля остаются читаемыми: это режим просмотра, а не «сломано». */
+.dialog-fields:disabled, .dialog-fields:disabled .form-control { opacity: 1; }
+.dialog-fields:disabled input, .dialog-fields:disabled select, .dialog-fields:disabled textarea { color: var(--color-text-primary); -webkit-text-fill-color: var(--color-text-primary); opacity: 1; cursor: default; }
+.dialog-fields:disabled .transport-date-picker, .dialog-fields:disabled .transport-time-picker { cursor: default; }
+/* Кнопка копирования внутри отключённого fieldset всё равно не нажмётся. */
+.dialog-fields:disabled .form-control-trailing-icon { display: none; }
 .transport-dialog-title { position: relative; display: block; padding: 0 56px; text-align: center; }
 .transport-dialog-title > .icon-button { position: absolute; top: 0; right: 0; }
 .transport-dialog-title .typography-group-title { margin-top: 0; }

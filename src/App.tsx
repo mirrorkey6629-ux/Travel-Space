@@ -17,6 +17,7 @@ import { CacheIndicator } from './components/CacheIndicator'
 import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
+import { AccessContext, tripAccess, useAccess } from './tripAccess'
 
 type Place = { id: string; name: string; url: string; icon: PlaceIconKey; latitude?: number; longitude?: number }
 type Task = { id: string; title: string; done: boolean }
@@ -460,6 +461,7 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
   const [displayName, setDisplayName] = useState(user.displayName)
   const [email, setEmail] = useState(user.email)
   const [password, setPassword] = useState('')
+  const access = useAccess()
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`)
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
@@ -498,7 +500,7 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
       <form className="glass profile-card-screen" onSubmit={submit}>
         <h1>Профиль</h1>
-        <button className="profile-avatar-button" type="button" onClick={() => avatarInputRef.current?.click()} aria-label="Загрузить новый аватар">
+        <button className="profile-avatar-button" type="button" disabled={!access.canEdit} onClick={() => avatarInputRef.current?.click()} aria-label="Загрузить новый аватар">
           <img className="profile-avatar" src={avatarUrl} alt="Аватар профиля" />
           <span className="profile-avatar-overlay"><Icon name="edit" size={32} /></span>
         </button>
@@ -508,7 +510,7 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
           <Input icon={<Icon name="email" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" />
           <Input icon={<Icon name="encrypted" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" />
         </div>
-        <Button type="submit" disabled={busy || !changed || !valid}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button>
+        <Button type="submit" disabled={busy || !changed || !valid || !access.canEdit}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button>
         <button className="auth-mode-switch" type="button" onClick={onLogout}>Выйти из аккаунта</button>
         {message && <p className="form-hint">{message}</p>}
       </form>
@@ -517,6 +519,7 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
 }
 
 function TripsScreen({ trips, canCreate, deleteTarget, onOpen, onCreate, onClose, onDelete, onCloseDelete, onConfirmDelete, onExport, onImport }: { trips: ApiTripSummary[]; canCreate: boolean; deleteTarget: ApiTripSummary | null; onOpen: (id: string) => void; onCreate: () => void; onClose: () => void; onDelete: (trip: ApiTripSummary) => void; onCloseDelete: () => void; onConfirmDelete: () => Promise<void>; onExport: (trip: ApiTripSummary) => Promise<void>; onImport: (file: File) => Promise<void> }) {
+  const access = useAccess()
   const importRef = useRef<HTMLInputElement>(null)
   const [backgroundUrls, setBackgroundUrls] = useState<Record<string, string>>({})
   useEffect(() => {
@@ -552,9 +555,9 @@ function TripsScreen({ trips, canCreate, deleteTarget, onOpen, onCreate, onClose
           <header className="trips-header"><h1>Мои поездки</h1></header>
           <div className="trips-content">
             <div className="trips-list">
-              {trips.map((item) => <InfoRow key={item.id} image={item.background_removed ? undefined : item.background_document_id ? backgroundUrls[item.id] : defaultTripBackground} imageAlt={item.background_removed ? '' : `Фон поездки ${item.name}`} title={item.name} subtitle={<>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</>} onClick={() => onOpen(item.id)} actionTheme="secondary" actions={item.role === 'owner' ? [{ icon: <Icon name="download" />, label: `Экспортировать поездку ${item.name}`, title: 'Экспортировать', onClick: () => void onExport(item) }, { icon: <Icon name="delete-forever" />, label: `Удалить поездку ${item.name}`, title: 'Удалить', className: 'trip-delete-trigger', onClick: () => onDelete(item) }] : []} />)}
+              {trips.map((item) => <InfoRow key={item.id} image={item.background_removed ? undefined : item.background_document_id ? backgroundUrls[item.id] : defaultTripBackground} imageAlt={item.background_removed ? '' : `Фон поездки ${item.name}`} title={item.name} subtitle={<>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</>} onClick={() => onOpen(item.id)} actionTheme="secondary" actions={item.role === 'owner' && access.canEdit ? [{ icon: <Icon name="download" />, label: `Экспортировать поездку ${item.name}`, title: 'Экспортировать', onClick: () => void onExport(item) }, { icon: <Icon name="delete-forever" />, label: `Удалить поездку ${item.name}`, title: 'Удалить', className: 'trip-delete-trigger', onClick: () => onDelete(item) }] : []} />)}
             </div>
-            {canCreate && <>
+            {canCreate && access.canEdit && <>
               <AddRow icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />
               <button className="auth-mode-switch trips-import-link" type="button" onClick={() => importRef.current?.click()}>Импортировать поездку из файла</button>
               <input ref={importRef} className="hidden-file-input" type="file" accept=".travelspace,application/vnd.travel-space+json,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onImport(file); event.currentTarget.value = '' }} />
@@ -581,9 +584,12 @@ function DeleteTripDialog({ trip, onClose, onConfirm }: { trip: ApiTripSummary; 
 
 function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: Trip; onBack: () => void; onCreate: (hours: number) => Promise<{ url: string; expiresAt: string }>; onViewLink: () => Promise<string>; onRemove: (member: TripMember) => Promise<void> }) {
   const [invite, setInvite] = useState<{ url: string; expiresAt: string } | null>(null)
+  const access = useAccess()
   const [viewLink, setViewLink] = useState('')
   const [busy, setBusy] = useState(false)
-  const isOwner = trip.role === 'owner'
+  // Список участников читается из кэша поездки, поэтому экран полезен и оффлайн.
+  // Ссылки же создаются только на сервере — без сети их блок просто не нужен.
+  const isOwner = trip.role === 'owner' && access.canEdit
   const members = [...(trip.members ?? [])].sort((left, right) => {
     if (left.role === right.role) return 0
     return left.role === 'owner' ? -1 : 1
@@ -757,6 +763,7 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
   const [editingAll, setEditingAll] = useState(false)
   const startDateRef = useRef<HTMLInputElement>(null)
   const endDateRef = useRef<HTMLInputElement>(null)
+  const access = useAccess()
   const backgroundFileRef = useRef<HTMLInputElement>(null)
   const datesValid = trip.startDate && trip.endDate && trip.endDate >= trip.startDate
   const tripDays = datesValid ? daysBetween(trip.startDate, trip.endDate) : 0
@@ -802,7 +809,7 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
               <AddRow icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
               {trip.cities.length > 0 && <button className="route-overview-link" type="button" onClick={() => setEditingAll(true)}><SecondaryText interactive>Посмотреть весь маршрут</SecondaryText></button>}
             </div>
-            {trip.cities.length > 0 && <Button disabled={!trip.name.trim()} onClick={() => onCreate(trip)}>{initial ? 'Сохранить' : 'Создать'}</Button>}
+            {trip.cities.length > 0 && <Button disabled={!trip.name.trim() || !access.canEdit} onClick={() => onCreate(trip)}>{initial ? 'Сохранить' : 'Создать'}</Button>}
           </div>
         )}
       </section>
@@ -836,7 +843,8 @@ const withAssignees = (label: string, ids: string[], members: TripMember[]) => {
 }
 const withTicketDetails = (label: string, ticketOnSite: boolean | undefined, ids: string[], members: TripMember[]) => ticketOnSite ? `${label} (покупаем на месте)` : withAssignees(label, ids, members)
 
-function TripSidebar({ trip, user, tripCount, selectedCityId, readOnly = false, cacheState, online, onCity, onHotel, onTransport, onEdit, onInvite, onTrips, onProfile }: { trip: Trip; user: CurrentUser | null; tripCount: number; selectedCityId?: string | null; readOnly?: boolean; cacheState: CacheState; online: boolean; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onEdit: () => void; onInvite: () => void; onTrips: () => void; onProfile: () => void }) {
+function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online, onCity, onHotel, onTransport, onEdit, onInvite, onTrips, onProfile }: { trip: Trip; user: CurrentUser | null; tripCount: number; selectedCityId?: string | null; cacheState: CacheState; online: boolean; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onEdit: () => void; onInvite: () => void; onTrips: () => void; onProfile: () => void }) {
+  const access = useAccess()
   const daysLeft = Math.ceil((parseDate(trip.startDate).getTime() - new Date().getTime()) / 86400000)
   const isAdmin = user?.email.toLowerCase() === ADMIN_EMAIL
   const showTrips = tripCount > 1 || isAdmin
@@ -856,7 +864,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, readOnly = false, 
   return (
     <aside className="sidebar">
       <section className="glass sidebar-card trip-summary">
-        <TypographyGroup title={<><CacheIndicator state={cacheState} online={online} />{trip.name}</>} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {readOnly ? <span>{formatParticipants(Math.max(1, trip.memberCount ?? 0))}</span> : <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button>}</>} />
+        <TypographyGroup title={<><CacheIndicator state={cacheState} online={online} />{trip.name}</>} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {!access.canBrowse ? <span>{formatParticipants(Math.max(1, trip.memberCount ?? 0))}</span> : <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button>}</>} />
         <div className="city-list">{trip.cities.map((city, index) => {
           const previousCity = trip.cities[index - 1]
           const ticketComplete = previousCity
@@ -865,20 +873,20 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, readOnly = false, 
           const hotelComplete = isHotelComplete(city)
           return (
             <div className="sidebar-city-entry" key={city.id}>
-              <CityRow city={city.name} dates={formatShortRange(city.arrival, city.departure)} duration={formatDays(cityDays(city))} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} selected={city.id === selectedCityId} aria-current={city.id === selectedCityId ? 'true' : undefined} disabled={readOnly} onClick={readOnly ? undefined : () => onCity(city)} />
-              {!readOnly && <div className="sidebar-city-actions">
+              <CityRow city={city.name} dates={formatShortRange(city.arrival, city.departure)} duration={formatDays(cityDays(city))} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} selected={city.id === selectedCityId} aria-current={city.id === selectedCityId ? 'true' : undefined} disabled={!access.canBrowse} onClick={access.canBrowse ? () => onCity(city) : undefined} />
+              {access.canBrowse && <div className="sidebar-city-actions">
                 {!city.hotelNotNeeded && <span className="sidebar-city-action"><IconButton size="m" theme="secondary" icon={<Icon name="hotel" />} aria-label={`Отель в ${city.name}`} title={`Отель в ${city.name}`} onClick={() => onHotel(city)} />{hotelComplete && <span className="city-action-complete" aria-hidden="true"><Icon name="check-small" size={16} /></span>}</span>}
                 <span className="sidebar-city-action"><IconButton size="m" theme="secondary" icon={<Icon name="ticket" />} aria-label={`Билет в ${city.name}`} title={`Билет в ${city.name}`} onClick={() => previousCity ? onTransport(previousCity, 'out') : onTransport(city, 'in')} />{ticketComplete && <span className="city-action-complete" aria-hidden="true"><Icon name="check-small" size={16} /></span>}</span>
               </div>}
             </div>
           )
         })}</div>
-        {trip.role === 'owner' && <div className="trip-summary-actions">
+        {access.canManageTrip && <div className="trip-summary-actions">
           <Button size="m" onClick={onEdit}>Редактировать</Button>
           <Button size="m" theme="secondary" onClick={onInvite}>Пригласить</Button>
         </div>}
       </section>
-      {!readOnly && <section className="glass sidebar-card links-card">
+      {access.canBrowse && <section className="glass sidebar-card links-card">
         <TypographyGroup className="readiness-heading" title="Готовность к поездке" text={`${countdownText} · Готовность ${readinessPercent}%`} />
         {hotelCities.length > 0 && <><h3>Отели</h3>{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withAssignees(city.name, city.hotelAssigneeIds, members)}</DocumentStatus>)}</>}
         <h3 className={hotelCities.length > 0 ? 'readiness-transport-heading' : undefined}>Транспорт</h3>
@@ -903,10 +911,11 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, readOnly = false, 
   )
 }
 
-function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, readOnly = false, onEvent, onCity, onAddLocations, onDescriptionChange }: { date: string; cities: City[]; allCities: City[]; tripTimeZone: string; description: string; hidden: boolean; readOnly?: boolean; onEvent: (city: City, panel: 'hotel' | 'in' | 'out') => void; onCity: (city: City) => void; onAddLocations: (city: City, date: string) => void; onDescriptionChange: (description: string) => void }) {
+function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, onEvent, onCity, onAddLocations, onDescriptionChange }: { date: string; cities: City[]; allCities: City[]; tripTimeZone: string; description: string; hidden: boolean; onEvent: (city: City, panel: 'hotel' | 'in' | 'out') => void; onCity: (city: City) => void; onAddLocations: (city: City, date: string) => void; onDescriptionChange: (description: string) => void }) {
   const day = parseDate(date)
   const [descriptionDraft, setDescriptionDraft] = useState(description)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
+  const access = useAccess()
   useEffect(() => setDescriptionDraft(description), [description])
   useLayoutEffect(() => {
     const textarea = descriptionRef.current
@@ -990,22 +999,22 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, r
         <div className="day-city-heading"><h2>{day.getDate()} {ruMonths[day.getMonth()]}</h2>{cityTitle && <p>{cityTitle}</p>}</div>
       </div>
       <div className="day-content">
-        <label className={`day-column day-description${readOnly ? ' read-only' : ''}`}>
+        <label className={`day-column day-description${access.canEdit ? '' : ' read-only'}`}>
           <span>Заметки</span>
-          <textarea ref={descriptionRef} value={descriptionDraft} placeholder={readOnly ? '' : 'Короткое описание дня'} readOnly={readOnly} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => { if (!readOnly && descriptionDraft !== description) onDescriptionChange(descriptionDraft) }} />
+          <textarea ref={descriptionRef} value={descriptionDraft} placeholder={access.canEdit ? 'Короткое описание дня' : ''} readOnly={!access.canEdit} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => { if (access.canEdit && descriptionDraft !== description) onDescriptionChange(descriptionDraft) }} />
         </label>
         <section className="day-column day-events" aria-label="События дня">
           <h3>События</h3>
           {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
-            {events.length > 0 && <ul className="day-event-list">{events.map((event) => <li key={event.key}>{readOnly ? <span className="day-event-line read-only">{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></button>}</li>)}</ul>}
+            {events.length > 0 && <ul className="day-event-list">{events.map((event) => <li key={event.key}>{!access.canBrowse ? <span className="day-event-line read-only">{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></button>}</li>)}</ul>}
             {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
           </>}
         </section>
         <section className="day-column day-places" aria-label="Локации дня">
           <h3>Локации</h3>
           {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
-            {places.length > 0 && <ol>{places.map((place) => <li key={`${place.city.id}:${place.id}`}>{readOnly ? (place.url ? <a href={place.url} target="_blank" rel="noreferrer">{place.name}</a> : <span>{place.name}</span>) : <button type="button" onClick={() => onCity(place.city)}>{place.name}</button>}</li>)}</ol>}
-            {!readOnly && places.length === 0 && locationCity && <button type="button" className="day-add-locations" onClick={() => onAddLocations(locationCity, date)}>Добавьте места для посещения</button>}
+            {places.length > 0 && <ol>{places.map((place) => <li key={`${place.city.id}:${place.id}`}>{!access.canBrowse ? (place.url ? <a href={place.url} target="_blank" rel="noreferrer">{place.name}</a> : <span>{place.name}</span>) : <button type="button" onClick={() => onCity(place.city)}>{place.name}</button>}</li>)}</ol>}
+            {access.canEdit && places.length === 0 && locationCity && <button type="button" className="day-add-locations" onClick={() => onAddLocations(locationCity, date)}>Добавьте места для посещения</button>}
           </>}
         </section>
       </div>
@@ -1038,7 +1047,7 @@ const documentMetadata = (file: TravelFile) => {
   return [file.uploadedBy, uploadedAt].filter(Boolean).join(' · ')
 }
 
-function TransportDialog({ title, value, defaultTimeZone, ticketName, tickets, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; value: TransportDetails; defaultTimeZone: string; ticketName: string; tickets: TravelFile[]; onSave: (value: TransportDetails) => void; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
+function TransportDialog({ title, value, defaultTimeZone, ticketName, tickets, readOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; value: TransportDetails; defaultTimeZone: string; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; onSave: (value: TransportDetails) => void; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
   const [draft, setDraft] = useState<TransportDetails>({ ...value, ticketOnSite: value.type === 'plane' ? false : value.ticketOnSite })
   const departureDateRef = useRef<HTMLInputElement>(null)
   const arrivalDateRef = useRef<HTMLInputElement>(null)
@@ -1055,6 +1064,7 @@ function TransportDialog({ title, value, defaultTimeZone, ticketName, tickets, o
           <div id="transport-title"><TypographyGroup headingLevel="h2" title={<TransportLabel label={title} type={draft.type} />} text={draft.ticketOnSite ? 'Галочка в меню появится при заполнении дат и локаций' : 'Галочка в меню появится при заполнении дат, локаций и прикреплении билета'} /></div>
           <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
         </div>
+        <fieldset className="dialog-fields" disabled={readOnly}>
         <Select content="list" icon={<Icon name="rocket-launch" />} controlClassName="transport-type-select" aria-label="Тип транспорта" value={draft.type ?? ''} onChange={(event) => { const type = event.target.value as TransportType; setDraft({ ...draft, type, ticketOnSite: type === 'plane' ? false : draft.ticketOnSite }) }}>
           <option value="">Транспорт</option>
           {(Object.keys(transportNames) as TransportType[]).map((type) => <option key={type} value={type}>{transportEmoji[type]} {transportNames[type]}</option>)}
@@ -1063,7 +1073,7 @@ function TransportDialog({ title, value, defaultTimeZone, ticketName, tickets, o
           <section className="transport-route-group">
             <h3>Отъезд</h3>
             <div className="transport-route-grid">
-              <label className="form-control transport-date-picker" onClick={(event) => { event.preventDefault(); departureDateRef.current?.showPicker() }}><Icon name="calendar-month" /><span>{formatCompactNumericDate(draft.departureDate)}</span><input ref={departureDateRef} aria-label="Дата отъезда" type="date" value={draft.departureDate} onChange={(event) => setDraft({ ...draft, departureDate: event.target.value })} /></label>
+              <label className="form-control transport-date-picker" onClick={(event) => { event.preventDefault(); if (readOnly) return; departureDateRef.current?.showPicker() }}><Icon name="calendar-month" /><span>{formatCompactNumericDate(draft.departureDate)}</span><input ref={departureDateRef} aria-label="Дата отъезда" type="date" value={draft.departureDate} onChange={(event) => setDraft({ ...draft, departureDate: event.target.value })} /></label>
               <label className="form-control transport-time-picker"><Icon name="time" /><input aria-label="Время отъезда" type="time" value={draft.departureTime} onChange={(event) => setDraft({ ...draft, departureTime: event.target.value })} />
                 <span className="transport-time-zone-picker"><span>{formatTimeZoneOffset(departureTimeZone, draft.departureDate)}</span><select aria-label="Часовой пояс отправления" value={draft.departureTimeZone} onChange={(event) => setDraft({ ...draft, departureTimeZone: event.target.value })}><option value="">По часовому поясу поездки — {formatTimeZoneOption(defaultTimeZone, draft.departureDate)}</option>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, draft.departureDate)}</option>)}</select></span>
               </label>
@@ -1074,7 +1084,7 @@ function TransportDialog({ title, value, defaultTimeZone, ticketName, tickets, o
           <section className="transport-route-group">
             <h3>Приезд</h3>
             <div className="transport-route-grid">
-              <label className="form-control transport-date-picker" onClick={(event) => { event.preventDefault(); arrivalDateRef.current?.showPicker() }}><Icon name="calendar-month" /><span>{formatCompactNumericDate(draft.arrivalDate)}</span><input ref={arrivalDateRef} aria-label="Дата приезда" type="date" value={draft.arrivalDate} onChange={(event) => setDraft({ ...draft, arrivalDate: event.target.value })} /></label>
+              <label className="form-control transport-date-picker" onClick={(event) => { event.preventDefault(); if (readOnly) return; arrivalDateRef.current?.showPicker() }}><Icon name="calendar-month" /><span>{formatCompactNumericDate(draft.arrivalDate)}</span><input ref={arrivalDateRef} aria-label="Дата приезда" type="date" value={draft.arrivalDate} onChange={(event) => setDraft({ ...draft, arrivalDate: event.target.value })} /></label>
               <label className="form-control transport-time-picker"><Icon name="time" /><input aria-label="Время приезда" type="time" value={draft.arrivalTime} onChange={(event) => setDraft({ ...draft, arrivalTime: event.target.value })} />
                 <span className="transport-time-zone-picker"><span>{formatTimeZoneOffset(arrivalTimeZone, draft.arrivalDate)}</span><select aria-label="Часовой пояс приезда" value={draft.arrivalTimeZone} onChange={(event) => setDraft({ ...draft, arrivalTimeZone: event.target.value })}><option value="">По часовому поясу поездки — {formatTimeZoneOption(defaultTimeZone, draft.arrivalDate)}</option>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, draft.arrivalDate)}</option>)}</select></span>
               </label>
@@ -1088,18 +1098,19 @@ function TransportDialog({ title, value, defaultTimeZone, ticketName, tickets, o
           <span className={`document-check${draft.ticketOnSite ? ' checked' : ''}`} role="checkbox" aria-checked={draft.ticketOnSite} />
           <span>Билет купить на месте</span>
         </button>}
+        </fieldset>
         <div className="transport-ticket-list">
-          {visibleTickets.map((ticket) => <div className="document-card-group" key={ticket.id}><InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={ticket.name} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, { icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }]} />{documentMetadata(ticket) && <p className="document-card-metadata">{documentMetadata(ticket)}</p>}</div>)}
+          {visibleTickets.map((ticket) => <div className="document-card-group" key={ticket.id}><InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={ticket.name} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }])]} />{documentMetadata(ticket) && <p className="document-card-metadata">{documentMetadata(ticket)}</p>}</div>)}
           {legacyTicketName && <InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={legacyTicketName} />}
-          {ticketCount < 2 && <InfoRow className="transport-ticket-row transport-ticket-row-empty" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
+          {ticketCount < 2 && !readOnly && <InfoRow className="transport-ticket-row transport-ticket-row-empty" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
         </div>
-        <Button type="submit">Сохранить</Button>
+        {!readOnly && <Button type="submit">Сохранить</Button>}
       </form>
     </div>
   )
 }
 
-function HotelDialog({ cityName, value, booking, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; booking?: TravelFile; onSave: (value: HotelDetails) => void; onBooking: () => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
+function HotelDialog({ cityName, value, booking, readOnly = false, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; booking?: TravelFile; readOnly?: boolean; onSave: (value: HotelDetails) => void; onBooking: () => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(value)
   return (
     <div className="overlay" role="presentation">
@@ -1108,14 +1119,16 @@ function HotelDialog({ cityName, value, booking, onSave, onBooking, onOpenBookin
           <div id="hotel-title"><TypographyGroup headingLevel="h2" title={`Отель ${cityName}`} text="Галочка в меню появится, когда все поля будут заполнены и появится файл с бронью отеля" /></div>
           <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
         </div>
+        <fieldset className="dialog-fields" disabled={readOnly}>
         <div className="field-grid">
           <Input label="Время заселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkInTime} onChange={(event) => setDraft({ ...draft, checkInTime: manualTime(event.target.value) })} />
           <Input label="Время выселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkOutTime} onChange={(event) => setDraft({ ...draft, checkOutTime: manualTime(event.target.value) })} />
           <Input icon={<Icon name="attractions" />} controlClassName="transport-wide" aria-label="Название отеля" placeholder="Название отеля" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoFocus />
           <Input icon={<Icon name="add-pin" />} trailingIcon={draft.url.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.url.trim() ? () => void navigator.clipboard.writeText(draft.url.trim()) : undefined} controlClassName="transport-wide transport-link-input" aria-label="Ссылка на отель в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} />
         </div>
-        <div className={booking ? 'document-card-group' : ''}><InfoRow className={booking ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" title={booking ? 'Бронь отеля' : 'Прикрепить бронь'} subtitle={booking ? booking.name : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, { icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />{booking && documentMetadata(booking) && <p className="document-card-metadata">{documentMetadata(booking)}</p>}</div>
-        <Button type="submit">Сохранить</Button>
+        </fieldset>
+        {(booking || !readOnly) && <div className={booking ? 'document-card-group' : ''}><InfoRow className={booking ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" title={booking ? 'Бронь отеля' : 'Прикрепить бронь'} subtitle={booking ? booking.name : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }])] : readOnly ? [] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />{booking && documentMetadata(booking) && <p className="document-card-metadata">{documentMetadata(booking)}</p>}</div>}
+        {!readOnly && <Button type="submit">Сохранить</Button>}
       </form>
     </div>
   )
@@ -1286,17 +1299,18 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
           </div>
         </div>
       </section>
-      {transportDirection && <TransportDialog title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд') : (nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд')} defaultTimeZone={tripTimeZone} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
-      {hotelOpen && <HotelDialog cityName={draft.name} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes }; setDraft(next); onChange(next); setHotelOpen(false); onPanelClose() }} />}
+      {transportDirection && <TransportDialog readOnly={readOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : 'Приезд') : (nextCity ? `${draft.name} — ${nextCity.name}` : 'Отъезд')} defaultTimeZone={tripTimeZone} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
+      {hotelOpen && <HotelDialog readOnly={readOnly} cityName={draft.name} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes }; setDraft(next); onChange(next); setHotelOpen(false); onPanelClose() }} />}
     </>
   )
 }
 
-function Dashboard({ trip, user, tripCount, readOnly = false, cacheState, online, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; readOnly?: boolean; cacheState: CacheState; online: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => void; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
+function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; cacheState: CacheState; online: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => void; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
   const [showPast, setShowPast] = useState(false)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
   const [selectedPanel, setSelectedPanel] = useState<'hotel' | 'in' | 'out' | null>(null)
   const [panelReturnCityId, setPanelReturnCityId] = useState<string | null>(null)
+  const access = useAccess()
   const [selectedCityDate, setSelectedCityDate] = useState<string | null>(null)
   const today = isoDate(new Date())
   const allDays = dateRange(trip.startDate, trip.endDate)
@@ -1305,7 +1319,7 @@ function Dashboard({ trip, user, tripCount, readOnly = false, cacheState, online
   const selectedCityIndex = selectedCity ? trip.cities.findIndex((city) => city.id === selectedCity.id) : -1
   return (
     <main className="screen trip-background dashboard" style={tripBackgroundStyle(trip)}>
-      <TripSidebar trip={trip} user={user} tripCount={tripCount} readOnly={readOnly} cacheState={cacheState} online={online} selectedCityId={selectedCityId} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onHotel={(city) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(direction) }} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
+      <TripSidebar trip={trip} user={user} tripCount={tripCount} cacheState={cacheState} online={online} selectedCityId={selectedCityId} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onHotel={(city) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(direction) }} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
       <section className={`calendar-column${selectedCity ? ' city-active' : ''}`}>
         {selectedCity ? (
           <CityPanel
@@ -1320,7 +1334,7 @@ function Dashboard({ trip, user, tripCount, readOnly = false, cacheState, online
             onPanelClose={() => { setSelectedCityId(panelReturnCityId); setSelectedPanel(null) }}
             onClose={() => { setSelectedCityId(null); setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedPanel(null) }}
             onChange={(nextCity) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onCityChange(nextCity) }}
-            readOnly={readOnly}
+            readOnly={!access.canEdit}
             onAddPlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onAddPlace(nextCity, date, place) }}
             onUpdatePlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onUpdatePlace(nextCity, date, place) }}
             onDeletePlace={onDeletePlace}
@@ -1374,7 +1388,7 @@ function Dashboard({ trip, user, tripCount, readOnly = false, cacheState, online
         ) : (
           <div className="calendar-content setup-transition">
             {allDays.some((date) => date < today) && <button className="past-toggle" onClick={() => setShowPast(!showPast)}>{showPast ? 'Скрыть прошедшие дни' : 'Показать прошедшие дни'}</button>}
-            {visibleDays.map((date) => <DayCard key={date} date={date} cities={trip.cities.filter((city) => date >= city.arrival && date <= city.departure)} allCities={trip.cities} tripTimeZone={trip.timeZone} description={trip.dayDescriptions[date] ?? ''} hidden={date < today} readOnly={readOnly} onDescriptionChange={(description) => onDayDescriptionChange(date, description)} onEvent={(city, panel) => { setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(panel) }} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onAddLocations={(city, selectedDate) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(selectedDate); setSelectedPanel(null) }} />)}
+            {visibleDays.map((date) => <DayCard key={date} date={date} cities={trip.cities.filter((city) => date >= city.arrival && date <= city.departure)} allCities={trip.cities} tripTimeZone={trip.timeZone} description={trip.dayDescriptions[date] ?? ''} hidden={date < today} onDescriptionChange={(description) => onDayDescriptionChange(date, description)} onEvent={(city, panel) => { setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(panel) }} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onAddLocations={(city, selectedDate) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(selectedDate); setSelectedPanel(null) }} />)}
             {visibleDays.length === 0 && <article className="glass empty-calendar"><h2>Все дни уже прошли</h2><Button onClick={() => setShowPast(true)}>Показать поездку</Button></article>}
           </div>
         )}
@@ -1670,13 +1684,18 @@ export default function App() {
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось присоединиться') }
   }
 
+  // Один выключатель на всё приложение: экраны спрашивают useAccess(), а не
+  // выводят право на правку из роли или navigator.onLine самостоятельно.
+  const access = tripAccess({ publicView: screen === 'view', offline: !online, role: trip?.role })
+
+  const renderScreen = () => {
   if (loading) return <AuthShell><div className="glass auth-modal compact"><h1>Загружаем поездку…</h1></div></AuthShell>
 
   if (screen === 'view') {
     if (!trip) return <AuthShell><div className="glass auth-modal compact"><h1>{error || 'Поездка не найдена'}</h1></div></AuthShell>
     const noop = () => undefined
     const noopAsync = async () => undefined
-    return <Dashboard trip={trip} user={null} tripCount={0} readOnly cacheState={cacheState} online={online} onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noop} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
+    return <Dashboard trip={trip} user={null} tripCount={0} cacheState={cacheState} online={online} onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noop} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
   }
 
   if (screen === 'start' || screen === 'login' || screen === 'join') {
@@ -1722,5 +1741,8 @@ export default function App() {
   if (screen === 'setup') return <><SetupScreen initial={trip} user={currentUser} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={(value) => void saveTrip(value)} />{error && <p className="app-error">{error}</p>}</>
   if (!trip) return null
   if (inviteOpen) return <><InviteScreen trip={trip} onBack={() => setInviteOpen(false)} onCreate={async (hours) => (await api.createInvitation(trip.id!, hours)).invitation} onViewLink={async () => (await api.viewLink(trip.id!)).viewLink.url} onRemove={async (member) => { await api.removeMember(trip.id!, member.id); await loadTrip(trip.id!) }} />{error && <p className="app-error">{error}</p>}</>
-  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} readOnly={!online} cacheState={cacheState} online={online} onChange={setTrip} onEdit={() => setScreen('setup')} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
+  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} cacheState={cacheState} online={online} onChange={setTrip} onEdit={() => setScreen('setup')} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
+  }
+
+  return <AccessContext.Provider value={access}>{renderScreen()}</AccessContext.Provider>
 }
