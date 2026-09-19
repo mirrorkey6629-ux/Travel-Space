@@ -599,6 +599,11 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .place-popup-actions { display: flex; gap: 8px; }
 .place-popup-actions .ui-button { flex: 1; }
 
+/* Оффлайн Google Maps не загружается, а место всё равно нужно посмотреть:
+   заглушка объясняет пустую область, попап встаёт по её центру. */
+.places-map-fallback { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-items: center; text-align: center; color: var(--color-text-secondary); }
+.places-map-detached-popup { position: absolute; inset: 0; padding: 16px; display: grid; place-items: center; }
+
 .map-search { position: absolute; top: 12px; left: 12px; width: min(320px, calc(100% - 24px)); z-index: 2; }
 /* Те же токены, что у обычных полей формы. Поверх карты добавлен blur:
    без подложки стеклянный фон опирается на то, что под ним. */

@@ -208,13 +208,20 @@ export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDa
   }, [mapsReady, draftPosition, activeDate])
 
   // Центрирование на точке, выбранной в списке слева.
+  //
+  // Выбор точки намеренно не требует карты: оффлайн Google Maps не загрузится,
+  // но посмотреть место и уйти в приложение карт по-прежнему нужно. Поэтому
+  // отсутствие карты отменяет только панорамирование, а не сам выбор — и
+  // onFocusHandled зовётся всегда, иначе focusRequest залипал бы навсегда.
   useEffect(() => {
-    const map = mapRef.current
-    if (!map || !focusRequest) return
+    if (!focusRequest) return
     const place = places.find((item) => item.id === focusRequest)
-    if (place && Number.isFinite(place.latitude) && Number.isFinite(place.longitude)) {
-      map.panTo({ lat: place.latitude!, lng: place.longitude! })
-      map.setZoom(Math.max(map.getZoom() ?? 15, 15))
+    if (place) {
+      const map = mapRef.current
+      if (map && Number.isFinite(place.latitude) && Number.isFinite(place.longitude)) {
+        map.panTo({ lat: place.latitude!, lng: place.longitude! })
+        map.setZoom(Math.max(map.getZoom() ?? 15, 15))
+      }
       setDraftPosition(null)
       setEditing(false)
       setDraft(null)
@@ -254,6 +261,9 @@ export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDa
   return (
     <div className="places-map">
       <div ref={containerRef} className="google-map-picker" aria-label="Карта точек" />
+      {/* Оффлайн Google Maps не загружается. Пустой прямоугольник выглядел бы
+          поломкой, поэтому область карты прямо говорит, что происходит. */}
+      {!mapsReady && <p className="places-map-fallback">Карта недоступна без интернета</p>}
       {!readOnly && mapsReady && <MapSearch maps={mapsRef.current} map={mapRef.current} onPick={pickSearchResult} />}
       {mapsReady && popupPosition && popupDraft && (
         <MapOverlay maps={mapsRef.current} map={mapRef.current} position={popupPosition}>
@@ -271,6 +281,25 @@ export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDa
             onClose={closePopup}
           />
         </MapOverlay>
+      )}
+      {/* Без карты попап некуда якорить, поэтому он показывается по центру
+          области. Правки оффлайн закрыты через readOnly, так что достаточно
+          режима просмотра: название, дата и ссылка в приложение карт. */}
+      {!mapsReady && selected && (
+        <div className="places-map-detached-popup">
+          <PlacePopup
+            mode="view"
+            draft={{ name: selected.name, icon: selected.icon, date: selected.date }}
+            dates={dates}
+            formatDate={formatDate}
+            readOnly
+            mapsUrl={placeMapsHref(selected) || undefined}
+            onEdit={() => undefined}
+            onChange={() => undefined}
+            onSave={() => undefined}
+            onClose={closePopup}
+          />
+        </div>
       )}
     </div>
   )
