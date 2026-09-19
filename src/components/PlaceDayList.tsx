@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { DndContext, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent } from '@dnd-kit/core'
+import { DndContext, MeasuringStrategy, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 import { placeIconUrl, type PlaceIconKey } from '../placeIcons'
 import { UNSCHEDULED_KEY } from '../places'
 
@@ -21,22 +20,22 @@ function RowBody({ place, number }: { place: ListPlace; number?: number }) {
   )
 }
 
-function PlaceRow({ place, onFocus }: { place: ListPlace; onFocus: (id: string) => void }) {
-  // newIndex — позиция, которую точка займёт прямо сейчас с учётом перетаскивания.
-  // Обычный индекс в массиве при переносе внутри дня не меняется: там соседей
-  // двигает сам SortableContext трансформациями, и номер разошёлся бы с местом.
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging, newIndex } = useSortable({ id: place.id })
+function PlaceRow({ place, number, onFocus }: { place: ListPlace; number: number; onFocus: (id: string) => void }) {
+  // transform намеренно не применяется. Иначе перетаскиваемая строка отрывается
+  // от списка и висит под курсором, а соседи разъезжаются собственными
+  // трансформациями. Порядок целиком ведёт раскладка предпросмотра: строка
+  // всегда стоит в слоте, просто переставляется между слотами.
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: place.id })
   return (
     <button
       ref={setNodeRef}
       type="button"
       className={`place-row${isDragging ? ' is-dragging' : ''}`}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
       onClick={() => onFocus(place.id)}
       {...attributes}
       {...listeners}
     >
-      <RowBody place={place} number={newIndex + 1} />
+      <RowBody place={place} number={number} />
     </button>
   )
 }
@@ -59,7 +58,7 @@ function Day({ dayKey, title, places, active, readOnly, onActivate, onFocusPlace
         ? <button key={place.id} type="button" className="place-row" onClick={() => onFocusPlace(place.id)}>
             <RowBody place={place} number={index + 1} />
           </button>
-        : <PlaceRow key={place.id} place={place} onFocus={onFocusPlace} />)}
+        : <PlaceRow key={place.id} place={place} number={index + 1} onFocus={onFocusPlace} />)}
     </div>
   )
 }
@@ -89,49 +88,51 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
 
   const handleDragStart = () => setPreview(null)
 
+  const sameOrder = (left: Record<string, ListPlace[]>, right: Record<string, ListPlace[]>) =>
+    dayKeys.every((key) => {
+      const a = left[key] ?? []
+      const b = right[key] ?? []
+      return a.length === b.length && a.every((place, index) => place.id === b[index].id)
+    })
+
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event
     if (!over) return
     const movedId = String(active.id)
     const overId = String(over.id)
+    if (overId === movedId) return
     const base = preview ?? placesByDate
     const from = dayOfIn(base, movedId)
     const to = dayKeys.includes(overId) ? overId : dayOfIn(base, overId)
-    // Порядок внутри одного дня показывает сам SortableContext своими
-    // трансформациями. Если вмешаться ещё и здесь, сдвиг применится дважды:
-    // нумерация пойдёт по нашей раскладке, а положение на экране — по чужой.
-    if (!from || !to || from === to) return
-    const fromItems = base[from] ?? []
-    const toItems = base[to] ?? []
-    const moved = fromItems.find((place) => place.id === movedId)
+    if (!from || !to) return
+    const moved = (base[from] ?? []).find((place) => place.id === movedId)
     if (!moved) return
+    const withoutMoved = (base[from] ?? []).filter((place) => place.id !== movedId)
+    const targetBase = from === to ? withoutMoved : [...(base[to] ?? [])]
     // Курсор ниже середины точки — встаём после неё, выше — перед ней.
-    const overIndex = dayKeys.includes(overId) ? toItems.length : toItems.findIndex((place) => place.id === overId)
+    const overIndex = dayKeys.includes(overId) ? targetBase.length : targetBase.findIndex((place) => place.id === overId)
     const translated = active.rect.current.translated
     const below = !!(translated && over.rect && translated.top > over.rect.top + over.rect.height / 2)
-    const index = overIndex < 0 ? toItems.length : overIndex + (below ? 1 : 0)
+    const index = overIndex < 0 ? targetBase.length : overIndex + (below ? 1 : 0)
+    const inserted = [...targetBase.slice(0, index), moved, ...targetBase.slice(index)]
     const next: Record<string, ListPlace[]> = {}
     for (const key of dayKeys) next[key] = base[key] ?? []
-    next[from] = fromItems.filter((place) => place.id !== movedId)
-    next[to] = [...toItems.slice(0, index), moved, ...toItems.slice(index)]
+    next[from] = from === to ? inserted : withoutMoved
+    next[to] = inserted
+    // Без этой отсечки каждое движение мыши перерисовывало бы весь список заново.
+    if (sameOrder(next, base)) return
     setPreview(next)
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
     const movedId = String(event.active.id)
-    const overId = event.over ? String(event.over.id) : null
     const base = preview ?? placesByDate
     setPreview(null)
     const day = dayOfIn(base, movedId)
     const origin = dayOfIn(placesByDate, movedId)
     if (!day || !origin) return
-    const list = base[day] ?? []
-    // Итоговая позиция — место точки, над которой отпустили; над днём целиком — конец.
-    let position = list.findIndex((place) => place.id === movedId)
-    if (overId) {
-      const overIndex = dayKeys.includes(overId) ? list.length - 1 : list.findIndex((place) => place.id === overId)
-      if (overIndex >= 0) position = overIndex
-    }
+    // Предпросмотр уже показывает итоговую раскладку — берём позицию прямо из него.
+    const position = (base[day] ?? []).findIndex((place) => place.id === movedId)
     const wasAt = (placesByDate[origin] ?? []).findIndex((place) => place.id === movedId)
     if (day === origin && wasAt === position) return
     onMove(movedId, day === UNSCHEDULED_KEY ? null : day, position)
@@ -154,11 +155,14 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
   if (readOnly) return <div className="city-days">{dayKeys.map(renderDay)}</div>
 
   // DragOverlay намеренно не используется: отдельная плашка под курсором дублировала
-  // строку и закрывала карту. Без него за курсором едет сама строка.
+  // строку и закрывала карту.
   return (
     <DndContext
       sensors={sensors}
       collisionDetection={closestCorners}
+      // Раскладка меняется прямо во время перетаскивания, поэтому размеры
+      // зон нужно перемерять постоянно — иначе dnd-kit считает по устаревшим.
+      measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}

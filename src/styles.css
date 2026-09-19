@@ -606,8 +606,8 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 /* Отступы одинаковы у всех дней: иначе выделение активного сдвигало бы содержимое. */
 .city-day.is-active { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
 .city-day.is-over { background: var(--glass-soft); }
-/* Перетаскиваемая строка едет за курсором сама, поэтому остаётся читаемой
-   и поднимается над соседями. Отдельной плашки-копии нет: она дублировала
-   строку и закрывала карту. */
-.city-day .place-row.is-dragging { position: relative; z-index: 2; color: #fff; cursor: grabbing; }
+/* Перетаскиваемая строка не отрывается от списка: она остаётся в слоте и
+   переставляется между слотами. Подсвечиваем её, чтобы было видно, что тащишь. */
+.city-day .place-row.is-dragging { color: #fff; cursor: grabbing; }
 .city-day .place-row.is-dragging .ui-icon { opacity: 1; }
+.city-day .place-row.is-dragging span { border-radius: 6px; box-shadow: 0 0 0 6px var(--glass-soft); background: var(--glass-soft); }
