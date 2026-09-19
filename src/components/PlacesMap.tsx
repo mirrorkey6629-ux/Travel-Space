@@ -3,7 +3,7 @@ import { MapOverlay } from './MapOverlay'
 import { MapSearch, type SearchResult } from './MapSearch'
 import { PlacePopup } from './PlacePopup'
 import { iconForGoogleTypes, placeIconUrl, type PlaceIconKey } from '../placeIcons'
-import { UNSCHEDULED_KEY, type PlaceDraft } from '../places'
+import { UNSCHEDULED_KEY, placeMapsHref, type PlaceDraft } from '../places'
 
 type Coordinates = { lat: number; lng: number }
 
@@ -263,7 +263,7 @@ export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDa
             dates={dates}
             formatDate={formatDate}
             readOnly={readOnly}
-            mapsUrl={selected?.url || undefined}
+            mapsUrl={selected ? placeMapsHref(selected) || undefined : undefined}
             onEdit={() => { setDraft(popupDraft); setEditing(true) }}
             onChange={setDraft}
             onSave={saveDraft}
