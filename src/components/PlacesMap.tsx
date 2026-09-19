@@ -159,7 +159,8 @@ export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDa
       const marker = new maps.marker.AdvancedMarkerElement({
         map,
         position: coordinates,
-        title: place.name,
+        // title не задаём: браузер рисует по нему свой чёрный системный тултип,
+        // который дублирует попап и перекрывает соседние точки.
         content: markerContent(place.icon, dimmed),
         // Без gmpClickable маркер с собственным content не генерирует событий клика.
         gmpClickable: true,
@@ -196,7 +197,6 @@ export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDa
     const marker = new maps.marker.AdvancedMarkerElement({
       map,
       position: draftPosition,
-      title: 'Добавить точку',
       content: markerContent('default', false, true),
       gmpClickable: true,
     })

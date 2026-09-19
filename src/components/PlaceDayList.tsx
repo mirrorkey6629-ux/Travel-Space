@@ -9,11 +9,11 @@ export type ListPlace = { id: string; name: string; icon: PlaceIconKey }
 
 const handleUrl = `${import.meta.env.BASE_URL}assets/icons/drag-handle.svg`
 
-function RowBody({ place, index }: { place: ListPlace; index: number }) {
+function RowBody({ place, number }: { place: ListPlace; number?: number }) {
   return (
     <>
       <img className="ui-icon" src={placeIconUrl(place.icon)} width={16} height={16} alt="" aria-hidden="true" />
-      <span>{index + 1}. {place.name}</span>
+      <span>{number === undefined ? place.name : `${number}. ${place.name}`}</span>
       {/* Подсказка, что строку можно перетащить. Тащится вся строка, поэтому
           иконка декоративная и своих обработчиков не имеет. */}
       <img className="ui-icon place-row-handle" src={handleUrl} width={16} height={16} alt="" aria-hidden="true" />
@@ -21,8 +21,11 @@ function RowBody({ place, index }: { place: ListPlace; index: number }) {
   )
 }
 
-function PlaceRow({ place, index, onFocus }: { place: ListPlace; index: number; onFocus: (id: string) => void }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: place.id })
+function PlaceRow({ place, onFocus }: { place: ListPlace; onFocus: (id: string) => void }) {
+  // newIndex — позиция, которую точка займёт прямо сейчас с учётом перетаскивания.
+  // Обычный индекс в массиве при переносе внутри дня не меняется: там соседей
+  // двигает сам SortableContext трансформациями, и номер разошёлся бы с местом.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging, newIndex } = useSortable({ id: place.id })
   return (
     <button
       ref={setNodeRef}
@@ -33,7 +36,7 @@ function PlaceRow({ place, index, onFocus }: { place: ListPlace; index: number; 
       {...attributes}
       {...listeners}
     >
-      <RowBody place={place} index={index} />
+      <RowBody place={place} number={newIndex + 1} />
     </button>
   )
 }
@@ -54,9 +57,9 @@ function Day({ dayKey, title, places, active, readOnly, onActivate, onFocusPlace
       <h3><button type="button" className="city-day-title" aria-pressed={active} onClick={onActivate}>{title}</button></h3>
       {places.map((place, index) => readOnly
         ? <button key={place.id} type="button" className="place-row" onClick={() => onFocusPlace(place.id)}>
-            <RowBody place={place} index={index} />
+            <RowBody place={place} number={index + 1} />
           </button>
-        : <PlaceRow key={place.id} place={place} index={index} onFocus={onFocusPlace} />)}
+        : <PlaceRow key={place.id} place={place} onFocus={onFocusPlace} />)}
     </div>
   )
 }
@@ -156,8 +159,7 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
   if (readOnly) return <div className="city-days">{dayKeys.map(renderDay)}</div>
 
   const draggedDay = activeId ? dayOfIn(view, activeId) : undefined
-  const draggedIndex = draggedDay && activeId ? (view[draggedDay] ?? []).findIndex((place) => place.id === activeId) : -1
-  const dragged = draggedDay && draggedIndex >= 0 ? view[draggedDay][draggedIndex] : null
+  const dragged = draggedDay && activeId ? (view[draggedDay] ?? []).find((place) => place.id === activeId) ?? null : null
 
   return (
     <DndContext
@@ -177,7 +179,7 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
       </div>
       {/* Копия строки под курсором: без неё непонятно, что именно перетаскиваешь. */}
       <DragOverlay dropAnimation={null}>
-        {dragged ? <div className="place-row place-row-overlay"><RowBody place={dragged} index={draggedIndex} /></div> : null}
+        {dragged ? <div className="place-row place-row-overlay"><RowBody place={dragged} /></div> : null}
       </DragOverlay>
     </DndContext>
   )
