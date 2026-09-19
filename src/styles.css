@@ -256,6 +256,10 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .transport-dialog .field-grid > .transport-wide { grid-column: span 2; }
 .transport-dialog .field-grid { gap: 8px; }
 .transport-column { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
+.transport-duration { margin: 4px 0; color: var(--color-text-secondary); text-align: center; font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
+.transport-ticket-on-site { align-self: flex-start; padding: 0; display: inline-flex; align-items: center; gap: 9px; color: var(--color-text-secondary); background: transparent; font: inherit; }
+.transport-ticket-on-site:hover { color: var(--color-text-primary); }
+.transport-ticket-on-site:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 3px; border-radius: 4px; }
 .transport-ticket-row { width: 100%; }
 .transport-ticket-list { display: flex; flex-direction: column; gap: 16px; }
 .transport-ticket-row-empty .info-row-image { opacity: .5; }
@@ -278,7 +282,7 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .field { display: flex; flex-direction: column; gap: 8px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); text-align: left; }
 .field.span-2 { grid-column: span 2; }
 .field input, .field select, .route-form input, .route-form select { min-width: 0; height: 52px; padding: 0 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-soft); color: var(--color-text-primary); color-scheme: dark; }
-.form-control { min-width: 0; width: 100%; height: 60px; padding: 0 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-soft); display: flex; align-items: center; gap: 8px; color: var(--color-text-primary); transition: border-color .15s, background .15s; }
+.form-control { min-width: 0; width: 100%; height: 60px; padding: 0 16px; border: 1px solid transparent; border-radius: 16px; background: var(--glass-soft); display: flex; align-items: center; gap: 8px; color: var(--color-text-primary); transition: border-color .15s, background .15s; }
 .form-control-accent { height: 64px; padding: 0 20px; border-color: transparent; border-radius: 32px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
 .form-control-accent .form-control-icon { width: 28px; height: 28px; flex-basis: 28px; }
 .form-control-accent .form-control-icon .ui-icon { width: 28px; height: 28px; }

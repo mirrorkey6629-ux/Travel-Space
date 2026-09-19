@@ -14,7 +14,7 @@ type Place = { id: string; name: string; url: string; latitude?: number; longitu
 type Task = { id: string; title: string; done: boolean }
 type TravelFile = { id: string; name: string; category: string; uploadedBy?: string; uploadedAt?: string }
 type HotelDetails = { name: string; url: string; checkInTime: string; checkOutTime: string; notes: string }
-type TransportDetails = { type?: TransportType; departureTime: string; arrivalTime: string; departureStation: string; departureStationUrl: string; arrivalStation: string; arrivalStationUrl: string; notes: string }
+type TransportDetails = { type?: TransportType; departureTime: string; arrivalTime: string; departureStation: string; departureStationUrl: string; arrivalStation: string; arrivalStationUrl: string; notes: string; ticketOnSite: boolean }
 type TripMember = { id: string; email: string; displayName: string; role: 'owner' | 'member'; hasAvatar?: boolean; avatarUrl?: string }
 type CurrentUser = { id: string; email: string; displayName: string; hasAvatar: boolean; avatarUrl?: string }
 type DayPeriod = 'morning' | 'day' | 'evening'
@@ -123,6 +123,22 @@ const formatDate = (value: string) => {
   const date = parseDate(value)
   return `${date.getDate()} ${ruMonths[date.getMonth()]}`
 }
+const formatTravelDuration = (departureTime: string, arrivalTime: string, departureDate?: string, arrivalDate?: string) => {
+  const parseTime = (value: string) => {
+    const match = value.match(/^(\d{2}):(\d{2})$/)
+    if (!match) return undefined
+    const hours = Number(match[1])
+    const minutes = Number(match[2])
+    return hours < 24 && minutes < 60 ? hours * 60 + minutes : undefined
+  }
+  const departureMinutes = parseTime(departureTime)
+  const arrivalMinutes = parseTime(arrivalTime)
+  if (departureMinutes === undefined || arrivalMinutes === undefined) return undefined
+  let duration = arrivalMinutes - departureMinutes
+  if (departureDate && arrivalDate) duration += Math.round((parseDate(arrivalDate).getTime() - parseDate(departureDate).getTime()) / 86400000) * 1440
+  if (duration < 0) duration += 1440
+  return `В пути ${Math.floor(duration / 60)}ч ${duration % 60}мин`
+}
 const formatShortRange = (from: string, to: string) => {
   const start = parseDate(from)
   const end = parseDate(to)
@@ -191,8 +207,8 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
       hotelNotes: city.hotel_notes ?? '',
       trainIn,
       trainOut,
-      transportIn: { type: city.transport_in_type ?? undefined, departureTime: city.transport_in_departure_time, arrivalTime: city.transport_in_arrival_time, departureStation: city.transport_in_departure_station, departureStationUrl: city.transport_in_departure_station_url, arrivalStation: city.transport_in_arrival_station, arrivalStationUrl: city.transport_in_arrival_station_url, notes: city.transport_in_notes ?? '' },
-      transportOut: { type: city.transport_out_type ?? undefined, departureTime: city.transport_out_departure_time, arrivalTime: city.transport_out_arrival_time, departureStation: city.transport_out_departure_station, departureStationUrl: city.transport_out_departure_station_url, arrivalStation: city.transport_out_arrival_station, arrivalStationUrl: city.transport_out_arrival_station_url, notes: city.transport_out_notes ?? '' },
+      transportIn: { type: city.transport_in_type ?? undefined, departureTime: city.transport_in_departure_time, arrivalTime: city.transport_in_arrival_time, departureStation: city.transport_in_departure_station, departureStationUrl: city.transport_in_departure_station_url, arrivalStation: city.transport_in_arrival_station, arrivalStationUrl: city.transport_in_arrival_station_url, notes: city.transport_in_notes ?? '', ticketOnSite: Boolean(city.transport_in_ticket_on_site) },
+      transportOut: { type: city.transport_out_type ?? undefined, departureTime: city.transport_out_departure_time, arrivalTime: city.transport_out_arrival_time, departureStation: city.transport_out_departure_station, departureStationUrl: city.transport_out_departure_station_url, arrivalStation: city.transport_out_arrival_station, arrivalStationUrl: city.transport_out_arrival_station_url, notes: city.transport_out_notes ?? '', ticketOnSite: Boolean(city.transport_out_ticket_on_site) },
       places,
       tasks: source.tasks.filter((task) => task.city_id === city.id).map((task) => ({ id: task.id, title: task.title, done: task.done })),
       files: documents.map((document) => ({ id: document.id, name: document.original_name, category: document.category, uploadedBy: document.created_by_name, uploadedAt: document.created_at })),
@@ -566,7 +582,7 @@ function InviteScreen({ trip, onBack, onCreate, onRemove }: { trip: Trip; onBack
   </main>
 }
 
-const emptyTransport = (): TransportDetails => ({ departureTime: '', arrivalTime: '', departureStation: '', departureStationUrl: '', arrivalStation: '', arrivalStationUrl: '', notes: '' })
+const emptyTransport = (): TransportDetails => ({ departureTime: '', arrivalTime: '', departureStation: '', departureStationUrl: '', arrivalStation: '', arrivalStationUrl: '', notes: '', ticketOnSite: false })
 const transportPayload = (city: City) => ({
   transportInType: city.transportIn?.type,
   transportOutType: city.transportOut?.type,
@@ -584,6 +600,8 @@ const transportPayload = (city: City) => ({
   transportOutArrivalStationUrl: city.transportOut?.arrivalStationUrl ?? '',
   transportInNotes: city.transportIn?.notes ?? '',
   transportOutNotes: city.transportOut?.notes ?? '',
+  transportInTicketOnSite: city.transportIn?.ticketOnSite ?? false,
+  transportOutTicketOnSite: city.transportOut?.ticketOnSite ?? false,
 })
 const hotelPayload = (city: City) => ({ hotelNotNeeded: city.hotelNotNeeded, hotel: city.hotel, hotelUrl: city.hotelUrl, hotelCheckInTime: city.hotelCheckInTime ?? '', hotelCheckOutTime: city.hotelCheckOutTime ?? '', hotelNotes: city.hotelNotes ?? '' })
 const emptyCity = (): City => ({ id: uid(), name: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotelNotNeeded: false, hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), places: {}, tasks: [], files: [] })
@@ -713,7 +731,7 @@ function DocumentStatus({ checked, children, onClick }: { checked: boolean; chil
 }
 
 const isTransportComplete = (details: TransportDetails | undefined, ticketName: string) => Boolean(
-  ticketName.trim()
+  (ticketName.trim() || details?.ticketOnSite)
   && details?.type
   && details.departureTime.trim()
   && details.arrivalTime.trim()
@@ -822,8 +840,9 @@ function DayCard({ date, cities, allCities, description, hidden, onEvent, onCity
     const arrivalTime = outgoing.arrivalTime.trim() || incoming.arrivalTime.trim()
     const departureLabel = departureTime ? `Отъезд в ${departureTime}` : `Отъезд ${periodAdverb[departureCity.departurePeriod ?? 'evening']}`
     const arrivalLabel = arrivalTime ? `Прибытие в ${arrivalTime}` : `Прибытие ${periodAdverb[arrivalCity.arrivalPeriod ?? 'morning']}`
+    const durationLabel = formatTravelDuration(departureTime, arrivalTime, departureCity.departure, arrivalCity.arrival)
     const hasOutgoingDetails = Boolean(departureCity.trainOut || outgoing.type || outgoing.departureTime.trim() || outgoing.arrivalTime.trim() || outgoing.departureStation.trim() || outgoing.arrivalStation.trim())
-    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} — ${arrivalCity.name}`, subtitle: `${departureLabel} · ${arrivalLabel}`, icon: 'ticket', city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in' })
+    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} — ${arrivalCity.name}`, subtitle: [departureLabel, arrivalLabel, durationLabel].filter(Boolean).join(' · '), icon: 'ticket', city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in' })
     if (!arrivalCity.hotelNotNeeded) {
       const checkInTime = arrivalCity.hotelCheckInTime.trim()
       events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel' })
@@ -848,7 +867,8 @@ function DayCard({ date, cities, allCities, description, hidden, onEvent, onCity
       const hasIncomingDetails = Boolean(city.trainIn || city.transportIn.type || city.transportIn.departureTime.trim() || city.transportIn.arrivalTime.trim() || city.transportIn.departureStation.trim() || city.transportIn.arrivalStation.trim())
       const departureLabel = departureTime ? `Отъезд в ${departureTime}` : 'Отъезд'
       const arrivalLabel = arrivalTime ? `Прибытие в ${arrivalTime}` : `Прибытие ${periodAdverb[city.arrivalPeriod ?? 'morning']}`
-      result.push({ key: `${city.id}:arrival`, title: `${departurePlace} — ${arrivalPlace}`, subtitle: `${departureLabel} · ${arrivalLabel}`, icon: 'ticket', city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out' })
+      const durationLabel = formatTravelDuration(departureTime, arrivalTime, previousCity?.departure ?? city.arrival, city.arrival)
+      result.push({ key: `${city.id}:arrival`, title: `${departurePlace} — ${arrivalPlace}`, subtitle: [departureLabel, arrivalLabel, durationLabel].filter(Boolean).join(' · '), icon: 'ticket', city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out' })
       if (!city.hotelNotNeeded) {
         const checkInTime = city.hotelCheckInTime.trim()
         result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel' })
@@ -860,8 +880,10 @@ function DayCard({ date, cities, allCities, description, hidden, onEvent, onCity
         result.push({ key: `${city.id}:check-out`, title: city.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение в ${checkOutTime}` : 'Выселение', icon: 'hotel', city, panel: 'hotel' })
       }
       const departureTime = city.transportOut.departureTime.trim()
+      const arrivalTime = city.transportOut.arrivalTime.trim()
       const departurePlace = city.transportOut.departureStation.trim() || city.name
-      result.push({ key: `${city.id}:departure`, title: departurePlace, subtitle: departureTime ? `Отъезд в ${departureTime}` : `Отъезд ${periodAdverb[city.departurePeriod ?? 'evening']}`, icon: 'ticket', city, panel: 'out' })
+      const durationLabel = formatTravelDuration(departureTime, arrivalTime)
+      result.push({ key: `${city.id}:departure`, title: departurePlace, subtitle: [departureTime ? `Отъезд в ${departureTime}` : `Отъезд ${periodAdverb[city.departurePeriod ?? 'evening']}`, arrivalTime ? `Прибытие в ${arrivalTime}` : undefined, durationLabel].filter(Boolean).join(' · '), icon: 'ticket', city, panel: 'out' })
     }
     if (result.length === 0) result.push({ key: `${city.id}:city-day`, title: `День в ${cityInLocative(city.name)}`, icon: 'barefoot', city })
     events.push(...result)
@@ -915,11 +937,12 @@ function TransportDialog({ title, value, ticketName, tickets, onSave, onTicket, 
   const visibleTickets = tickets.slice(0, 2)
   const legacyTicketName = visibleTickets.length === 0 ? ticketName : ''
   const ticketCount = visibleTickets.length + Number(Boolean(legacyTicketName))
+  const durationLabel = formatTravelDuration(draft.departureTime, draft.arrivalTime)
   return (
     <div className="overlay" role="presentation">
       <form className="glass modal editor transport-dialog" role="dialog" aria-modal="true" aria-labelledby="transport-title" onSubmit={(event) => { event.preventDefault(); if (draft.type) onSave(draft) }}>
         <div className="modal-title transport-dialog-title">
-          <div id="transport-title"><TypographyGroup headingLevel="h2" title={<TransportLabel label={title} type={draft.type} />} text="Галочка в меню появится, когда будут заполнены время и места, а также прикреплён билет" /></div>
+          <div id="transport-title"><TypographyGroup headingLevel="h2" title={<TransportLabel label={title} type={draft.type} />} text="Галочка в меню появится, когда заполнены тип транспорта, время и места, а билет прикреплён или будет куплен на месте" /></div>
           <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
         </div>
         <Tabs value={draft.type} options={transportTabs} ariaLabel="Тип перемещения" onChange={(type) => setDraft({ ...draft, type })} />
@@ -934,8 +957,13 @@ function TransportDialog({ title, value, ticketName, tickets, onSave, onTicket, 
             <Input icon={<Icon name="attractions" />} aria-label="Название места прибытия" placeholder="Название места" value={draft.arrivalStation} onChange={(event) => setDraft({ ...draft, arrivalStation: event.target.value })} />
             <Input icon={<Icon name="add-pin" />} trailingIcon={draft.arrivalStationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.arrivalStationUrl.trim() ? () => void navigator.clipboard.writeText(draft.arrivalStationUrl.trim()) : undefined} controlClassName="transport-link-input" aria-label="Ссылка на место прибытия в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.arrivalStationUrl} onChange={(event) => setDraft({ ...draft, arrivalStationUrl: event.target.value })} />
           </div>
+          {durationLabel && <p className="transport-duration transport-wide">{durationLabel}</p>}
           <Textarea controlClassName="transport-wide" aria-label="Заметки" placeholder="Заметки" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
         </div>
+        <button className="transport-ticket-on-site" type="button" onClick={() => setDraft({ ...draft, ticketOnSite: !draft.ticketOnSite })}>
+          <span className={`document-check${draft.ticketOnSite ? ' checked' : ''}`} role="checkbox" aria-checked={draft.ticketOnSite} />
+          <span>Билет купить на месте</span>
+        </button>
         <div className="transport-ticket-list">
           {visibleTickets.map((ticket) => <div className="document-card-group" key={ticket.id}><InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={ticket.name} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, { icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }]} />{documentMetadata(ticket) && <p className="document-card-metadata">{documentMetadata(ticket)}</p>}</div>)}
           {legacyTicketName && <InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет" subtitle={legacyTicketName} />}

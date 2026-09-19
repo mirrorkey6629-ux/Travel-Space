@@ -48,6 +48,8 @@ export type ApiCity = {
   transport_out_arrival_station_url: string
   transport_in_notes: string
   transport_out_notes: string
+  transport_in_ticket_on_site: boolean
+  transport_out_ticket_on_site: boolean
 }
 
 export type TransportType = 'train' | 'plane' | 'bus' | 'ship'
