@@ -13,6 +13,11 @@
   font-synthesis: none;
   --glass-soft: var(--color-background-secondary);
   --border: rgba(255, 255, 255, 0.12);
+  /* Диалоги проекта тёмные потому, что лежат в .overlay с затемнением
+     rgba(0,0,0,.52) под стеклом. Элементы поверх карты такой подложки не имеют,
+     поэтому затемнение и стекло складываются прямо в их фоне. */
+  --glass-over-map: linear-gradient(var(--color-background-glass), var(--color-background-glass)), rgba(0, 0, 0, 0.52);
+  --glass-over-map-active: linear-gradient(rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.22)), rgba(0, 0, 0, 0.52);
 }
 
 * { box-sizing: border-box; }
@@ -581,7 +586,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 
 /* Оформление стеклянных карточек проекта (.glass), но радиус и отступы меньше:
    попап висит над картой рядом с маркером, а не занимает собственную колонку. */
-.place-popup { width: 260px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--color-background-glass); backdrop-filter: blur(50px) saturate(115%); -webkit-backdrop-filter: blur(50px) saturate(115%); box-shadow: inset 0 1px rgba(255,255,255,.08), 0 24px 70px rgba(0,0,0,.2); transform: translateZ(0); display: flex; flex-direction: column; gap: 10px; color: var(--color-text-primary); }
+.place-popup { width: 260px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-over-map); backdrop-filter: blur(50px) saturate(115%); -webkit-backdrop-filter: blur(50px) saturate(115%); box-shadow: inset 0 1px rgba(255,255,255,.08), 0 24px 70px rgba(0,0,0,.2); transform: translateZ(0); display: flex; flex-direction: column; gap: 10px; color: var(--color-text-primary); }
 .place-popup-head { display: flex; align-items: center; gap: 8px; }
 .place-popup-head strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--type-text-size); line-height: var(--type-text-line-height); }
 .place-popup p { margin: 0; }
@@ -597,12 +602,12 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .map-search { position: absolute; top: 12px; left: 12px; width: min(320px, calc(100% - 24px)); z-index: 2; }
 /* Те же токены, что у обычных полей формы. Поверх карты добавлен blur:
    без подложки стеклянный фон опирается на то, что под ним. */
-.map-search-field { min-width: 0; width: 100%; height: 60px; padding: 0 16px; border: 1px solid transparent; border-radius: 16px; background: var(--glass-soft); backdrop-filter: blur(16px); display: flex; align-items: center; gap: 8px; color: var(--color-text-primary); transition: border-color .15s, background .15s; }
-.map-search-field:focus-within { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.22); }
+.map-search-field { min-width: 0; width: 100%; height: 60px; padding: 0 16px; border: 1px solid transparent; border-radius: 16px; background: var(--glass-over-map); backdrop-filter: blur(24px); display: flex; align-items: center; gap: 8px; color: var(--color-text-primary); transition: border-color .15s, background .15s; }
+.map-search-field:focus-within { border-color: rgba(255,255,255,.18); background: var(--glass-over-map-active); }
 .map-search-field .ui-icon { flex: 0 0 24px; }
 .map-search-field input { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: var(--color-text-primary); font: inherit; outline: 0; }
 .map-search-field input::placeholder { color: var(--color-text-secondary); }
-.map-search-results { max-height: 260px; margin: 6px 0 0; padding: 6px; overflow-y: auto; list-style: none; border: 1px solid var(--border); border-radius: 16px; background: var(--color-background-glass); backdrop-filter: blur(16px); }
+.map-search-results { max-height: 260px; margin: 6px 0 0; padding: 6px; overflow-y: auto; list-style: none; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-over-map); backdrop-filter: blur(24px); }
 .map-search-results button { width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; color: var(--color-text-secondary); background: transparent; text-align: left; font: inherit; cursor: pointer; }
 .map-search-results button:hover { color: #fff; background: var(--glass-soft); }
 
