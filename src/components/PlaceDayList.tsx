@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { DndContext, DragOverlay, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent, type DragStartEvent } from '@dnd-kit/core'
+import { DndContext, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent } from '@dnd-kit/core'
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { placeIconUrl, type PlaceIconKey } from '../placeIcons'
@@ -79,7 +79,6 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
   const dayKeys = [UNSCHEDULED_KEY, ...dates]
 
-  const [activeId, setActiveId] = useState<string | null>(null)
   // Раскладка на время перетаскивания: точка переезжает в целевой день между
   // нужными соседями ещё до отпускания. Без этого видна только подсветка дня,
   // но не место вставки.
@@ -88,10 +87,7 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
 
   const dayOfIn = (source: Record<string, ListPlace[]>, id: string) => dayKeys.find((key) => (source[key] ?? []).some((place) => place.id === id))
 
-  const handleDragStart = (event: DragStartEvent) => {
-    setActiveId(String(event.active.id))
-    setPreview(null)
-  }
+  const handleDragStart = () => setPreview(null)
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event
@@ -125,7 +121,6 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
     const movedId = String(event.active.id)
     const overId = event.over ? String(event.over.id) : null
     const base = preview ?? placesByDate
-    setActiveId(null)
     setPreview(null)
     const day = dayOfIn(base, movedId)
     const origin = dayOfIn(placesByDate, movedId)
@@ -158,9 +153,8 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
 
   if (readOnly) return <div className="city-days">{dayKeys.map(renderDay)}</div>
 
-  const draggedDay = activeId ? dayOfIn(view, activeId) : undefined
-  const dragged = draggedDay && activeId ? (view[draggedDay] ?? []).find((place) => place.id === activeId) ?? null : null
-
+  // DragOverlay намеренно не используется: отдельная плашка под курсором дублировала
+  // строку и закрывала карту. Без него за курсором едет сама строка.
   return (
     <DndContext
       sensors={sensors}
@@ -168,7 +162,7 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
-      onDragCancel={() => { setActiveId(null); setPreview(null) }}
+      onDragCancel={() => setPreview(null)}
     >
       <div className="city-days">
         {dayKeys.map((dayKey) => (
@@ -177,10 +171,6 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
           </SortableContext>
         ))}
       </div>
-      {/* Копия строки под курсором: без неё непонятно, что именно перетаскиваешь. */}
-      <DragOverlay dropAnimation={null}>
-        {dragged ? <div className="place-row place-row-overlay"><RowBody place={dragged} /></div> : null}
-      </DragOverlay>
     </DndContext>
   )
 }

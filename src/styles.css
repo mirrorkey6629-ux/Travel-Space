@@ -606,10 +606,8 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 /* Отступы одинаковы у всех дней: иначе выделение активного сдвигало бы содержимое. */
 .city-day.is-active { box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); }
 .city-day.is-over { background: var(--glass-soft); }
-/* Исходная строка почти гаснет: её роль на время переноса берёт плавающая копия,
-   а на освободившемся месте уже видно, куда точка встанет. */
-.city-day .place-row.is-dragging { opacity: .25; }
-.place-row-overlay { display: flex; align-items: flex-start; gap: 6px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 10px; background: rgba(24,24,32,.94); backdrop-filter: blur(12px); color: #fff; text-align: left; cursor: grabbing; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
-.place-row-overlay span { flex: 1; min-width: 0; }
-.place-row-overlay .ui-icon { flex: 0 0 16px; margin-top: 3px; }
-.place-row-overlay .place-row-handle { margin-left: auto; opacity: .75; }
+/* Перетаскиваемая строка едет за курсором сама, поэтому остаётся читаемой
+   и поднимается над соседями. Отдельной плашки-копии нет: она дублировала
+   строку и закрывала карту. */
+.city-day .place-row.is-dragging { position: relative; z-index: 2; color: #fff; cursor: grabbing; }
+.city-day .place-row.is-dragging .ui-icon { opacity: 1; }
