@@ -10,6 +10,7 @@ import { createToken, hashPassword, hashToken, requireTripRole, requireUser, ver
 import { apiPrefix, config } from './config.js'
 import { db, transaction } from './db.js'
 import { runMigrations } from './migrate.js'
+import { normalizePlaceIcon, reorderPlaces } from './places.js'
 
 type Json = Record<string, unknown>
 const bodyOf = (value: unknown) => (value && typeof value === 'object' ? value as Json : {})
@@ -27,7 +28,22 @@ const optionalCoordinate = (value: unknown, min: number, max: number) => {
 }
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+// V8 кладёт в стек регулярных выражений кадр на каждый повтор группы, поэтому
+// привычная проверка base64 через /(?:[A-Za-z0-9+/]{4})*/ роняет импорт с
+// «Maximum call stack size exceeded» на вложениях больше ~3 МБ. Повтор класса
+// символов стек не раскручивает, а кратность четырём проверяется отдельно.
+const base64Pattern = /^[A-Za-z0-9+/]*={0,2}$/
+const isBase64 = (value: string) => value.length % 4 === 0 && base64Pattern.test(value)
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode })
+
+async function assertVisitDateInCity(tripId: string, cityId: string, visitDate: string) {
+  const city = (await db.query<{ arrival_date: string; departure_date: string }>(
+    'SELECT arrival_date::text, departure_date::text FROM cities WHERE id=$1 AND trip_id=$2', [cityId, tripId])).rows[0]
+  if (!city) throw httpError(404, 'Город не найден')
+  if (!datePattern.test(visitDate) || visitDate < city.arrival_date || visitDate > city.departure_date) {
+    throw httpError(400, 'Дата места должна быть внутри дат города')
+  }
+}
 
 async function validatedCityAssignees(tripId: string, body: Json) {
   const parse = (value: unknown) => {
@@ -290,7 +306,7 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
         const originalName = text(source.originalName)
         const category = text(source.category)
         const encodedContent = String(source.contentBase64 || '')
-        if ((source.cityId && !cityId) || !originalName || !category || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(encodedContent)) throw httpError(400, 'Некорректный документ в файле')
+        if ((source.cityId && !cityId) || !originalName || !category || !isBase64(encodedContent)) throw httpError(400, 'Некорректный документ в файле')
         const content = Buffer.from(encodedContent, 'base64')
         if (content.length > config.maxUploadBytes) throw httpError(413, `Файл «${text(source.originalName)}» превышает допустимый размер`)
         const id = crypto.randomUUID()
@@ -657,13 +673,15 @@ app.post(`${apiPrefix}/trips/:tripId/cities/:cityId/places`, async (request, rep
   const longitude = optionalCoordinate(body.longitude, -180, 180)
   if ((latitude === undefined) !== (longitude === undefined)) throw httpError(400, 'Широта и долгота должны быть указаны вместе')
   if (!name) throw httpError(400, 'Название места обязательно')
-  const city = (await db.query<{ arrival_date: string; departure_date: string }>('SELECT arrival_date::text, departure_date::text FROM cities WHERE id=$1 AND trip_id=$2', [cityId, tripId])).rows[0]
+  const icon = normalizePlaceIcon(body.icon)
+  if (!icon) throw httpError(400, 'Неизвестная иконка места')
+  const city = (await db.query('SELECT id FROM cities WHERE id=$1 AND trip_id=$2', [cityId, tripId])).rows[0]
   if (!city) throw httpError(404, 'Город не найден')
-  if (visitDate && (!datePattern.test(visitDate) || visitDate < city.arrival_date || visitDate > city.departure_date)) throw httpError(400, 'Дата места должна быть внутри дат города')
+  if (visitDate) await assertVisitDateInCity(tripId, cityId, visitDate)
   const position = Number((await db.query('SELECT coalesce(max(position), -1) + 1 AS value FROM places WHERE city_id=$1 AND visit_date IS NOT DISTINCT FROM $2', [cityId, visitDate])).rows[0].value)
   const result = await db.query(
-    `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-    [tripId, cityId, visitDate, name, text(body.googleMapsUrl), latitude ?? null, longitude ?? null, position, user.id],
+    `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,icon,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+    [tripId, cityId, visitDate, name, text(body.googleMapsUrl), latitude ?? null, longitude ?? null, position, icon, user.id],
   )
   reply.code(201)
   return { place: result.rows[0] }
@@ -672,18 +690,28 @@ app.post(`${apiPrefix}/trips/:tripId/cities/:cityId/places`, async (request, rep
 app.patch(`${apiPrefix}/trips/:tripId/places/:placeId`, async (request) => {
   const user = await requireUser(request)
   const { tripId, placeId } = request.params as { tripId: string; placeId: string }
-  const role = await requireTripRole(tripId, user.id)
+  await requireTripRole(tripId, user.id)
   const place = (await db.query('SELECT * FROM places WHERE id=$1 AND trip_id=$2', [placeId, tripId])).rows[0]
   if (!place) throw httpError(404, 'Место не найдено')
-  if (role !== 'owner' && place.created_by !== user.id) throw httpError(403, 'Можно редактировать только добавленные вами места')
   const body = bodyOf(request.body)
   const latitude = optionalCoordinate(body.latitude, -90, 90)
   const longitude = optionalCoordinate(body.longitude, -180, 180)
   if ((latitude === undefined) !== (longitude === undefined)) throw httpError(400, 'Широта и долгота должны быть указаны вместе')
+  const icon = 'icon' in body ? normalizePlaceIcon(body.icon) : undefined
+  if ('icon' in body && !icon) throw httpError(400, 'Неизвестная иконка места')
+  // coalesce не различает «поле не прислали» и «прислали null», поэтому дату
+  // разбираем отдельно: без этого точку невозможно вернуть в «Без даты».
+  const visitDateGiven = 'visitDate' in body
+  const visitDate = visitDateGiven ? (optionalText(body.visitDate) || null) : undefined
+  if (visitDate) await assertVisitDateInCity(tripId, place.city_id, visitDate)
   const result = await db.query(
-    `UPDATE places SET name=coalesce($3,name), google_maps_url=coalesce($4,google_maps_url), visit_date=coalesce($5,visit_date), position=coalesce($6,position), latitude=coalesce($7,latitude), longitude=coalesce($8,longitude), updated_at=now()
+    `UPDATE places SET name=coalesce($3,name), google_maps_url=coalesce($4,google_maps_url),
+       visit_date=CASE WHEN $5 THEN $6 ELSE visit_date END,
+       position=coalesce($7,position), latitude=coalesce($8,latitude), longitude=coalesce($9,longitude),
+       icon=coalesce($10,icon), updated_at=now()
      WHERE id=$1 AND trip_id=$2 RETURNING *`,
-    [placeId, tripId, optionalText(body.name), optionalText(body.googleMapsUrl), optionalText(body.visitDate), Number.isInteger(body.position) ? body.position : null, latitude ?? null, longitude ?? null],
+    [placeId, tripId, optionalText(body.name), optionalText(body.googleMapsUrl), visitDateGiven, visitDate ?? null,
+     Number.isInteger(body.position) ? body.position : null, latitude ?? null, longitude ?? null, icon ?? null],
   )
   return { place: result.rows[0] }
 })
