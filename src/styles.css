@@ -621,3 +621,23 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .city-day .place-row.is-dragging { color: #fff; cursor: grabbing; }
 .city-day .place-row.is-dragging .ui-icon { opacity: 1; }
 .city-day .place-row.is-dragging span { border-radius: 6px; box-shadow: 0 0 0 6px var(--glass-soft); background: var(--glass-soft); }
+
+/* --- Индикатор оффлайн-кэша --- */
+
+/* Индикатор стоит перед названием поездки внутри самого заголовка, поэтому
+   выравнивается сдвигом, а не flex-ом: заголовок поездки центрирован. */
+.cache-indicator { display: inline-flex; vertical-align: -3px; margin-right: 8px; }
+.cache-indicator .ui-icon { opacity: .6; }
+.cache-indicator svg { transform-origin: center; animation: cache-indicator-spin 1.6s linear infinite; }
+.cache-indicator circle { fill: none; stroke-width: 2; }
+.cache-indicator-track { stroke: var(--color-background-secondary); }
+.cache-indicator-value { stroke: #fff; transition: stroke-dasharray .2s linear; }
+.cache-indicator.is-blocked svg { animation: none; transform: rotate(-90deg); }
+.cache-indicator.is-blocked .cache-indicator-value { stroke: var(--color-text-secondary); }
+
+/* Кольцо стартует с 12 часов, поэтому вращение идёт от -90deg. */
+@keyframes cache-indicator-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .cache-indicator svg { animation: none; transform: rotate(-90deg); }
+}
