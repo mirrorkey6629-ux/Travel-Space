@@ -237,8 +237,11 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .ui-tab { min-width: 0; min-height: 48px; padding: 8px 12px; border-radius: 16px; color: #fff; background: var(--glass-soft); font: inherit; transition: background .15s, color .15s, opacity .15s; }
 .ui-tab:hover:not(:disabled):not(.selected) { background: rgba(255,255,255,.23); }
 .ui-tab.selected { color: #090909; background: #fff; }
+.ui-tab.selected .ui-icon { filter: brightness(0); }
 .ui-tab:disabled { opacity: .42; cursor: not-allowed; }
 .ui-tab:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.transport-label { display: inline-flex; align-items: center; gap: 4px; }
+.transport-label .ui-icon { flex: 0 0 auto; }
 .transport-dialog .field-grid > .transport-wide { grid-column: span 2; }
 .transport-dialog .field-grid { gap: 8px; }
 .transport-column { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
@@ -378,8 +381,9 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .trip-summary .city-row span { color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
 .trip-summary .city-row,
 .trip-summary .city-row.selected { border-radius: 0; background: transparent; }
-.links-card h3 { margin: 0 0 16px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); display: flex; align-items: center; gap: 6px; }
+.links-card h3 { margin: 0 0 8px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); display: flex; align-items: center; gap: 6px; }
 .readiness-heading { margin: 12px 0 28px; text-align: center; }
+.links-card .readiness-transport-heading { margin-top: 28px; }
 .links-card h3 button, .city-day h3 button { width: 24px; height: 24px; border-radius: 50%; color: #fff; background: var(--glass-soft); display: inline-grid; place-items: center; padding: 4px; }
 .links-card h3 button .ui-icon { margin: auto; }
 .links-card .divider { margin: 20px 0; }
@@ -397,12 +401,33 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .sidebar::-webkit-scrollbar, .calendar-column::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .calendar-content { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .past-toggle { align-self: flex-end; padding: 10px 16px; border-radius: 20px; color: #fff; background: rgba(0,0,0,.28); backdrop-filter: blur(20px); }
-.day-card { min-height: 362px; border-radius: 24px; padding: 20px; display: grid; grid-template-columns: 110px 1fr; }
+.day-card { min-height: 362px; border-radius: 24px; padding: 20px; display: grid; grid-template-columns: 110px minmax(0, 1fr); }
 .day-card.past { opacity: .58; }
 .day-card header { display: flex; flex-direction: column; font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
 .day-card header span { color: var(--color-text-secondary); }
-.day-content { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 12px; padding: 8px; }
-.day-content > .info-row { min-width: 180px; }
+.day-content { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; gap: 20px; padding: 8px; }
+.day-column { min-width: 0; min-height: 322px; padding: 12px; border-radius: 16px; background: var(--color-background-secondary); display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 8px; }
+.day-column .empty-text { margin: auto; padding: 24px; text-align: center; }
+.day-description > span, .day-events h3, .day-places h3 { color: var(--color-text-primary); font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
+.day-description textarea { min-width: 0; width: 100%; flex: 1; padding: 0; border: 0; outline: 0; resize: none; color: var(--color-text-secondary); background: transparent; font: inherit; line-height: var(--type-text-line-height); }
+.day-description textarea::placeholder { color: var(--color-text-secondary); opacity: 1; }
+.day-description:focus-within { background: rgba(255,255,255,.16); }
+.day-schedule { gap: 28px; }
+.day-schedule-empty { align-items: center; justify-content: center; }
+.day-empty-city { margin: 0; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); text-align: center; }
+.day-events h3, .day-places h3 { margin: 0 0 8px; }
+.day-events .empty-text { margin: 0; padding: 0; text-align: left; }
+.day-event-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.day-event-line { padding: 0; border: 0; color: var(--color-text-secondary); background: transparent; display: inline-flex; align-items: flex-start; gap: 4px; font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); text-align: left; }
+.day-event-line .ui-icon { width: 16px; height: 16px; margin-top: 2px; flex: 0 0 16px; opacity: .6; }
+.day-event-line:hover { color: var(--color-text-primary); }
+.day-event-line:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 3px; border-radius: 2px; }
+.day-places ol { margin: 0; padding-left: 24px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
+.day-places li + li { margin-top: 8px; }
+.day-places button { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; }
+.day-places .day-add-locations { color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
+.day-places button:hover { color: var(--color-text-primary); }
+.day-places button:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 3px; border-radius: 2px; }
 .empty-text { color: var(--color-text-secondary); }
 .empty-calendar { padding: 48px; border-radius: 24px; text-align: center; }
 
@@ -451,6 +476,8 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
   .sidebar, .calendar-column { position: static; width: auto; height: auto; max-height: none; padding: 0; overflow: visible; }
   .city-page-card { height: auto; min-height: 0; }
   .day-card { min-height: 280px; grid-template-columns: 90px 1fr; }
+  .day-content { gap: 12px; }
+  .day-column { min-height: 260px; }
   .city-main { grid-template-columns: 1fr; }
   .city-page-card { width: 100%; padding: 20px; }
 }
@@ -470,4 +497,6 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
   .date-summary { line-height: var(--type-text-line-height); }
   .day-card { grid-template-columns: 1fr; gap: 18px; }
   .day-card header { flex-direction: row; gap: 8px; }
+  .day-content { grid-template-columns: 1fr; padding: 0; }
+  .day-column { min-height: 180px; }
 }

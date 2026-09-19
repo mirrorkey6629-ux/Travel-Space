@@ -244,6 +244,16 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
           [createdTrip.id, cityId, dueDate, text(source.title), Boolean(source.done), user.id],
         )
       }
+      for (const source of Array.isArray(bundle.dayNotes) ? bundle.dayNotes : []) {
+        const date = text(source.date)
+        const description = text(source.description)
+        if (!datePattern.test(date) || date < startDate || date > endDate) throw httpError(400, 'Некорректное описание дня в файле')
+        if (!description) continue
+        await client.query(
+          'INSERT INTO trip_day_notes(trip_id,day_date,description,updated_by) VALUES ($1,$2,$3,$4)',
+          [createdTrip.id, date, description, user.id],
+        )
+      }
       for (const source of bundle.documents) {
         const cityId = source.cityId ? cityIds.get(text(source.cityId)) : null
         const originalName = text(source.originalName)
@@ -278,17 +288,40 @@ app.get(`${apiPrefix}/trips/:tripId`, async (request) => {
   const user = await requireUser(request)
   const { tripId } = request.params as { tripId: string }
   const role = await requireTripRole(tripId, user.id)
-  const [tripResult, cities, places, tasks, documents, members] = await Promise.all([
+  const [tripResult, cities, places, tasks, dayNotes, documents, members] = await Promise.all([
     db.query('SELECT id, name, start_date, end_date, owner_id, background_removed, created_at, updated_at FROM trips WHERE id = $1', [tripId]),
     db.query('SELECT * FROM cities WHERE trip_id = $1 ORDER BY position', [tripId]),
     db.query('SELECT * FROM places WHERE trip_id = $1 ORDER BY city_id, visit_date NULLS FIRST, position', [tripId]),
     db.query('SELECT * FROM tasks WHERE trip_id = $1 ORDER BY created_at', [tripId]),
+    db.query('SELECT trip_id,day_date,description FROM trip_day_notes WHERE trip_id = $1 ORDER BY day_date', [tripId]),
     db.query('SELECT d.id, d.trip_id, d.city_id, d.category, d.original_name, d.mime_type, d.size_bytes, d.created_by, d.created_at, u.display_name AS created_by_name FROM documents d JOIN users u ON u.id = d.created_by WHERE d.trip_id = $1 ORDER BY d.created_at', [tripId]),
     db.query(`SELECT u.id, u.email, u.display_name, (u.avatar_storage_key IS NOT NULL) AS has_avatar, tm.role, tm.joined_at FROM trip_members tm JOIN users u ON u.id = tm.user_id WHERE tm.trip_id = $1`, [tripId]),
   ])
   const trip = tripResult.rows[0]
   if (!trip) throw httpError(404, 'Поездка не найдена')
-  return { trip: { ...trip, role, cities: cities.rows, places: places.rows, tasks: tasks.rows, documents: documents.rows, members: members.rows } }
+  return { trip: { ...trip, role, cities: cities.rows, places: places.rows, tasks: tasks.rows, day_notes: dayNotes.rows, documents: documents.rows, members: members.rows } }
+})
+
+app.put(`${apiPrefix}/trips/:tripId/days/:date`, async (request) => {
+  const user = await requireUser(request)
+  const { tripId, date } = request.params as { tripId: string; date: string }
+  await requireTripRole(tripId, user.id)
+  if (!datePattern.test(date)) throw httpError(400, 'Некорректная дата')
+  const trip = (await db.query<{ start_date: string; end_date: string }>('SELECT start_date::text,end_date::text FROM trips WHERE id=$1', [tripId])).rows[0]
+  if (!trip) throw httpError(404, 'Поездка не найдена')
+  if (date < trip.start_date || date > trip.end_date) throw httpError(400, 'Дата находится за пределами поездки')
+  const description = text(bodyOf(request.body).description)
+  if (!description) {
+    await db.query('DELETE FROM trip_day_notes WHERE trip_id=$1 AND day_date=$2', [tripId, date])
+    return { note: null }
+  }
+  const note = (await db.query(
+    `INSERT INTO trip_day_notes(trip_id,day_date,description,updated_by) VALUES ($1,$2,$3,$4)
+     ON CONFLICT (trip_id,day_date) DO UPDATE SET description=excluded.description,updated_by=excluded.updated_by,updated_at=now()
+     RETURNING trip_id,day_date,description`,
+    [tripId, date, description, user.id],
+  )).rows[0]
+  return { note }
 })
 
 app.get(`${apiPrefix}/trips/:tripId/members/:memberId/avatar`, async (request, reply) => {
@@ -310,11 +343,12 @@ app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
   const user = await requireUser(request)
   const { tripId } = request.params as { tripId: string }
   await requireTripRole(tripId, user.id, true)
-  const [tripResult, cities, places, tasks, documents] = await Promise.all([
+  const [tripResult, cities, places, tasks, dayNotes, documents] = await Promise.all([
     db.query('SELECT name,start_date::text,end_date::text,background_removed FROM trips WHERE id=$1', [tripId]),
     db.query('SELECT * FROM cities WHERE trip_id=$1 ORDER BY position', [tripId]),
     db.query('SELECT * FROM places WHERE trip_id=$1 ORDER BY city_id,visit_date NULLS FIRST,position', [tripId]),
     db.query('SELECT * FROM tasks WHERE trip_id=$1 ORDER BY created_at', [tripId]),
+    db.query('SELECT day_date,description FROM trip_day_notes WHERE trip_id=$1 ORDER BY day_date', [tripId]),
     db.query('SELECT * FROM documents WHERE trip_id=$1 ORDER BY created_at', [tripId]),
   ])
   const trip = tripResult.rows[0]
@@ -326,6 +360,7 @@ app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
       transportInType: city.transport_in_type, transportOutType: city.transport_out_type, transportInDepartureTime: city.transport_in_departure_time, transportInArrivalTime: city.transport_in_arrival_time, transportOutDepartureTime: city.transport_out_departure_time, transportOutArrivalTime: city.transport_out_arrival_time, transportInDepartureStation: city.transport_in_departure_station, transportInDepartureStationUrl: city.transport_in_departure_station_url, transportInArrivalStation: city.transport_in_arrival_station, transportInArrivalStationUrl: city.transport_in_arrival_station_url, transportOutDepartureStation: city.transport_out_departure_station, transportOutDepartureStationUrl: city.transport_out_departure_station_url, transportOutArrivalStation: city.transport_out_arrival_station, transportOutArrivalStationUrl: city.transport_out_arrival_station_url, transportInNotes: city.transport_in_notes, transportOutNotes: city.transport_out_notes })),
     places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, latitude: place.latitude, longitude: place.longitude, position: place.position })),
     tasks: tasks.rows.map((task) => ({ cityId: task.city_id, dueDate: task.due_date ? String(task.due_date).slice(0,10) : null, title: task.title, done: task.done })),
+    dayNotes: dayNotes.rows.map((note) => ({ date: String(note.day_date).slice(0,10), description: note.description })),
     documents: await Promise.all(documents.rows.map(async (document) => ({ cityId: document.city_id, category: document.category, originalName: document.original_name, mimeType: document.mime_type, contentBase64: (await readFile(path.join(config.uploadDir, document.storage_key))).toString('base64') }))),
   }
   const safeName = String(trip.name).replace(/[^\p{L}\p{N}._-]+/gu, '-').replace(/^-|-$/g, '') || 'trip'

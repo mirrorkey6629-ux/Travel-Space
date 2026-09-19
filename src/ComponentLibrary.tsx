@@ -10,7 +10,7 @@ import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
 import './component-library.css'
 
-const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'bed', 'calendar-month', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'face', 'image', 'key', 'link', 'pin-home', 'planet', 'ticket', 'time', 'upload-file']
+const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'barefoot', 'bus', 'calendar-month', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'face', 'hotel', 'image', 'key', 'link', 'pin-home', 'plane', 'planet', 'sailing', 'ticket', 'time', 'train', 'upload-file']
 
 const navigation = [
   { id: 'colors', label: 'Цвета' },
@@ -37,6 +37,7 @@ function Section({ id, title, description, className = '', children }: { id: str
 }
 
 export default function ComponentLibrary() {
+  const [activeSection, setActiveSection] = useState(() => window.location.hash.slice(1) || navigation[0].id)
   const [checked, setChecked] = useState(true)
   const [activeTab, setActiveTab] = useState('plane')
   const [buttonIcons, setButtonIcons] = useState(false)
@@ -60,7 +61,7 @@ export default function ComponentLibrary() {
         <aside className="kit-sidebar glass">
           <TypographyGroup className="kit-sidebar-heading" title="Компоненты" text="Travel Space" />
           <nav className="kit-navigation" aria-label="Группы компонентов">
-            {navigation.map((item) => <a href={`#${item.id}`} key={item.id}>{item.label}</a>)}
+            {navigation.map((item) => <a href={`#${item.id}`} key={item.id} className={activeSection === item.id ? 'selected' : ''} aria-current={activeSection === item.id ? 'location' : undefined} onClick={() => setActiveSection(item.id)}>{item.label}</a>)}
           </nav>
           <a className="kit-back-link" href="/travel/"><Icon name="arrow-back" />Вернуться в приложение</a>
         </aside>

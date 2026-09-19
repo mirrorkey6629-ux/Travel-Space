@@ -68,6 +68,12 @@ export type ApiTask = {
   done: boolean
 }
 
+export type ApiDayNote = {
+  trip_id: string
+  day_date: string
+  description: string
+}
+
 export type ApiDocument = {
   id: string
   city_id: string | null
@@ -92,6 +98,7 @@ export type ApiTripDetails = ApiTripSummary & {
   cities: ApiCity[]
   places: ApiPlace[]
   tasks: ApiTask[]
+  day_notes: ApiDayNote[]
   documents: ApiDocument[]
   members: ApiMember[]
 }
@@ -156,6 +163,7 @@ export const api = {
   deleteCity: (tripId: string, cityId: string) => request<void>(`/trips/${tripId}/cities/${cityId}`, { method: 'DELETE' }),
   createPlace: (tripId: string, cityId: string, value: { name: string; googleMapsUrl: string; visitDate?: string; latitude?: number; longitude?: number }) => request<{ place: ApiPlace }>(`/trips/${tripId}/cities/${cityId}/places`, json('POST', value)),
   updatePlace: (tripId: string, placeId: string, value: { name?: string; googleMapsUrl?: string; visitDate?: string; latitude?: number; longitude?: number }) => request<{ place: ApiPlace }>(`/trips/${tripId}/places/${placeId}`, json('PATCH', value)),
+  updateDayDescription: (tripId: string, date: string, description: string) => request<{ note: ApiDayNote | null }>(`/trips/${tripId}/days/${date}`, json('PUT', { description })),
   createTask: (tripId: string, value: { cityId?: string; dueDate?: string; title: string }) => request<{ task: ApiTask }>(`/trips/${tripId}/tasks`, json('POST', value)),
   uploadDocument: async (tripId: string, cityId: string | undefined, category: string, file: File) => {
     const form = new FormData()
