@@ -1,3 +1,5 @@
+import type { PlaceIconKey } from './placeIcons'
+
 // Базовый URL API выводится из vite base, а не задаётся отдельной константой:
 // иначе префикс приложения пришлось бы менять в двух местах.
 const API_BASE = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/api`
@@ -75,6 +77,7 @@ export type ApiPlace = {
   latitude: number | null
   longitude: number | null
   position: number
+  icon: PlaceIconKey
 }
 
 export type ApiTask = {
@@ -181,8 +184,12 @@ export const api = {
   createCity: (tripId: string, value: Record<string, unknown>) => request<{ city: ApiCity }>(`/trips/${tripId}/cities`, json('POST', value)),
   updateCity: (tripId: string, cityId: string, value: Record<string, unknown>) => request<{ city: ApiCity }>(`/trips/${tripId}/cities/${cityId}`, json('PATCH', value)),
   deleteCity: (tripId: string, cityId: string) => request<void>(`/trips/${tripId}/cities/${cityId}`, { method: 'DELETE' }),
-  createPlace: (tripId: string, cityId: string, value: { name: string; googleMapsUrl: string; visitDate?: string; latitude?: number; longitude?: number }) => request<{ place: ApiPlace }>(`/trips/${tripId}/cities/${cityId}/places`, json('POST', value)),
-  updatePlace: (tripId: string, placeId: string, value: { name?: string; googleMapsUrl?: string; visitDate?: string; latitude?: number; longitude?: number }) => request<{ place: ApiPlace }>(`/trips/${tripId}/places/${placeId}`, json('PATCH', value)),
+  createPlace: (tripId: string, cityId: string, value: { name: string; googleMapsUrl: string; visitDate?: string; latitude?: number; longitude?: number; icon?: PlaceIconKey }) => request<{ place: ApiPlace }>(`/trips/${tripId}/cities/${cityId}/places`, json('POST', value)),
+  // visitDate различает два случая: undefined — «не трогать дату», null — «убрать дату».
+  // JSON.stringify выбрасывает undefined из тела, поэтому сервер их различит.
+  updatePlace: (tripId: string, placeId: string, value: { name?: string; googleMapsUrl?: string; visitDate?: string | null; latitude?: number; longitude?: number; icon?: PlaceIconKey }) => request<{ place: ApiPlace }>(`/trips/${tripId}/places/${placeId}`, json('PATCH', value)),
+  deletePlace: (tripId: string, placeId: string) => request<void>(`/trips/${tripId}/places/${placeId}`, { method: 'DELETE' }),
+  movePlace: (tripId: string, placeId: string, value: { visitDate: string | null; position: number }) => request<{ places: ApiPlace[] }>(`/trips/${tripId}/places/${placeId}/move`, json('PATCH', value)),
   updateDayDescription: (tripId: string, date: string, description: string) => request<{ note: ApiDayNote | null }>(`/trips/${tripId}/days/${date}`, json('PUT', { description })),
   createTask: (tripId: string, value: { cityId?: string; dueDate?: string; title: string }) => request<{ task: ApiTask }>(`/trips/${tripId}/tasks`, json('POST', value)),
   uploadDocument: async (tripId: string, cityId: string | undefined, category: string, file: File) => {
