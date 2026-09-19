@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { GalaxyBackground, Icon, IconName } from './App'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
@@ -10,18 +10,18 @@ import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
 import './component-library.css'
 
-const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'barefoot', 'bus', 'calendar-month', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'face', 'hotel', 'image', 'key', 'link', 'pin-home', 'plane', 'planet', 'sailing', 'ticket', 'time', 'train', 'upload-file']
+const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'barefoot', 'bus', 'calendar-month', 'casino', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'email', 'encrypted', 'face', 'hotel', 'image', 'key', 'link', 'pin-home', 'plane', 'planet', 'refresh', 'sailing', 'ticket', 'time', 'train', 'upload-file']
 
 const navigation = [
   { id: 'colors', label: 'Цвета' },
   { id: 'typography', label: 'Типографика' },
+  { id: 'icons', label: 'Иконки' },
   { id: 'typography-groups', label: 'Группы текста' },
   { id: 'buttons', label: 'Кнопки' },
   { id: 'fields', label: 'Поля и селекты' },
   { id: 'lists', label: 'Списки и плашки' },
   { id: 'states', label: 'Чекбоксы и состояния' },
   { id: 'glass', label: 'Контейнеры' },
-  { id: 'icons', label: 'Иконки' },
 ]
 
 function Specimen({ name, children, className = '' }: { name: string; children: React.ReactNode; className?: string }) {
@@ -33,11 +33,10 @@ function Variant({ label, wide = false, children }: { label: string; wide?: bool
 }
 
 function Section({ id, title, description, className = '', children }: { id: string; title: string; description?: string; className?: string; children: React.ReactNode }) {
-  return <section id={id} className={`kit-section${className ? ` ${className}` : ''}`}><TypographyGroup className="kit-section-title" headingLevel="h2" title={title} text={description ?? ''} /><div className="kit-grid">{children}</div></section>
+  return <section id={id} className={`kit-section glass${className ? ` ${className}` : ''}`}><TypographyGroup className="kit-section-title" headingLevel="h2" title={title} text={description ?? ''} /><div className="kit-grid">{children}</div></section>
 }
 
 export default function ComponentLibrary() {
-  const [activeSection, setActiveSection] = useState(() => window.location.hash.slice(1) || navigation[0].id)
   const [checked, setChecked] = useState(true)
   const [activeTab, setActiveTab] = useState('plane')
   const [buttonIcons, setButtonIcons] = useState(false)
@@ -47,7 +46,7 @@ export default function ComponentLibrary() {
   const [infoRowFirstAction, setInfoRowFirstAction] = useState(true)
   const [infoRowSecondAction, setInfoRowSecondAction] = useState(false)
   const [infoRowImage, setInfoRowImage] = useState(false)
-  const [infoRowImageShape, setInfoRowImageShape] = useState<'rounded' | 'circle'>('rounded')
+  const [infoRowImageShape, setInfoRowImageShape] = useState<'square' | 'circle'>('square')
   const [infoRowActionTheme, setInfoRowActionTheme] = useState<'transparent' | 'secondary'>('transparent')
   const [cityRowImage, setCityRowImage] = useState(false)
   const inputIcons = {
@@ -59,19 +58,20 @@ export default function ComponentLibrary() {
       <GalaxyBackground />
       <div className="kit-page">
         <aside className="kit-sidebar glass">
-          <TypographyGroup className="kit-sidebar-heading" title="Компоненты" text="Travel Space" />
+          <TypographyGroup className="kit-sidebar-heading" title={<span className="kit-sidebar-brand"><Icon name="planet" size={40} />Travel Space</span>} />
           <nav className="kit-navigation" aria-label="Группы компонентов">
-            {navigation.map((item) => <a href={`#${item.id}`} key={item.id} className={activeSection === item.id ? 'selected' : ''} aria-current={activeSection === item.id ? 'location' : undefined} onClick={() => setActiveSection(item.id)}>{item.label}</a>)}
+            {navigation.map((item) => <Fragment key={item.id}><a href={`#${item.id}`}>{item.label}</a>{item.id === 'icons' && <span className="kit-navigation-divider" aria-hidden="true" />}</Fragment>)}
           </nav>
-          <a className="kit-back-link" href="/travel/"><Icon name="arrow-back" />Вернуться в приложение</a>
+          <a className="kit-back-link ui-button ui-button-secondary ui-button-m secondary" href={import.meta.env.BASE_URL}>В приложение</a>
         </aside>
 
         <div className="kit-content">
-        <Section id="colors" title="Цвета" description="Семантические цвета текста и фонов компонентов">
+        <Section id="colors" title="Цвета" description="Семантические цвета текста и фонов компонентов" className="kit-colors-section">
           <Specimen name="Основной текст"><Variant label="#FFFFFF"><div className="kit-color-token"><span className="kit-color-swatch kit-color-swatch-primary" /><div><strong>Primary</strong><p>Заголовки, введённый текст и выбранные значения</p><code>--color-text-primary</code></div></div></Variant></Specimen>
           <Specimen name="Второстепенный текст"><Variant label="White · 60%"><div className="kit-color-token"><span className="kit-color-swatch kit-color-swatch-secondary" /><div><strong>Secondary</strong><p>Обычный текст, подписи и пояснения</p><code>--color-text-secondary</code></div></div></Variant></Specimen>
           <Specimen name="Основной фон"><Variant label="#FFFFFF"><div className="kit-color-token"><span className="kit-color-swatch kit-background-swatch-primary" /><div><strong>Primary background</strong><p>Основные кнопки и акцентные действия</p><code>--color-background-primary</code></div></div></Variant></Specimen>
           <Specimen name="Второстепенный фон"><Variant label="White · 12%"><div className="kit-color-token"><span className="kit-color-swatch kit-background-swatch-secondary" /><div><strong>Secondary background</strong><p>Второстепенные кнопки, поля и вложенные плашки</p><code>--color-background-secondary</code></div></div></Variant></Specimen>
+          <Specimen name="Стеклянный фон"><Variant label="White · 16%"><div className="kit-color-token"><span className="kit-color-swatch kit-background-swatch-glass" /><div><strong>Glass background</strong><p>Основные стеклянные панели и контейнеры</p><code>--color-background-glass</code></div></div></Variant></Specimen>
         </Section>
 
         <Section id="typography" title="Типографика" description="Единая шкала текста проекта" className="kit-typography-section">
@@ -82,7 +82,11 @@ export default function ComponentLibrary() {
           <Specimen name="Secondary text"><Variant label="Default"><SecondaryText>Вторичный текст</SecondaryText></Variant><Variant label="Interactive"><button className="kit-secondary-text-demo"><SecondaryText interactive>Наведи на текст</SecondaryText></button></Variant></Specimen>
         </Section>
 
-        <Section id="typography-groups" title="Группы текста" description="Готовые сочетания заголовков и поясняющего текста">
+        <Section id="icons" title="Иконки" description={`${icons.length} иконок · белый цвет · базовый размер 24px`}>
+          <div className="kit-icons">{icons.map((name) => <div className="kit-icon-item" key={name}><span><Icon name={name} /></span><code>{name}</code></div>)}</div>
+        </Section>
+
+        <Section id="typography-groups" title="Группы текста" description="Готовые сочетания заголовков и поясняющего текста" className="kit-typography-groups-section">
           <Specimen name="Head L + Text"><Variant label="Gap 8"><TypographyGroup title="Название поездки" text="4–15 октября · 12 дней" /></Variant></Specimen>
           <Specimen name="Head M + Text"><Variant label="Gap 4"><TypographyGroup variant="head-m-text" headingLevel="h3" title="Осака" text="Прибытие" /></Variant></Specimen>
         </Section>
@@ -99,14 +103,14 @@ export default function ComponentLibrary() {
           <Specimen name="Select" className="kit-input-specimen"><Variant label="Date"><Select content="date" icon={<Icon name="calendar-month" />} defaultValue="4 октября"><option>4 октября</option><option>5 октября</option></Select></Variant><Variant label="Date · Disabled"><Select content="date" icon={<Icon name="calendar-month" />} disabled><option>4 октября</option></Select></Variant><Variant label="List"><Select content="list" icon={<Icon name="time" />} defaultValue="День"><option>Утро</option><option>День</option><option>Вечер</option></Select></Variant><Variant label="List · Disabled"><Select content="list" icon={<Icon name="time" />} disabled><option>День</option></Select></Variant></Specimen>
         </Section>
 
-        <Section id="lists" title="Списки и плашки" description="Карточки основного интерфейса">
+        <Section id="lists" title="Списки и плашки" description="Карточки основного интерфейса" className="kit-lists-section">
           <Specimen name="City row"><div className="kit-city-row-controls"><label className="kit-toggle"><span>Картинка</span><input type="checkbox" checked={cityRowImage} onChange={(event) => setCityRowImage(event.target.checked)} /><i aria-hidden="true" /></label></div><Variant label="Default" wide><CityRow city="Осака" dates="4–6 окт" duration="1,5 дня" image={cityRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" /></Variant><Variant label="Selected" wide><CityRow className="kit-selected" city="📌 Киото" dates="7–10 окт" duration="2,5 дня" image={cityRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" /></Variant></Specimen>
           <Specimen name="Info row">
             <div className="kit-info-row-controls">
               <label className="kit-toggle"><span>Кнопка 1</span><input type="checkbox" checked={infoRowFirstAction} onChange={(event) => setInfoRowFirstAction(event.target.checked)} /><i aria-hidden="true" /></label>
               <label className="kit-toggle"><span>Кнопка 2</span><input type="checkbox" checked={infoRowSecondAction} onChange={(event) => setInfoRowSecondAction(event.target.checked)} /><i aria-hidden="true" /></label>
               <label className="kit-toggle"><span>Картинка</span><input type="checkbox" checked={infoRowImage} onChange={(event) => setInfoRowImage(event.target.checked)} /><i aria-hidden="true" /></label>
-              <label className="kit-property-select"><span>Тип картинки</span><select value={infoRowImageShape} onChange={(event) => setInfoRowImageShape(event.target.value as 'rounded' | 'circle')}><option value="rounded">Скруглённая</option><option value="circle">Круглая</option></select></label>
+              <label className="kit-property-select"><span>Тип картинки</span><select value={infoRowImageShape} onChange={(event) => setInfoRowImageShape(event.target.value as 'square' | 'circle')}><option value="square">Квадратная</option><option value="circle">Круглая</option></select></label>
               <label className="kit-property-select"><span>Тип кнопок</span><select value={infoRowActionTheme} onChange={(event) => setInfoRowActionTheme(event.target.value as 'transparent' | 'secondary')}><option value="transparent">Transparent</option><option value="secondary">Secondary</option></select></label>
             </div>
             <Variant label={`${Number(infoRowFirstAction) + Number(infoRowSecondAction)} ${Number(infoRowFirstAction) + Number(infoRowSecondAction) === 1 ? 'кнопка' : 'кнопок'} · ${infoRowActionTheme === 'transparent' ? 'Transparent' : 'Secondary'}`} wide>
@@ -115,20 +119,17 @@ export default function ComponentLibrary() {
           </Specimen>
         </Section>
 
-        <Section id="states" title="Чекбоксы и состояния">
+        <Section id="states" title="Чекбоксы и состояния" className="kit-states-section">
           <Specimen name="Document checkbox"><Variant label="Empty"><button className="kit-check-row" onClick={() => setChecked(!checked)}><span className="document-check" />Не прикреплено</button></Variant><Variant label="Checked"><button className="kit-check-row" onClick={() => setChecked(!checked)}><span className={`document-check${checked ? ' checked' : ''}`} />Прикреплено</button></Variant></Specimen>
           <Specimen name="Status text"><Variant label="Default"><span>Основной текст</span></Variant><Variant label="Muted"><span className="kit-muted">Вспомогательный текст</span></Variant><Variant label="Error"><span className="app-error kit-inline-error">Текст ошибки</span></Variant></Specimen>
         </Section>
 
-        <Section id="glass" title="Контейнеры" description="Основные уровни вложенности">
-          <Specimen name="Main glass"><Variant label="Default" wide><div className="glass kit-glass-card"><h3>Основная карточка</h3><p>Blur 50px, основной стеклянный фон.</p></div></Variant></Specimen>
-          <Specimen name="Soft glass"><Variant label="Default" wide><div className="kit-soft-card"><h3>Вложенная плашка</h3><p>Используется внутри карточек.</p></div></Variant></Specimen>
+        <Section id="glass" title="Контейнеры" description="Основные уровни вложенности" className="kit-containers-section">
+          <Specimen name="Main glass"><Variant label="Default" wide><div className="glass kit-glass-card"><h3>Основная карточка</h3><p>Blur 50px, основной стеклянный фон</p></div></Variant></Specimen>
+          <Specimen name="Soft glass"><Variant label="Default" wide><div className="kit-soft-card"><h3>Вложенная плашка</h3><p>Используется внутри карточек</p></div></Variant></Specimen>
           <Specimen name="Divider"><Variant label="Default" wide><div className="divider" /></Variant></Specimen>
         </Section>
 
-        <Section id="icons" title="Иконки" description={`${icons.length} иконок · белый цвет · базовый размер 24px`}>
-          <div className="kit-icons">{icons.map((name) => <div className="kit-icon-item" key={name}><span><Icon name={name} /></span><code>{name}</code></div>)}</div>
-        </Section>
         </div>
       </div>
     </main>

@@ -16,7 +16,7 @@ export function InfoRow({
   image,
   imageAlt = '',
   imageFallback,
-  imageShape = 'rounded',
+  imageShape = 'square',
   onClick,
   actions = [],
   actionTheme = 'transparent',
@@ -28,7 +28,7 @@ export function InfoRow({
   image?: string
   imageAlt?: string
   imageFallback?: string
-  imageShape?: 'rounded' | 'circle'
+  imageShape?: 'square' | 'circle'
   onClick?: ButtonHTMLAttributes<HTMLButtonElement>['onClick']
   actions?: InfoRowAction[]
   actionTheme?: 'transparent' | 'secondary'

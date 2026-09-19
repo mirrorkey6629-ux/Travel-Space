@@ -1,4 +1,4 @@
-import { CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { CSSProperties, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { api, ApiTripDetails, ApiTripSummary, session, TransportType } from './api'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
@@ -45,7 +45,7 @@ type City = {
 }
 type Trip = { id?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; cities: City[]; dayDescriptions: Record<string, string>; members?: TripMember[]; background?: TravelFile; backgroundUrl?: string; backgroundFile?: File; backgroundRemoved?: boolean; backgroundDeleteId?: string }
 type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard' | 'profile'
-export type IconName = 'link' | 'content-copy' | 'add-pin' | 'add-circle' | 'add-plus' | 'arrow-back' | 'attractions' | 'barefoot' | 'bus' | 'calendar-month' | 'check-small' | 'time' | 'planet' | 'close' | 'edit-location' | 'pin-home' | 'image' | 'edit' | 'face' | 'hotel' | 'key' | 'delete-forever' | 'download' | 'upload-file' | 'docs' | 'plane' | 'sailing' | 'ticket' | 'train'
+export type IconName = 'link' | 'content-copy' | 'add-pin' | 'add-circle' | 'add-plus' | 'arrow-back' | 'attractions' | 'barefoot' | 'bus' | 'calendar-month' | 'casino' | 'check-small' | 'time' | 'planet' | 'email' | 'encrypted' | 'refresh' | 'close' | 'edit-location' | 'pin-home' | 'image' | 'edit' | 'face' | 'hotel' | 'key' | 'delete-forever' | 'download' | 'upload-file' | 'docs' | 'plane' | 'sailing' | 'ticket' | 'train'
 
 const STORAGE_KEY = 'tabi-trip-v1'
 const UNSCHEDULED_KEY = 'unscheduled'
@@ -54,6 +54,7 @@ const defaultTripBackground = `${import.meta.env.BASE_URL}assets/autumn-garden.j
 const cityPlaceholder = `${import.meta.env.BASE_URL}assets/city-placeholder.png`
 const ruMonths = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 const ruWeekdays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+const greetings = ['Привет', 'Hello', 'Hola', 'Bonjour', 'Ciao', 'Hallo', 'Olá', 'こんにちは', '안녕하세요', '你好', 'Namaste', 'Merhaba', 'Hej', 'Hei', 'Ahoj', 'Cześć', 'Γεια σου', 'Shalom', 'Marhaba', 'Sawubona']
 
 const uid = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -318,8 +319,8 @@ function AuthShell({ children, onBack }: { children: React.ReactNode; onBack?: (
     <main className="screen auth-screen">
       <GalaxyBackground />
       <div className="auth-brand" aria-label="Travel Space">
-        <Icon name="planet" size={40} />
-        <span className="type-head-l">Travel Space</span>
+        <Icon name="planet" size={24} />
+        <span className="type-head-m">Travel Space</span>
       </div>
       {onBack && <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" />}
       {children}
@@ -333,6 +334,26 @@ function StartScreen({ onLogin, onJoin }: { onLogin: () => void; onJoin: () => v
       <button className="glass choice-card" onClick={onLogin}>Войти</button>
       <button className="glass choice-card" onClick={onJoin}>Присоединиться</button>
     </div>
+  )
+}
+
+function RandomGreetingTitle({ defaultTitle }: { defaultTitle: string }) {
+  const [title, setTitle] = useState(defaultTitle)
+  const [spinning, setSpinning] = useState(false)
+  const randomize = () => {
+    if (spinning) return
+    setSpinning(true)
+  }
+  const finishRandomize = () => {
+    const variants = greetings.filter((greeting) => greeting !== title)
+    setTitle(variants[Math.floor(Math.random() * variants.length)])
+    setSpinning(false)
+  }
+  return (
+    <button className="auth-greeting-title" type="button" onClick={randomize} aria-label={`${title}. Показать приветствие на другом языке`} aria-busy={spinning} title="Другое приветствие">
+      <h1>{title}</h1>
+      <span className={`auth-greeting-button${spinning ? ' spinning' : ''}`} aria-hidden="true" onAnimationEnd={finishRandomize}><Icon name="casino" size={24} /></span>
+    </button>
   )
 }
 
@@ -356,11 +377,11 @@ function LoginScreen({ onSubmit }: { onSubmit: () => Promise<void> }) {
   }
   return (
     <form className="glass auth-modal compact" onSubmit={submit}>
-      <h1>{mode === 'login' ? 'Вход' : 'Регистрация'}</h1>
+      {mode === 'login' ? <RandomGreetingTitle defaultTitle="И снова здравствуйте" /> : <h1>Регистрация</h1>}
       <div className="form-stack tight">
         {mode === 'register' && <Input theme="accent" icon={<Icon name="face" size={28} />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" autoFocus />}
-        <Input theme="accent" icon={<Icon name="planet" size={28} />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" autoFocus={mode === 'login'} />
-        <Input theme="accent" icon={<Icon name="key" size={28} />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+        <Input theme="accent" icon={<Icon name="email" size={28} />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" autoFocus={mode === 'login'} />
+        <Input theme="accent" icon={<Icon name="encrypted" size={28} />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
         <Button type="submit" disabled={busy || !email.trim() || password.length < 8 || (mode === 'register' && !name.trim())}>{busy ? 'Подожди…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}</Button>
       </div>
       <button className="auth-mode-switch" type="button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}>
@@ -379,14 +400,14 @@ function JoinScreen({ onSubmit, initialLink = '' }: { onSubmit: (link: string, n
   const [password, setPassword] = useState('')
   const valid = link.trim() && email.trim() && password.length >= 8 && (mode === 'login' || name.trim())
   return (
-    <form className="glass auth-modal" onSubmit={async (event) => { event.preventDefault(); if (valid) await onSubmit(link, name, email, password, mode) }}>
-      <h1>Вставляйте ссылку<br />и поехали</h1>
+    <form className="glass auth-modal join-modal" onSubmit={async (event) => { event.preventDefault(); if (valid) await onSubmit(link, name, email, password, mode) }}>
+      <RandomGreetingTitle defaultTitle="Добро пожаловать" />
       <div className="form-stack">
         <div className="form-stack tight">
           <Input theme="accent" icon={<Icon name="link" size={28} />} value={link} onChange={(event) => setLink(event.target.value)} placeholder="Ссылка на поездку" />
           {mode === 'register' && <Input theme="accent" icon={<Icon name="face" size={28} />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" />}
-          <Input theme="accent" icon={<Icon name="planet" size={28} />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" />
-          <Input theme="accent" icon={<Icon name="key" size={28} />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+          <Input theme="accent" icon={<Icon name="email" size={28} />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" />
+          <Input theme="accent" icon={<Icon name="encrypted" size={28} />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
         </div>
         <Button type="submit" disabled={!valid}>Я в деле</Button>
       </div>
@@ -397,7 +418,7 @@ function JoinScreen({ onSubmit, initialLink = '' }: { onSubmit: (link: string, n
   )
 }
 
-function ProfileScreen({ user, onBack, onSave, onAvatar }: { user: CurrentUser; onBack: () => void; onSave: (value: { displayName: string; email: string; password?: string }) => Promise<void>; onAvatar: (file: File) => Promise<string> }) {
+function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: CurrentUser; onBack: () => void; onSave: (value: { displayName: string; email: string; password?: string }) => Promise<void>; onAvatar: (file: File) => Promise<string>; onLogout: () => void }) {
   const [displayName, setDisplayName] = useState(user.displayName)
   const [email, setEmail] = useState(user.email)
   const [password, setPassword] = useState('')
@@ -446,10 +467,11 @@ function ProfileScreen({ user, onBack, onSave, onAvatar }: { user: CurrentUser; 
         <input ref={avatarInputRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current); avatarPreviewRef.current = URL.createObjectURL(file); setAvatarUrl(avatarPreviewRef.current); setAvatarFile(file); setMessage(''); event.currentTarget.value = '' }} />
         <div className="profile-fields">
           <Input icon={<Icon name="face" />} aria-label="Имя" placeholder="Имя" value={displayName} onChange={(event) => { setDisplayName(event.target.value); setMessage('') }} autoComplete="name" />
-          <Input icon={<Icon name="planet" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" />
-          <Input icon={<Icon name="key" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" />
+          <Input icon={<Icon name="email" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" />
+          <Input icon={<Icon name="encrypted" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" />
         </div>
         <Button type="submit" disabled={busy || !changed || !valid}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button>
+        <button className="auth-mode-switch" type="button" onClick={onLogout}>Выйти из аккаунта</button>
         {message && <p className="form-hint">{message}</p>}
       </form>
     </main>
@@ -676,8 +698,8 @@ const isTransportComplete = (details: TransportDetails | undefined, ticketName: 
 
 const isHotelComplete = (city: City) => Boolean(city.hotel.trim() && city.hotelUrl.trim() && city.hotelCheckInTime?.trim() && city.hotelCheckOutTime?.trim() && city.files.some((file) => file.category === 'hotel-booking'))
 
-const transportIcons: Record<TransportType, IconName> = { train: 'train', plane: 'plane', bus: 'bus', ship: 'sailing' }
-const TransportLabel = ({ label, type }: { label: string; type?: TransportType }) => <span className="transport-label">{type && <Icon name={transportIcons[type]} size={20} />}<span>{label}</span></span>
+const transportEmoji: Record<TransportType, string> = { train: '🚆', plane: '✈️', bus: '🚌', ship: '⛴️' }
+const TransportLabel = ({ label, type }: { label: string; type?: TransportType }) => <span className="transport-label">{type && <span className="transport-emoji" aria-hidden="true">{transportEmoji[type]}</span>}<span>{label}</span></span>
 const withNote = (label: string, note?: string) => note?.trim() ? `${label} (${note.trim()})` : label
 
 function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, onTransport, onEdit, onInvite, onTrips, onProfile }: { trip: Trip; user: CurrentUser | null; tripCount: number; selectedCityId?: string | null; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onEdit: () => void; onInvite: () => void; onTrips: () => void; onProfile: () => void }) {
@@ -749,7 +771,14 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, onCity, onHotel, o
 function DayCard({ date, cities, allCities, description, hidden, onEvent, onCity, onAddLocations, onDescriptionChange }: { date: string; cities: City[]; allCities: City[]; description: string; hidden: boolean; onEvent: (city: City, panel: 'hotel' | 'in' | 'out') => void; onCity: (city: City) => void; onAddLocations: (city: City, date: string) => void; onDescriptionChange: (description: string) => void }) {
   const day = parseDate(date)
   const [descriptionDraft, setDescriptionDraft] = useState(description)
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
   useEffect(() => setDescriptionDraft(description), [description])
+  useLayoutEffect(() => {
+    const textarea = descriptionRef.current
+    if (!textarea) return
+    textarea.style.height = '0'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }, [descriptionDraft])
   type DayEvent = { key: string; title: string; subtitle?: string; icon?: IconName; city: City; panel?: 'hotel' | 'in' | 'out' }
   const events: DayEvent[] = []
   const transferCityIds = new Set<string>()
@@ -773,6 +802,11 @@ function DayCard({ date, cities, allCities, description, hidden, onEvent, onCity
     if (!arrivalCity.hotelNotNeeded) {
       const checkInTime = arrivalCity.hotelCheckInTime.trim()
       events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel' })
+    }
+    const arrivalPeriod = arrivalCity.arrivalPeriod ?? 'morning'
+    const departurePeriod = arrivalCity.departurePeriod ?? 'evening'
+    if (arrivalCity.arrival === date && arrivalCity.departure === date && periodOrder[departurePeriod] > periodOrder[arrivalPeriod]) {
+      events.push({ key: `${arrivalCity.id}:city-day-between-transfers`, title: `День в ${cityInLocative(arrivalCity.name)}`, icon: 'barefoot', city: arrivalCity })
     }
   })
   cities.forEach((city) => {
@@ -809,25 +843,29 @@ function DayCard({ date, cities, allCities, description, hidden, onEvent, onCity
   })
   const places = cities.flatMap((city) => (city.places[date] ?? []).map((place) => ({ ...place, city })))
   const locationCity = cities.at(-1)
+  const cityTitle = cities.map((city) => city.name).join(' — ')
   return (
     <article className={`glass day-card${hidden ? ' past' : ''}`}>
-      <header><strong>{day.getDate()} {ruMonths[day.getMonth()].slice(0, 3)}</strong><span>{ruWeekdays[day.getDay()]}</span></header>
+      <div className="day-card-heading">
+        <div className="day-city-heading"><h2>{day.getDate()} {ruMonths[day.getMonth()]}</h2>{cityTitle && <p>{cityTitle}</p>}</div>
+      </div>
       <div className="day-content">
         <label className="day-column day-description">
-          <span>Опишите день</span>
-          <textarea value={descriptionDraft} placeholder="Короткое описание дня" onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => { if (descriptionDraft !== description) onDescriptionChange(descriptionDraft) }} />
+          <span>Заметки</span>
+          <textarea ref={descriptionRef} value={descriptionDraft} placeholder="Короткое описание дня" onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => { if (descriptionDraft !== description) onDescriptionChange(descriptionDraft) }} />
         </label>
-        <section className={`day-column day-schedule${cities.length === 0 ? ' day-schedule-empty' : ''}`} aria-label="События и локации дня">
-          {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <><div className="day-events">
-            <h3>События</h3>
+        <section className="day-column day-events" aria-label="События дня">
+          <h3>События</h3>
+          {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
             {events.length > 0 && <ul className="day-event-list">{events.map((event) => <li key={event.key}><button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></button></li>)}</ul>}
             {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
-          </div>
-          <div className="day-places">
-            <h3>Локации</h3>
+          </>}
+        </section>
+        <section className="day-column day-places" aria-label="Локации дня">
+          <h3>Локации</h3>
+          {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
             {places.length > 0 && <ol>{places.map((place) => <li key={`${place.city.id}:${place.id}`}><button type="button" onClick={() => onCity(place.city)}>{place.name}</button></li>)}</ol>}
             {places.length === 0 && locationCity && <button type="button" className="day-add-locations" onClick={() => onAddLocations(locationCity, date)}>Добавьте места для посещения</button>}
-          </div>
           </>}
         </section>
       </div>
@@ -909,6 +947,7 @@ function HotelDialog({ cityName, value, booking, onSave, onBooking, onOpenBookin
 
 function CityPanel({ city, previousCity, nextCity, initialPanel, initialDate, onChange, onAddPlace, onUpdatePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
+  const [contentTransition, setContentTransition] = useState<'idle' | 'out' | 'in'>('idle')
   const [transportDirection, setTransportDirection] = useState<'in' | 'out' | null>(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
   const [hotelOpen, setHotelOpen] = useState(initialPanel === 'hotel')
   const [place, setPlace] = useState('')
@@ -919,6 +958,34 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, initialDate, on
   const hotelFileRef = useRef<HTMLInputElement>(null)
   const trainInFileRef = useRef<HTMLInputElement>(null)
   const trainOutFileRef = useRef<HTMLInputElement>(null)
+  const displayedCityIdRef = useRef(city.id)
+  useEffect(() => {
+    if (displayedCityIdRef.current === city.id) return
+    setContentTransition('out')
+    const swapTimer = window.setTimeout(() => {
+      displayedCityIdRef.current = city.id
+      setDraft({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() })
+      setTransportDirection(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
+      setHotelOpen(initialPanel === 'hotel')
+      setPlace('')
+      setPlaceUrl('')
+      setPlaceCoordinates(undefined)
+      setSelectedDate(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : dateRange(city.arrival, city.departure)[0])
+      setFocusedPlace(null)
+      setContentTransition('in')
+    }, 150)
+    const finishTimer = window.setTimeout(() => setContentTransition('idle'), 350)
+    return () => {
+      window.clearTimeout(swapTimer)
+      window.clearTimeout(finishTimer)
+    }
+  }, [city.id, initialDate, initialPanel])
+  useLayoutEffect(() => {
+    if (displayedCityIdRef.current !== city.id) return
+    setTransportDirection(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
+    setHotelOpen(initialPanel === 'hotel')
+    setSelectedDate(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : dateRange(city.arrival, city.departure)[0])
+  }, [city.id, initialDate, initialPanel])
   const addPlace = (event: FormEvent) => {
     event.preventDefault()
     if (!place.trim()) return
@@ -979,14 +1046,14 @@ function CityPanel({ city, previousCity, nextCity, initialPanel, initialDate, on
   return (
     <>
       <section className="glass city-page-card setup-transition">
-        <div className="city-compact-header">
+        <div className={`city-compact-header city-panel-content city-panel-content-${contentTransition}`}>
           <IconButton type="button" className="city-inline-back" icon={<Icon name="calendar-month" />} onClick={onClose} aria-label="Вернуться к календарю" title="Вернуться к календарю" />
           <TypographyGroup className="city-compact-copy" title={draft.name} text={<>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))} · {formatLocations(pointsCount)}</>} />
         </div>
         <input ref={trainInFileRef} className="hidden-file-input" type="file" multiple onChange={(e) => { addTrainFiles(e.target.files, 'in'); e.currentTarget.value = '' }} />
         <input ref={trainOutFileRef} className="hidden-file-input" type="file" multiple onChange={(e) => { addTrainFiles(e.target.files, 'out'); e.currentTarget.value = '' }} />
         <input ref={hotelFileRef} className="hidden-file-input" type="file" onChange={(e) => addHotelFile(e.target.files)} />
-        <div className="city-main">
+        <div className={`city-main city-panel-content city-panel-content-${contentTransition}`}>
           <div className="city-days">
             <div className="city-day unscheduled-day"><h3>Без даты</h3>{(draft.places[UNSCHEDULED_KEY] ?? []).map((item, index) => <button key={item.id} type="button" onClick={() => setFocusedPlace(item)}>{index + 1}. {item.name}</button>)}</div>
             {dateRange(draft.arrival, draft.departure).map((date) => <div className="city-day" key={date}><h3>{formatDate(date)}</h3>{(draft.places[date] ?? []).map((item, index) => <button key={item.id} type="button" onClick={() => setFocusedPlace(item)}>{index + 1}. {item.name}</button>)}</div>)}
@@ -1040,7 +1107,6 @@ function Dashboard({ trip, user, tripCount, onChange, onEdit, onTrips, onProfile
       <section className={`calendar-column${selectedCity ? ' city-active' : ''}`}>
         {selectedCity ? (
           <CityPanel
-            key={`${selectedCity.id}:${selectedPanel ?? 'city'}:${selectedCityDate ?? 'default'}`}
             city={selectedCity}
             initialPanel={selectedPanel}
             initialDate={selectedCityDate}
@@ -1354,7 +1420,25 @@ export default function App() {
       </AuthShell>
     )
   }
-  if (screen === 'profile' && currentUser) return <ProfileScreen user={currentUser} onBack={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onSave={async (value) => { const result = await api.updateProfile(value); setCurrentUser((existing) => ({ ...result.user, avatarUrl: existing?.avatarUrl })) }} onAvatar={async (file) => {
+  if (screen === 'profile' && currentUser) return <ProfileScreen user={currentUser} onBack={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onLogout={() => {
+    tripLoadSequenceRef.current += 1
+    session.token = ''
+    if (backgroundObjectUrlRef.current) URL.revokeObjectURL(backgroundObjectUrlRef.current)
+    if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current)
+    memberAvatarUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    cityImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+    backgroundObjectUrlRef.current = null
+    avatarObjectUrlRef.current = null
+    memberAvatarUrlsRef.current = []
+    cityImageUrlsRef.current = []
+    setCurrentUser(null)
+    setTrip(null)
+    setTrips([])
+    setDeleteTarget(null)
+    setInviteOpen(false)
+    setError('')
+    setScreen('start')
+  }} onSave={async (value) => { const result = await api.updateProfile(value); setCurrentUser((existing) => ({ ...result.user, avatarUrl: existing?.avatarUrl })) }} onAvatar={async (file) => {
     await api.uploadAvatar(file)
     const blob = await api.downloadAvatar()
     if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current)
