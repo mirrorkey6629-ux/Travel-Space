@@ -480,6 +480,31 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
 
 function TripsScreen({ trips, canCreate, deleteTarget, onOpen, onCreate, onClose, onDelete, onCloseDelete, onConfirmDelete, onExport, onImport }: { trips: ApiTripSummary[]; canCreate: boolean; deleteTarget: ApiTripSummary | null; onOpen: (id: string) => void; onCreate: () => void; onClose: () => void; onDelete: (trip: ApiTripSummary) => void; onCloseDelete: () => void; onConfirmDelete: () => Promise<void>; onExport: (trip: ApiTripSummary) => Promise<void>; onImport: (file: File) => Promise<void> }) {
   const importRef = useRef<HTMLInputElement>(null)
+  const [backgroundUrls, setBackgroundUrls] = useState<Record<string, string>>({})
+  useEffect(() => {
+    let active = true
+    const objectUrls: string[] = []
+    setBackgroundUrls({})
+    void Promise.all(trips.map(async (item) => {
+      if (!item.background_document_id || item.background_removed) return
+      try {
+        const blob = await api.downloadDocument(item.background_document_id)
+        const url = URL.createObjectURL(blob)
+        if (!active) {
+          URL.revokeObjectURL(url)
+          return
+        }
+        objectUrls.push(url)
+        setBackgroundUrls((current) => ({ ...current, [item.id]: url }))
+      } catch {
+        // The trip row remains usable even if its optional preview cannot be loaded.
+      }
+    }))
+    return () => {
+      active = false
+      objectUrls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [trips])
   return (
     <main className="screen auth-screen trips-screen">
       <GalaxyBackground />
@@ -489,7 +514,7 @@ function TripsScreen({ trips, canCreate, deleteTarget, onOpen, onCreate, onClose
           <header className="trips-header"><h1>Мои поездки</h1></header>
           <div className="trips-content">
             <div className="trips-list">
-              {trips.map((item) => <InfoRow key={item.id} image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="" title={item.name} subtitle={<>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</>} onClick={() => onOpen(item.id)} actionTheme="secondary" actions={item.role === 'owner' ? [{ icon: <Icon name="download" />, label: `Экспортировать поездку ${item.name}`, title: 'Экспортировать', onClick: () => void onExport(item) }, { icon: <Icon name="delete-forever" />, label: `Удалить поездку ${item.name}`, title: 'Удалить', className: 'trip-delete-trigger', onClick: () => onDelete(item) }] : []} />)}
+              {trips.map((item) => <InfoRow key={item.id} image={item.background_removed ? undefined : item.background_document_id ? backgroundUrls[item.id] : defaultTripBackground} imageAlt={item.background_removed ? '' : `Фон поездки ${item.name}`} title={item.name} subtitle={<>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</>} onClick={() => onOpen(item.id)} actionTheme="secondary" actions={item.role === 'owner' ? [{ icon: <Icon name="download" />, label: `Экспортировать поездку ${item.name}`, title: 'Экспортировать', onClick: () => void onExport(item) }, { icon: <Icon name="delete-forever" />, label: `Удалить поездку ${item.name}`, title: 'Удалить', className: 'trip-delete-trigger', onClick: () => onDelete(item) }] : []} />)}
             </div>
             {canCreate && <>
               <AddRow icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />

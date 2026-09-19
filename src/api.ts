@@ -12,6 +12,7 @@ export type ApiTripSummary = {
   end_date: string
   role: ApiRole
   background_removed?: boolean
+  background_document_id?: string | null
 }
 
 export type ApiCity = {

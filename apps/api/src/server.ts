@@ -152,7 +152,12 @@ app.post(`${apiPrefix}/me/avatar`, async (request) => {
 app.get(`${apiPrefix}/trips`, async (request) => {
   const user = await requireUser(request)
   const result = await db.query(
-    `SELECT t.id, t.name, t.start_date, t.end_date, tm.role, t.updated_at
+    `SELECT t.id, t.name, t.start_date, t.end_date, tm.role, t.background_removed, t.updated_at,
+            (SELECT d.id
+               FROM documents d
+              WHERE d.trip_id = t.id AND d.category = 'trip-background'
+              ORDER BY d.created_at DESC
+              LIMIT 1) AS background_document_id
        FROM trip_members tm JOIN trips t ON t.id = tm.trip_id
       WHERE tm.user_id = $1 ORDER BY t.start_date DESC`,
     [user.id],
