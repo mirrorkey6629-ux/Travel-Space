@@ -13,6 +13,10 @@ import { PlaceDayList } from './components/PlaceDayList'
 import type { PlaceIconKey } from './placeIcons'
 import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
+import { CacheIndicator } from './components/CacheIndicator'
+import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
+import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
+import type { CacheState } from './offline/cacheState'
 
 type Place = { id: string; name: string; url: string; icon: PlaceIconKey; latitude?: number; longitude?: number }
 type Task = { id: string; title: string; done: boolean }
@@ -832,7 +836,7 @@ const withAssignees = (label: string, ids: string[], members: TripMember[]) => {
 }
 const withTicketDetails = (label: string, ticketOnSite: boolean | undefined, ids: string[], members: TripMember[]) => ticketOnSite ? `${label} (покупаем на месте)` : withAssignees(label, ids, members)
 
-function TripSidebar({ trip, user, tripCount, selectedCityId, readOnly = false, onCity, onHotel, onTransport, onEdit, onInvite, onTrips, onProfile }: { trip: Trip; user: CurrentUser | null; tripCount: number; selectedCityId?: string | null; readOnly?: boolean; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onEdit: () => void; onInvite: () => void; onTrips: () => void; onProfile: () => void }) {
+function TripSidebar({ trip, user, tripCount, selectedCityId, readOnly = false, cacheState, online, onCity, onHotel, onTransport, onEdit, onInvite, onTrips, onProfile }: { trip: Trip; user: CurrentUser | null; tripCount: number; selectedCityId?: string | null; readOnly?: boolean; cacheState: CacheState; online: boolean; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onEdit: () => void; onInvite: () => void; onTrips: () => void; onProfile: () => void }) {
   const daysLeft = Math.ceil((parseDate(trip.startDate).getTime() - new Date().getTime()) / 86400000)
   const isAdmin = user?.email.toLowerCase() === ADMIN_EMAIL
   const showTrips = tripCount > 1 || isAdmin
@@ -852,7 +856,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, readOnly = false, 
   return (
     <aside className="sidebar">
       <section className="glass sidebar-card trip-summary">
-        <TypographyGroup title={trip.name} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {readOnly ? <span>{formatParticipants(Math.max(1, trip.memberCount ?? 0))}</span> : <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button>}</>} />
+        <TypographyGroup title={<><CacheIndicator state={cacheState} online={online} />{trip.name}</>} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {readOnly ? <span>{formatParticipants(Math.max(1, trip.memberCount ?? 0))}</span> : <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button>}</>} />
         <div className="city-list">{trip.cities.map((city, index) => {
           const previousCity = trip.cities[index - 1]
           const ticketComplete = previousCity
@@ -1288,7 +1292,7 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
   )
 }
 
-function Dashboard({ trip, user, tripCount, readOnly = false, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; readOnly?: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => void; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
+function Dashboard({ trip, user, tripCount, readOnly = false, cacheState, online, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; readOnly?: boolean; cacheState: CacheState; online: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => void; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
   const [showPast, setShowPast] = useState(false)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
   const [selectedPanel, setSelectedPanel] = useState<'hotel' | 'in' | 'out' | null>(null)
@@ -1301,7 +1305,7 @@ function Dashboard({ trip, user, tripCount, readOnly = false, onChange, onEdit, 
   const selectedCityIndex = selectedCity ? trip.cities.findIndex((city) => city.id === selectedCity.id) : -1
   return (
     <main className="screen trip-background dashboard" style={tripBackgroundStyle(trip)}>
-      <TripSidebar trip={trip} user={user} tripCount={tripCount} readOnly={readOnly} selectedCityId={selectedCityId} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onHotel={(city) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(direction) }} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
+      <TripSidebar trip={trip} user={user} tripCount={tripCount} readOnly={readOnly} cacheState={cacheState} online={online} selectedCityId={selectedCityId} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onHotel={(city) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(direction) }} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
       <section className={`calendar-column${selectedCity ? ' city-active' : ''}`}>
         {selectedCity ? (
           <CityPanel
@@ -1398,6 +1402,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<ApiTripSummary | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
+  const { state: cacheState, online } = useOfflineCache(trip?.id ?? null)
 
   const loadCurrentUser = async () => {
     const account = await api.me()
@@ -1409,6 +1414,7 @@ export default function App() {
       user.avatarUrl = avatarObjectUrlRef.current
     }
     setCurrentUser(user)
+    keepStorage()
     return user
   }
 
@@ -1449,6 +1455,7 @@ export default function App() {
     backgroundObjectUrlRef.current = value.backgroundUrl && value.backgroundUrl !== defaultTripBackground ? value.backgroundUrl : null
     cityImageUrlsRef.current = imageUrls.filter((url) => url !== backgroundObjectUrlRef.current)
     setTrip(value)
+    void requestPrefetch(result.trip.id, tripResourceUrls({ trip: result.trip, base: import.meta.env.BASE_URL, hasOwnAvatar: false, publicToken: token }))
     return value
   }
 
@@ -1496,6 +1503,10 @@ export default function App() {
     }
     cityImageUrlsRef.current = nextCityImageUrls
     setTrip(value)
+    void requestPrefetch(id, [
+      ...tripsListResourceUrls(trips, import.meta.env.BASE_URL),
+      ...tripResourceUrls({ trip: result.trip, base: import.meta.env.BASE_URL, hasOwnAvatar: Boolean(currentUser?.hasAvatar) }),
+    ])
     window.setTimeout(() => previousCityImageUrls.forEach((url) => URL.revokeObjectURL(url)), 1_000)
     return value
   }
@@ -1503,6 +1514,7 @@ export default function App() {
   const refreshTrips = async () => {
     const result = await api.trips()
     setTrips(result.trips)
+    if (!trip) void requestPrefetch(null, tripsListResourceUrls(result.trips, import.meta.env.BASE_URL))
     return result.trips
   }
 
@@ -1664,7 +1676,7 @@ export default function App() {
     if (!trip) return <AuthShell><div className="glass auth-modal compact"><h1>{error || 'Поездка не найдена'}</h1></div></AuthShell>
     const noop = () => undefined
     const noopAsync = async () => undefined
-    return <Dashboard trip={trip} user={null} tripCount={0} readOnly onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noop} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
+    return <Dashboard trip={trip} user={null} tripCount={0} readOnly cacheState={cacheState} online={online} onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noop} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
   }
 
   if (screen === 'start' || screen === 'login' || screen === 'join') {
@@ -1679,6 +1691,7 @@ export default function App() {
   }
   if (screen === 'profile' && currentUser) return <ProfileScreen user={currentUser} onBack={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onLogout={() => {
     tripLoadSequenceRef.current += 1
+    void clearPrivateCaches()
     session.token = ''
     if (backgroundObjectUrlRef.current) URL.revokeObjectURL(backgroundObjectUrlRef.current)
     if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current)
@@ -1709,5 +1722,5 @@ export default function App() {
   if (screen === 'setup') return <><SetupScreen initial={trip} user={currentUser} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={(value) => void saveTrip(value)} />{error && <p className="app-error">{error}</p>}</>
   if (!trip) return null
   if (inviteOpen) return <><InviteScreen trip={trip} onBack={() => setInviteOpen(false)} onCreate={async (hours) => (await api.createInvitation(trip.id!, hours)).invitation} onViewLink={async () => (await api.viewLink(trip.id!)).viewLink.url} onRemove={async (member) => { await api.removeMember(trip.id!, member.id); await loadTrip(trip.id!) }} />{error && <p className="app-error">{error}</p>}</>
-  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} onChange={setTrip} onEdit={() => setScreen('setup')} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
+  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} readOnly={!online} cacheState={cacheState} online={online} onChange={setTrip} onEdit={() => setScreen('setup')} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
 }
