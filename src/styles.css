@@ -311,7 +311,7 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; row-gap: 24px; }
 .field { display: flex; flex-direction: column; gap: 8px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); text-align: left; }
 .field.span-2 { grid-column: span 2; }
-.field input, .field select, .route-form input, .route-form select { min-width: 0; height: 52px; padding: 0 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-soft); color: var(--color-text-primary); color-scheme: dark; }
+.field input, .field select { min-width: 0; height: 52px; padding: 0 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-soft); color: var(--color-text-primary); color-scheme: dark; }
 .form-control { min-width: 0; width: 100%; height: 60px; padding: 0 16px; border: 1px solid transparent; border-radius: 16px; background: var(--glass-soft); display: flex; align-items: center; gap: 8px; color: var(--color-text-primary); transition: border-color .15s, background .15s; }
 .form-control-accent { height: 64px; padding: 0 20px; border-color: transparent; border-radius: 32px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
 .form-control-accent .form-control-icon { width: 28px; height: 28px; flex-basis: 28px; }
@@ -329,8 +329,6 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .field .form-control input,
 .field .form-control select,
 .field .form-control textarea,
-.route-form .form-control input,
-.route-form .form-control select { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; outline: 0; box-shadow: none; appearance: none; -webkit-appearance: none; background: transparent; color: var(--color-text-primary); font: inherit; }
 .form-control input::placeholder, .form-control textarea::placeholder { color: var(--color-text-secondary); opacity: 1; }
 .form-textarea { height: 112px; padding: 16px; align-items: stretch; }
 .form-textarea textarea { resize: vertical; min-height: 78px; }
@@ -510,23 +508,14 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .city-days::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .city-day { padding-bottom: 14px; margin-bottom: 14px; }
 .city-day h3 { margin: 0 0 10px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
-.city-day a, .city-day > button { display: block; margin: 7px 0; padding: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); background: transparent; text-align: left; text-decoration: none; font: inherit; }
-.city-day > button:hover { color: #fff; }
+.city-day a, .city-day .place-row { display: flex; width: 100%; align-items: flex-start; gap: 6px; margin: 7px 0; padding: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); background: transparent; text-align: left; text-decoration: none; font: inherit; }
+.city-day .place-row:hover { color: #fff; }
+.city-day .place-row .ui-icon { flex: 0 0 16px; margin-top: 3px; opacity: .7; }
+.city-day .place-row:hover .ui-icon { opacity: 1; }
 .city-route-content { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .city-map { min-height: 300px; flex: 1; margin-bottom: 12px; overflow: hidden; border-radius: 16px; background: rgba(255,255,255,.1); }
 .city-map iframe { display: block; width: 100%; height: 100%; border: 0; }
 .google-map-picker { width: 100%; height: 100%; min-height: 300px; }
-.route-form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.route-form > .form-control { height: 60px; }
-.route-field { min-width: 0; height: 60px; padding: 0 16px; border: 1px solid transparent; border-radius: 16px; background: var(--glass-soft); display: flex; align-items: center; gap: 8px; }
-.route-field .ui-icon { width: 24px; height: 24px; flex: 0 0 24px; }
-.route-form input, .route-form select { min-width: 0; width: 100%; height: 58px; padding: 0; border: 0; border-radius: 0; background: transparent; color: #fff; font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
-.route-form select { appearance: none; -webkit-appearance: none; background-image: none; cursor: pointer; }
-.route-form input::placeholder { color: var(--color-text-secondary); }
-.route-form input:focus, .route-form input:focus-visible, .route-form select:focus, .route-form select:focus-visible { outline: 0; }
-.route-field:focus-within { border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.22); }
-.route-form .map-link-input { grid-column: auto; }
-.route-form .primary { grid-column: auto; min-height: 60px; height: 60px; margin-top: 0; }
 .upload-button { margin-top: 12px; min-height: 52px; border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--glass-soft); cursor: pointer; }
 .upload-button input { display: none; }
 .file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
@@ -552,10 +541,10 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 @media (max-width: 560px) {
   .choice-card { height: 145px; }
   .trips-header { gap: 4px; }
-  .field-grid, .route-form { grid-template-columns: 1fr; }
+  .field-grid { grid-template-columns: 1fr; }
   .all-city-fields { grid-template-columns: 1fr; }
   .all-city-fields .city-name-field { grid-column: auto; }
-  .field.span-2, .route-form .primary { grid-column: auto; }
+  .field.span-2 { grid-column: auto; }
   .transport-dialog .field-grid > .transport-wide { grid-column: auto; }
   .transport-fields { grid-template-columns: 1fr; }
   .transport-route-grid { grid-template-columns: 1fr; }
@@ -567,3 +556,47 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
   .day-content { grid-template-columns: 1fr; row-gap: 8px; padding: 0; }
   .day-column { min-height: 180px; }
 }
+
+/* --- Точки на карте --- */
+
+.places-map { position: relative; width: 100%; height: 100%; }
+.places-map iframe { display: block; width: 100%; height: 100%; border: 0; }
+
+/* Маркер — обычный DOM-элемент AdvancedMarkerElement, поэтому стилизуется CSS. */
+.place-marker { width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,.75); background: rgba(24,24,32,.88); display: grid; place-items: center; cursor: pointer; transition: transform .12s, opacity .12s; }
+.place-marker:hover { transform: scale(1.12); }
+.place-marker .ui-icon { width: 18px; height: 18px; }
+.place-marker.is-dimmed { opacity: .38; }
+.place-marker.is-dimmed:hover { opacity: .8; }
+.place-marker-draft { border-style: dashed; background: rgba(24,24,32,.7); }
+
+/* Якорь тултипа: сдвиг вверх, чтобы плашка не накрывала сам маркер. */
+.map-overlay { position: absolute; transform: translate(-50%, calc(-100% - 24px)); }
+
+.place-popup { width: 260px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: rgba(24,24,32,.94); backdrop-filter: blur(12px); display: flex; flex-direction: column; gap: 10px; color: var(--color-text-primary); }
+.place-popup-head { display: flex; align-items: center; gap: 8px; }
+.place-popup-head strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--type-text-size); line-height: var(--type-text-line-height); }
+.place-popup p { margin: 0; }
+.place-popup-link { color: var(--color-text-secondary); text-decoration: none; }
+.place-popup-link:hover { color: #fff; }
+.place-popup-icons { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.place-icon-choice { height: 40px; border: 1px solid transparent; border-radius: 12px; background: var(--glass-soft); display: grid; place-items: center; cursor: pointer; transition: background .12s, border-color .12s; }
+.place-icon-choice:hover { background: rgba(255,255,255,.22); }
+.place-icon-choice.is-selected { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.26); }
+.place-popup-actions { display: flex; gap: 8px; }
+.place-popup-actions .ui-button { flex: 1; }
+
+.map-search { position: absolute; top: 12px; left: 12px; width: min(320px, calc(100% - 24px)); z-index: 2; }
+.map-search-field { height: 48px; padding: 0 14px; border: 1px solid var(--border); border-radius: 16px; background: rgba(24,24,32,.92); backdrop-filter: blur(12px); display: flex; align-items: center; gap: 8px; }
+.map-search-field .ui-icon { flex: 0 0 24px; }
+.map-search-field input { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: var(--color-text-primary); font: inherit; outline: 0; }
+.map-search-field input::placeholder { color: var(--color-text-secondary); }
+.map-search-results { max-height: 260px; margin: 6px 0 0; padding: 6px; overflow-y: auto; list-style: none; border: 1px solid var(--border); border-radius: 16px; background: rgba(24,24,32,.96); backdrop-filter: blur(12px); }
+.map-search-results button { width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; color: var(--color-text-secondary); background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.map-search-results button:hover { color: #fff; background: var(--glass-soft); }
+
+.city-day-title { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.city-day.is-active > h3 .city-day-title { color: #fff; }
+.city-day.is-active { border-radius: 12px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.22); padding-left: 10px; padding-right: 10px; }
+.city-day.is-over { border-radius: 12px; background: var(--glass-soft); }
+.city-day .place-row.is-dragging { opacity: .5; }
