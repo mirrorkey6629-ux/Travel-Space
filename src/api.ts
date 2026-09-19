@@ -50,6 +50,9 @@ export type ApiCity = {
   transport_out_notes: string
   transport_in_ticket_on_site: boolean
   transport_out_ticket_on_site: boolean
+  ticket_assignee_ids: string[]
+  hotel_assignee_ids: string[]
+  plan_assignee_ids: string[]
 }
 
 export type TransportType = 'train' | 'plane' | 'bus' | 'ship'

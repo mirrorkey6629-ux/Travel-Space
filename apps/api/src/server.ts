@@ -23,7 +23,28 @@ const optionalCoordinate = (value: unknown, min: number, max: number) => {
   return number
 }
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode })
+
+async function validatedCityAssignees(tripId: string, body: Json) {
+  const parse = (value: unknown) => {
+    if (value === undefined) return undefined
+    if (!Array.isArray(value)) throw httpError(400, 'Ответственные должны быть переданы списком')
+    return [...new Set(value.map(text).filter(Boolean))]
+  }
+  const result = {
+    ticketAssigneeIds: parse(body.ticketAssigneeIds),
+    hotelAssigneeIds: parse(body.hotelAssigneeIds),
+    planAssigneeIds: parse(body.planAssigneeIds),
+  }
+  const ids = [...new Set(Object.values(result).flatMap((value) => value ?? []))]
+  if (ids.some((id) => !uuidPattern.test(id))) throw httpError(400, 'Некорректный ответственный')
+  if (ids.length) {
+    const members = await db.query<{ user_id: string }>('SELECT user_id::text FROM trip_members WHERE trip_id=$1 AND user_id=ANY($2::uuid[])', [tripId, ids])
+    if (members.rowCount !== ids.length) throw httpError(400, 'Ответственный должен быть участником поездки')
+  }
+  return result
+}
 
 const app = Fastify({ logger: true, bodyLimit: config.maxUploadBytes })
 await app.register(cors, { origin: [config.publicOrigin], credentials: true })
@@ -434,7 +455,17 @@ app.delete(`${apiPrefix}/trips/:tripId/members/:memberId`, async (request, reply
   const trip = (await db.query<{ owner_id: string }>('SELECT owner_id FROM trips WHERE id = $1', [tripId])).rows[0]
   if (!trip) throw httpError(404, 'Поездка не найдена')
   if (memberId === trip.owner_id) throw httpError(400, 'Владельца нельзя удалить из поездки')
-  const result = await db.query("DELETE FROM trip_members WHERE trip_id = $1 AND user_id = $2 AND role = 'member'", [tripId, memberId])
+  const result = await transaction(async (client) => {
+    await client.query(
+      `UPDATE cities SET
+         ticket_assignee_ids=array_remove(ticket_assignee_ids,$2::uuid),
+         hotel_assignee_ids=array_remove(hotel_assignee_ids,$2::uuid),
+         plan_assignee_ids=array_remove(plan_assignee_ids,$2::uuid)
+       WHERE trip_id=$1`,
+      [tripId, memberId],
+    )
+    return client.query("DELETE FROM trip_members WHERE trip_id = $1 AND user_id = $2 AND role = 'member'", [tripId, memberId])
+  })
   if (!result.rowCount) throw httpError(404, 'Участник не найден')
   reply.code(204).send()
 })
@@ -472,12 +503,14 @@ app.post(`${apiPrefix}/trips/:tripId/cities`, async (request, reply) => {
   const { tripId } = request.params as { tripId: string }
   await requireTripRole(tripId, user.id, true)
   const input = await validatedCityInput(tripId, bodyOf(request.body))
+  const body = bodyOf(request.body)
+  const assignees = await validatedCityAssignees(tripId, body)
   const position = Number(bodyOf(request.body).position)
   const nextPosition = Number.isInteger(position) ? position : Number((await db.query('SELECT coalesce(max(position), -1) + 1 AS value FROM cities WHERE trip_id = $1', [tripId])).rows[0].value)
   const result = await db.query(
-    `INSERT INTO cities(trip_id, name, position, arrival_date, departure_date, arrival_period, departure_period, hotel_not_needed, hotel, hotel_url, hotel_check_in_time, hotel_check_out_time, hotel_notes, transport_in_notes, transport_out_notes, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING *`,
-    [tripId, input.name, nextPosition, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, bodyOf(request.body).hotelNotNeeded === true, text(bodyOf(request.body).hotel), text(bodyOf(request.body).hotelUrl), text(bodyOf(request.body).hotelCheckInTime), text(bodyOf(request.body).hotelCheckOutTime), text(bodyOf(request.body).hotelNotes), text(bodyOf(request.body).transportInNotes), text(bodyOf(request.body).transportOutNotes), user.id],
+    `INSERT INTO cities(trip_id, name, position, arrival_date, departure_date, arrival_period, departure_period, hotel_not_needed, hotel, hotel_url, hotel_check_in_time, hotel_check_out_time, hotel_notes, transport_in_notes, transport_out_notes, created_by, ticket_assignee_ids, hotel_assignee_ids, plan_assignee_ids)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING *`,
+    [tripId, input.name, nextPosition, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, body.hotelNotNeeded === true, text(body.hotel), text(body.hotelUrl), text(body.hotelCheckInTime), text(body.hotelCheckOutTime), text(body.hotelNotes), text(body.transportInNotes), text(body.transportOutNotes), user.id, assignees.ticketAssigneeIds ?? [], body.hotelNotNeeded === true ? [] : assignees.hotelAssigneeIds ?? [], assignees.planAssigneeIds ?? []],
   )
   reply.code(201)
   return { city: result.rows[0] }
@@ -490,6 +523,7 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
   const current = (await db.query('SELECT * FROM cities WHERE id = $1 AND trip_id = $2', [cityId, tripId])).rows[0]
   if (!current) throw httpError(404, 'Город не найден')
   const body = bodyOf(request.body)
+  const assignees = await validatedCityAssignees(tripId, body)
   const transportTypes = [body.transportInType, body.transportOutType].filter((value) => value !== undefined)
   if (transportTypes.some((value) => typeof value !== 'string' || !['train', 'plane', 'bus', 'ship'].includes(value))) throw httpError(400, 'Некорректный тип транспорта')
   const input = await validatedCityInput(tripId, {
@@ -511,7 +545,8 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
        transport_out_arrival_station=coalesce($24,transport_out_arrival_station), transport_out_arrival_station_url=coalesce($25,transport_out_arrival_station_url),
        hotel_url=coalesce($26,hotel_url), hotel_check_in_time=coalesce($27,hotel_check_in_time), hotel_check_out_time=coalesce($28,hotel_check_out_time),
        hotel_notes=coalesce($29,hotel_notes), transport_in_notes=coalesce($30,transport_in_notes), transport_out_notes=coalesce($31,transport_out_notes),
-       transport_in_ticket_on_site=coalesce($32,transport_in_ticket_on_site), transport_out_ticket_on_site=coalesce($33,transport_out_ticket_on_site), updated_at=now()
+       transport_in_ticket_on_site=coalesce($32,transport_in_ticket_on_site), transport_out_ticket_on_site=coalesce($33,transport_out_ticket_on_site),
+       ticket_assignee_ids=$34, hotel_assignee_ids=$35, plan_assignee_ids=$36, updated_at=now()
      WHERE id=$1 AND trip_id=$2 RETURNING *`,
     [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut),
       optionalText(body.transportInType), optionalText(body.transportOutType), optionalText(body.transportInDepartureTime), optionalText(body.transportInArrivalTime),
@@ -519,7 +554,10 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
       optionalText(body.transportInArrivalStation), optionalText(body.transportInArrivalStationUrl), optionalText(body.transportOutDepartureStation), optionalText(body.transportOutDepartureStationUrl),
       optionalText(body.transportOutArrivalStation), optionalText(body.transportOutArrivalStationUrl), optionalText(body.hotelUrl), optionalText(body.hotelCheckInTime), optionalText(body.hotelCheckOutTime),
       optionalText(body.hotelNotes), optionalText(body.transportInNotes), optionalText(body.transportOutNotes),
-      typeof body.transportInTicketOnSite === 'boolean' ? body.transportInTicketOnSite : null, typeof body.transportOutTicketOnSite === 'boolean' ? body.transportOutTicketOnSite : null],
+      typeof body.transportInTicketOnSite === 'boolean' ? body.transportInTicketOnSite : null, typeof body.transportOutTicketOnSite === 'boolean' ? body.transportOutTicketOnSite : null,
+      assignees.ticketAssigneeIds === undefined ? current.ticket_assignee_ids : assignees.ticketAssigneeIds,
+      (typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed) ? [] : assignees.hotelAssigneeIds === undefined ? current.hotel_assignee_ids : assignees.hotelAssigneeIds,
+      assignees.planAssigneeIds === undefined ? current.plan_assignee_ids : assignees.planAssigneeIds],
   )
   return { city: result.rows[0] }
 })

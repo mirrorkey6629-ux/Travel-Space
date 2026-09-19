@@ -256,7 +256,7 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .transport-dialog .field-grid > .transport-wide { grid-column: span 2; }
 .transport-dialog .field-grid { gap: 8px; }
 .transport-column { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
-.transport-duration { margin: 4px 0; color: var(--color-text-secondary); text-align: center; font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
+.transport-duration { margin: 4px 0; color: var(--color-text-secondary); text-align: center; font-size: var(--type-text-s-size); font-weight: var(--type-text-s-weight); line-height: var(--type-text-s-line-height); letter-spacing: var(--type-text-s-letter-spacing); }
 .transport-ticket-on-site { align-self: flex-start; padding: 0; display: inline-flex; align-items: center; gap: 9px; color: var(--color-text-secondary); background: transparent; font: inherit; }
 .transport-ticket-on-site:hover { color: var(--color-text-primary); }
 .transport-ticket-on-site:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 3px; border-radius: 4px; }
@@ -342,8 +342,16 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .city-editor-view .modal-title h2 { font-size: var(--type-head-l-size); }
 .city-editor-view .field { gap: 8px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
 .city-hotel-toggle { position: relative; width: max-content; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.city-hotel-toggle-after-assignee { margin-top: -16px; }
 .city-hotel-toggle input { position: absolute; opacity: 0; pointer-events: none; }
 .city-hotel-toggle:has(input:focus-visible) .document-check { outline: 2px solid var(--color-text-primary); outline-offset: 3px; }
+.member-multi-select { position: relative; min-width: 0; }
+.member-multi-select-trigger { justify-content: flex-start; text-align: left; }
+.member-multi-select-trigger > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.member-multi-select-trigger:disabled { opacity: .42; cursor: not-allowed; }
+.member-multi-select-menu { position: absolute; z-index: 8; top: calc(100% + 4px); left: 0; width: 100%; padding: 8px; border: 1px solid var(--border); border-radius: 16px; background: rgba(56,55,52,.98); box-shadow: 0 16px 40px rgba(0,0,0,.28); display: grid; gap: 4px; }
+.member-multi-select-menu button { min-height: 44px; padding: 8px; border-radius: 12px; display: flex; align-items: center; gap: 8px; color: var(--color-text-primary); background: transparent; text-align: left; font: inherit; }
+.member-multi-select-menu button:hover { background: var(--color-background-secondary); }
 .all-city-fields .all-city-hotel-toggle { min-height: 24px; grid-column: 1 / -1; }
 .city-editor-view .field input,
 .city-editor-view .field select { height: 60px; padding: 0 20px; border-color: transparent; border-radius: 16px; background: var(--glass-soft); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
