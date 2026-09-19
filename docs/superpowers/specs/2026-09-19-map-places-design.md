@@ -151,7 +151,8 @@ ALTER TABLE places ADD COLUMN IF NOT EXISTS icon text NOT NULL DEFAULT 'default'
 - `.env` и `.env.example`: `VITE_GOOGLE_MAPS_MAP_ID`, значение `a906a0e6ca962cd2c1e96f72`.
 - `VITE_GOOGLE_MAPS_API_KEY` и `VITE_GOOGLE_MAPS_MAP_ID` заданы в локальном `.env`, который не хранится в Git. В `.env.example` обе переменные остаются пустыми шаблонами с комментариями.
 - Map ID и переменная пробрасываются в `Dockerfile` и `compose.yaml` рядом с существующим ключом.
-- В Google Cloud должны быть включены Maps JavaScript API и Places API (New), на обоих стоит поставить ограничение квоты, чтобы не выйти за бесплатный лимит.
+- В Google Cloud включены Maps JavaScript API и Places API (New); проверено запросом автодополнения. На обоих стоит поставить ограничение квоты, чтобы не выйти за бесплатный лимит.
+- Ключ ограничен по HTTP-referer. В белом списке есть `http://localhost:4173` — порт дев-сервера из `package.json`. При смене порта Vite или добавлении нового домена referer нужно добавить в ограничения ключа, иначе поиск молча начнёт отвечать `API_KEY_HTTP_REFERRER_BLOCKED`.
 
 ## Границы задачи
 
