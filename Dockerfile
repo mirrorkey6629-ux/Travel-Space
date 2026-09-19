@@ -28,8 +28,10 @@ FROM deps AS build
 # ассетам и в import.meta.env.BASE_URL, поменять его в готовом образе нельзя.
 ARG BASE_PATH
 ARG VITE_GOOGLE_MAPS_API_KEY
+ARG VITE_GOOGLE_MAPS_MAP_ID
 ENV BASE_PATH=${BASE_PATH}
 ENV VITE_GOOGLE_MAPS_API_KEY=${VITE_GOOGLE_MAPS_API_KEY}
+ENV VITE_GOOGLE_MAPS_MAP_ID=${VITE_GOOGLE_MAPS_MAP_ID}
 COPY . .
 # tsc -b внутри pnpm build падает на любой ошибке типов, поэтому непроходящий
 # typecheck не даст собрать образ.
