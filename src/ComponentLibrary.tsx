@@ -1,5 +1,6 @@
 import { Fragment, useState } from 'react'
-import { GalaxyBackground, Icon, IconName } from './App'
+import { GalaxyBackground } from './App'
+import { Icon, type IconName } from './components/Icon'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
 import { Input, Select } from './components/FormControls'

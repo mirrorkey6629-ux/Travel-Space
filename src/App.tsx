@@ -6,6 +6,8 @@ import { Input, Select, Textarea } from './components/FormControls'
 import { InfoRow } from './components/InfoRow'
 import { TypographyGroup } from './components/TypographyGroup'
 import { Tabs } from './components/Tabs'
+import { Icon, type IconName } from './components/Icon'
+import { UNSCHEDULED_KEY } from './places'
 import { GoogleMapPicker } from './components/GoogleMapPicker'
 import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
@@ -48,10 +50,9 @@ type City = {
 }
 type Trip = { id?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; timeZone: string; cities: City[]; dayDescriptions: Record<string, string>; members?: TripMember[]; memberCount?: number; background?: TravelFile; backgroundUrl?: string; backgroundFile?: File; backgroundRemoved?: boolean; backgroundDeleteId?: string }
 type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard' | 'profile' | 'view'
-export type IconName = 'link' | 'content-copy' | 'add-pin' | 'add-circle' | 'add-plus' | 'arrow-back' | 'attractions' | 'barefoot' | 'bus' | 'calendar-month' | 'casino' | 'check-small' | 'time' | 'planet' | 'email' | 'encrypted' | 'refresh' | 'close' | 'edit-location' | 'pin-home' | 'image' | 'edit' | 'face' | 'hotel' | 'key' | 'delete-forever' | 'download' | 'upload-file' | 'docs' | 'plane' | 'rocket-launch' | 'sailing' | 'ticket' | 'train'
+export type { IconName } from './components/Icon'
 
 const STORAGE_KEY = 'tabi-trip-v1'
-const UNSCHEDULED_KEY = 'unscheduled'
 const ADMIN_EMAIL = 'mirrorkey6629@gmail.com'
 const defaultTripBackground = `${import.meta.env.BASE_URL}assets/autumn-garden.jpg`
 const cityPlaceholder = `${import.meta.env.BASE_URL}assets/city-placeholder.png`
@@ -132,7 +133,7 @@ const formatCompactNumericDate = (value: string) => {
 }
 const formatTravelDuration = (departureTime: string, arrivalTime: string, departureDate?: string, arrivalDate?: string, departureTimeZone?: string, arrivalTimeZone?: string) => {
   const parseTime = (value: string) => {
-    const match = value.match(/^(\d{2}):(\d{2})$/)
+    const match = value?.match(/^(\d{2}):(\d{2})$/)
     if (!match) return undefined
     const hours = Number(match[1])
     const minutes = Number(match[2])
@@ -246,10 +247,6 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
 
 // BASE_URL — это vite base, всегда со слэшем на конце. Строки, которые JS собирает
 // сам, Vite префиксом не дополняет, в отличие от путей в HTML и CSS.
-export function Icon({ name, size = 24 }: { name: IconName; size?: number }) {
-  return <img className="ui-icon" src={`${import.meta.env.BASE_URL}assets/icons/${name}.svg`} width={size} height={size} alt="" aria-hidden="true" />
-}
-
 export function GalaxyBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
