@@ -4,6 +4,7 @@ import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { CacheFirst, NetworkFirst, StaleWhileRevalidate, type Strategy } from 'workbox-strategies'
 import { classifyRequest, type CacheKind } from './offline/classifyRequest'
+import { runPrefetch } from './offline/prefetchQueue'
 
 declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST: Array<{ url: string; revision: string | null }> }
 
@@ -117,47 +118,13 @@ async function prefetch({ tripId, token, urls }: PrefetchMessage) {
   const current: PrefetchTask = { tripId, token, cancelled: false }
   task = current
 
-  const pending: string[] = []
-  let done = 0
-  for (const url of urls) {
-    const kind = classifyRequest('GET', new URL(url, scope), scope)
-    if (!kind) continue
-    const cache = await caches.open(CACHES[kind])
-    if (await cache.match(url)) done += 1
-    else pending.push(url)
-  }
-  if (current.cancelled) return
+  await runPrefetch(tripId, urls, {
+    classify: (url) => classifyRequest('GET', new URL(url, scope), scope),
+    has: async (kind, url) => Boolean(await caches.open(CACHES[kind]).then((cache) => cache.match(url))),
+    store: (_kind, url) => store(url, current.token),
+    report: (message) => { void broadcast(message) },
+    cancelled: () => current.cancelled,
+  })
 
-  const total = done + pending.length
-  await broadcast({ type: 'prefetch-progress', tripId, done, total })
-  if (!pending.length) {
-    await broadcast({ type: 'prefetch-done', tripId })
-    if (task === current) task = null
-    return
-  }
-
-  let index = 0
-  let blocked: 'quota' | 'network' | null = null
-  // Два параллельных потока: больше не ускоряет мобильную сеть, но заметно
-  // мешает обычным запросам страницы.
-  const worker = async () => {
-    while (!current.cancelled && !blocked) {
-      const url = pending[index++]
-      if (url === undefined) return
-      try {
-        await store(url, current.token)
-      } catch (reason) {
-        blocked = reason instanceof DOMException && reason.name === 'QuotaExceededError' ? 'quota' : 'network'
-        return
-      }
-      done += 1
-      await broadcast({ type: 'prefetch-progress', tripId, done, total })
-    }
-  }
-  await Promise.all([worker(), worker()])
-
-  if (current.cancelled) return
-  if (blocked) await broadcast({ type: 'prefetch-blocked', tripId, reason: blocked })
-  else await broadcast({ type: 'prefetch-done', tripId })
   if (task === current) task = null
 }

@@ -9,5 +9,5 @@
     "isolatedModules": true,
     "noEmit": true
   },
-  "include": ["src/sw.ts", "src/offline/classifyRequest.ts"]
+  "include": ["src/sw.ts", "src/offline/classifyRequest.ts", "src/offline/prefetchQueue.ts", "src/offline/cacheState.ts"]
 }
