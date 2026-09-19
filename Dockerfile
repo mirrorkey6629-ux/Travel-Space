@@ -27,8 +27,13 @@ FROM deps AS build
 # Префикс вшивается в бандл на этапе сборки: Vite подставляет его в пути к
 # ассетам и в import.meta.env.BASE_URL, поменять его в готовом образе нельзя.
 ARG BASE_PATH
-ARG VITE_GOOGLE_MAPS_API_KEY
-ARG VITE_GOOGLE_MAPS_MAP_ID
+# Браузерный ключ Google Maps и Map ID вшиваются в бандл на сборке, поэтому
+# задать их через переменные окружения готового образа невозможно. Значения по
+# умолчанию нужны, чтобы образ работал сразу после docker build и docker pull.
+# Ключ публичен по своей природе — он виден в коде страницы — и защищён
+# ограничением по HTTP-referer в Google Cloud, а не секретностью.
+ARG VITE_GOOGLE_MAPS_API_KEY=AIzaSyAXgPq2m7QuefxS1zSkjPr-NLeld0OJz00
+ARG VITE_GOOGLE_MAPS_MAP_ID=a906a0e6ca962cd2c1e96f72
 ENV BASE_PATH=${BASE_PATH}
 ENV VITE_GOOGLE_MAPS_API_KEY=${VITE_GOOGLE_MAPS_API_KEY}
 ENV VITE_GOOGLE_MAPS_MAP_ID=${VITE_GOOGLE_MAPS_MAP_ID}
