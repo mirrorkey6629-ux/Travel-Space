@@ -1686,7 +1686,10 @@ export default function App() {
 
   // Один выключатель на всё приложение: экраны спрашивают useAccess(), а не
   // выводят право на правку из роли или navigator.onLine самостоятельно.
-  const access = tripAccess({ publicView: screen === 'view', offline: !online, role: trip?.role })
+  const access = useMemo(
+    () => tripAccess({ publicView: screen === 'view', offline: !online, role: trip?.role }),
+    [screen, online, trip?.role],
+  )
 
   const renderScreen = () => {
   if (loading) return <AuthShell><div className="glass auth-modal compact"><h1>Загружаем поездку…</h1></div></AuthShell>

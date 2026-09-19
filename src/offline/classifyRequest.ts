@@ -21,6 +21,9 @@ export function classifyRequest(method: string, url: URL, scope: URL): CacheKind
   // Экспорт поездки — разовая выгрузка архива. Класть её в кэш данных значит
   // удвоить вес всех документов ради файла, который нужен один раз.
   if (/^trips\/[^/]+\/export$/.test(endpoint)) return null
+  // Проверка связи не кэшируется никогда: ответ из кэша означал бы «сеть есть»
+  // ровно тогда, когда её нет, и приложение навсегда осталось бы оффлайн.
+  if (endpoint === 'health') return null
   if (endpoint.endsWith('/avatar')) return 'avatar'
   if (/^documents\/[^/]+\/download$/.test(endpoint)) return 'media'
   if (/^public-trips\/[^/]+\/documents\/[^/]+$/.test(endpoint)) return 'media'

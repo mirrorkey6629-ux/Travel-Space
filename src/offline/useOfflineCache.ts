@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { session } from '../api'
 import { cacheStateReducer, type CacheMessage, type CacheState } from './cacheState'
 
+// Пятнадцать секунд — компромисс: реже, чем пользователь успевает заметить, что
+// сеть вернулась, и достаточно редко, чтобы не бить по батарее в самолёте.
+const RECONNECT_PROBE_MS = 15_000
+
 const supported = () => typeof navigator !== 'undefined' && 'serviceWorker' in navigator
 
 async function activeWorker(): Promise<ServiceWorker | null> {
@@ -65,6 +69,39 @@ export function useOfflineCache(tripId: string | null) {
     navigator.serviceWorker.addEventListener('message', onMessage)
     return () => navigator.serviceWorker.removeEventListener('message', onMessage)
   }, [])
+
+  // Вернуться в онлайн само по себе событие `online` не поможет: если пропал
+  // только интернет, а сеть осталась, браузер его не пришлёт — с его точки
+  // зрения ничего не менялось. А правки в этот момент скрыты, и пользователю
+  // нечем спровоцировать запрос, который вернул бы приложение в строй. Поэтому
+  // связь опрашивается сами: раз в интервал и сразу при возврате во вкладку.
+  useEffect(() => {
+    if (online) return
+    let cancelled = false
+    const probe = async () => {
+      try {
+        // /api/health намеренно не кэшируется, иначе ответ приходил бы из кэша
+        // и проверка всегда говорила бы «связь есть».
+        const response = await fetch(`${import.meta.env.BASE_URL}api/health`, { cache: 'no-store' })
+        if (!cancelled && response.ok) setOnline(true)
+      } catch {
+        // Всё ещё оффлайн — ждём следующей попытки.
+      }
+    }
+    const onFocus = () => void probe()
+    // Только возвращение вкладки, не уход из неё: в скрытой вкладке проверять
+    // связь незачем, за это отвечает интервал.
+    const onVisible = () => { if (document.visibilityState === 'visible') void probe() }
+    const timer = window.setInterval(() => void probe(), RECONNECT_PROBE_MS)
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
+  }, [online])
 
   // Смена поездки обнуляет индикатор: прогресс прошлой к новой отношения не имеет.
   useEffect(() => { setState({ kind: 'idle' }) }, [tripId])

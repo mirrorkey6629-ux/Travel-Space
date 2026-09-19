@@ -24,6 +24,7 @@ describe('classifyRequest', () => {
   it('не трогает мутации, экспорт, чужой origin и пути вне базы', () => {
     expect(at('/travel/api/trips', 'POST')).toBeNull()
     expect(at('/travel/api/trips/abc/export')).toBeNull()
+    expect(at('/travel/api/health')).toBeNull()
     expect(at('/other/api/trips')).toBeNull()
     expect(classifyRequest('GET', new URL('https://maps.googleapis.com/maps/api/js'), scope)).toBeNull()
   })
