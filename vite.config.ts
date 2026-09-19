@@ -30,7 +30,14 @@ export default defineConfig({
       registerType: 'prompt',
       // Крупные растровые картинки в precache не идут: autumn-garden.jpg весит
       // 5.4 МБ и растянул бы установку. Их забирает фоновая докачка.
-      injectManifest: { globPatterns: ['**/*.{js,css,html,svg,webmanifest}'] },
+      injectManifest: {
+        globPatterns: ['**/*.{js,css,html,svg,webmanifest}'],
+        // По умолчанию workbox считает всё в assets/ неизменяемым и пишет
+        // revision: null. Для хэшированных бандлов Vite это верно, но иконки в
+        // public/assets/icons имён с хэшем не имеют: без ревизии правка иконки
+        // никогда не доехала бы до тех, у кого она уже в кэше.
+        dontCacheBustURLsMatching: /assets\/[^/]*-[A-Za-z0-9_-]{8}\.(?:js|css)$/,
+      },
       manifest: {
         name: 'Travel Space',
         short_name: 'Travel Space',

@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import type { WorkboxPlugin } from 'workbox-core'
+import { clientsClaim, type WorkboxPlugin } from 'workbox-core'
 import { createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
 import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { CacheFirst, NetworkFirst, StaleWhileRevalidate, type Strategy } from 'workbox-strategies'
@@ -22,6 +22,16 @@ const CACHES: Record<CacheKind, string> = {
 // поездку. Кэш статики приватного не содержит и выход переживает.
 const PRIVATE_CACHES = [CACHES.data, CACHES.media, CACHES.avatar]
 const KNOWN_CACHES = new Set<string>(Object.values(CACHES))
+
+// Без clientsClaim страница, на которой worker впервые установился, остаётся
+// неуправляемой до конца своей жизни: перехвата нет, и переключение в оффлайн
+// без перезагрузки ломает любой ещё не скачанный ресурс.
+//
+// Здесь это безопасно именно потому, что skipWaiting не вызывается: новый
+// worker активируется только когда старых вкладок не осталось, поэтому
+// захватывать страницу с чужой версией бандла ему не придётся. А при самой
+// первой установке чужой версии просто нет.
+clientsClaim()
 
 precacheAndRoute(self.__WB_MANIFEST)
 
