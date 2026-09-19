@@ -276,9 +276,12 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
         const cityRange = cityDates.get(oldCityId)
         if (!cityId || !text(source.name)) throw httpError(400, 'Некорректное место в файле')
         if (visitDate && (!datePattern.test(visitDate) || !cityRange || visitDate < cityRange.arrivalDate || visitDate > cityRange.departureDate)) throw httpError(400, 'Дата места находится за пределами дат города')
+        // В файлах, снятых до появления иконок, поля нет — это норма, берём базовую.
+        const placeIcon = normalizePlaceIcon(source.icon)
+        if (!placeIcon) throw httpError(400, 'Неизвестная иконка места в файле поездки')
         await client.query(
-          `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-          [createdTrip.id, cityId, visitDate, text(source.name), text(source.googleMapsUrl), optionalCoordinate(source.latitude, -90, 90) ?? null, optionalCoordinate(source.longitude, -180, 180) ?? null, Number.isInteger(source.position) ? source.position : 0, user.id],
+          `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,icon,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+          [createdTrip.id, cityId, visitDate, text(source.name), text(source.googleMapsUrl), optionalCoordinate(source.latitude, -90, 90) ?? null, optionalCoordinate(source.longitude, -180, 180) ?? null, Number.isInteger(source.position) ? source.position : 0, placeIcon, user.id],
         )
       }
       for (const source of bundle.tasks) {
@@ -405,7 +408,7 @@ app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
     trip: { name: trip.name, startDate: trip.start_date, endDate: trip.end_date, timeZone: trip.time_zone, backgroundRemoved: trip.background_removed },
     cities: cities.rows.map((city) => ({ id: city.id, name: city.name, arrivalDate: String(city.arrival_date).slice(0,10), departureDate: String(city.departure_date).slice(0,10), arrivalPeriod: city.arrival_period, departurePeriod: city.departure_period, hotelNotNeeded: city.hotel_not_needed, hotel: city.hotel, hotelUrl: city.hotel_url, hotelCheckInTime: city.hotel_check_in_time, hotelCheckOutTime: city.hotel_check_out_time, hotelNotes: city.hotel_notes, trainIn: city.train_in, trainOut: city.train_out,
       transportInType: city.transport_in_type, transportOutType: city.transport_out_type, transportInDepartureTime: city.transport_in_departure_time, transportInArrivalTime: city.transport_in_arrival_time, transportOutDepartureTime: city.transport_out_departure_time, transportOutArrivalTime: city.transport_out_arrival_time, transportInDepartureStation: city.transport_in_departure_station, transportInDepartureStationUrl: city.transport_in_departure_station_url, transportInArrivalStation: city.transport_in_arrival_station, transportInArrivalStationUrl: city.transport_in_arrival_station_url, transportOutDepartureStation: city.transport_out_departure_station, transportOutDepartureStationUrl: city.transport_out_departure_station_url, transportOutArrivalStation: city.transport_out_arrival_station, transportOutArrivalStationUrl: city.transport_out_arrival_station_url, transportInNotes: city.transport_in_notes, transportOutNotes: city.transport_out_notes, transportInTicketOnSite: city.transport_in_ticket_on_site, transportOutTicketOnSite: city.transport_out_ticket_on_site })),
-    places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, latitude: place.latitude, longitude: place.longitude, position: place.position })),
+    places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, latitude: place.latitude, longitude: place.longitude, position: place.position, icon: place.icon })),
     tasks: tasks.rows.map((task) => ({ cityId: task.city_id, dueDate: task.due_date ? String(task.due_date).slice(0,10) : null, title: task.title, done: task.done })),
     dayNotes: dayNotes.rows.map((note) => ({ date: String(note.day_date).slice(0,10), description: note.description })),
     documents: await Promise.all(documents.rows.map(async (document) => ({ cityId: document.city_id, category: document.category, originalName: document.original_name, mimeType: document.mime_type, contentBase64: (await readFile(path.join(config.uploadDir, document.storage_key))).toString('base64') }))),
