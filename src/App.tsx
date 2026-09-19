@@ -653,6 +653,11 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
   const hasImage = Boolean(city.imageFile || city.image || city.imageUrl)
   const members = trip.members ?? []
   const canAssign = trip.role === 'owner' || !trip.id
+  const routeCities = city.arrival ? sortCitiesByDate([...trip.cities.filter((item) => item.id !== city.id), city]) : [...trip.cities.filter((item) => item.id !== city.id), city]
+  const cityIndex = routeCities.findIndex((item) => item.id === city.id)
+  const previousCity = cityIndex > 0 ? routeCities[cityIndex - 1] : undefined
+  const cityLabel = city.name.trim() || 'Новый город'
+  const ticketRouteLabel = previousCity ? `${previousCity.name} — ${cityLabel}` : 'Приезд'
   return (
     <form className="city-editor-view setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
       <div className="modal-title">
@@ -665,10 +670,10 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
         <label className="field span-2"><span>Город</span><Input value={city.name} onChange={(e) => setCity({ ...city, name: e.target.value })} placeholder="Например, Осака" autoFocus /></label>
         <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(e) => { const value = e.target.value; setCity((current) => ({ ...current, arrival: value, departure: current.departure < value ? '' : current.departure })) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(e) => setCity((current) => ({ ...current, arrivalPeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
         <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(e) => setCity((current) => ({ ...current, departure: e.target.value }))}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(e) => setCity((current) => ({ ...current, departurePeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-        <div className="field span-2"><span>Кто покупает билет</span><AssigneeSelect members={members} value={city.ticketAssigneeIds} icon="ticket" disabled={!canAssign} onChange={(ticketAssigneeIds) => setCity((current) => ({ ...current, ticketAssigneeIds }))} /></div>
-        <div className="field span-2"><span>Кто бронит отель</span><AssigneeSelect members={members} value={city.hotelAssigneeIds} icon="hotel" disabled={!canAssign || city.hotelNotNeeded} onChange={(hotelAssigneeIds) => setCity((current) => ({ ...current, hotelAssigneeIds }))} /></div>
+        <div className="field span-2"><span>Кто покупает билет ({ticketRouteLabel})</span><AssigneeSelect members={members} value={city.ticketAssigneeIds} icon="ticket" disabled={!canAssign} onChange={(ticketAssigneeIds) => setCity((current) => ({ ...current, ticketAssigneeIds }))} /></div>
+        <div className="field span-2"><span>Кто бронит отель ({cityLabel})</span><AssigneeSelect members={members} value={city.hotelAssigneeIds} icon="hotel" disabled={!canAssign || city.hotelNotNeeded} onChange={(hotelAssigneeIds) => setCity((current) => ({ ...current, hotelAssigneeIds }))} /></div>
         <label className="city-hotel-toggle city-hotel-toggle-after-assignee span-2"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => setCity((current) => ({ ...current, hotelNotNeeded: event.target.checked, hotelAssigneeIds: event.target.checked ? [] : current.hotelAssigneeIds }))} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><SecondaryText>Отель не нужен</SecondaryText></label>
-        <div className="field span-2"><span>Кто составляет план города</span><AssigneeSelect members={members} value={city.planAssigneeIds} icon="barefoot" disabled={!canAssign} onChange={(planAssigneeIds) => setCity((current) => ({ ...current, planAssigneeIds }))} /></div>
+        <div className="field span-2"><span>Кто составляет план города ({cityLabel})</span><AssigneeSelect members={members} value={city.planAssigneeIds} icon="barefoot" disabled={!canAssign} onChange={(planAssigneeIds) => setCity((current) => ({ ...current, planAssigneeIds }))} /></div>
       </div>
       <Button type="submit" disabled={!valid}>{initial ? 'Сохранить' : 'Добавить'}</Button>
     </form>
@@ -678,6 +683,8 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
 function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (cities: City[]) => void; onClose: () => void }) {
   const [cities, setCities] = useState(() => trip.cities.map((city) => ({ ...city })))
   const tripDates = dateRange(trip.startDate, trip.endDate)
+  const members = trip.members ?? []
+  const canAssign = trip.role === 'owner'
   const updateCity = (id: string, patch: Partial<City>) => setCities((current) => current.map((city) => city.id === id ? { ...city, ...patch } : city))
   const valid = cities.every((city) => {
     const arrivalPeriod = city.arrivalPeriod ?? 'morning'
@@ -691,14 +698,20 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
       <div className="all-cities-scroll">
         <h2>Все города</h2>
         <div className="all-cities-list">
-          {cities.map((city) => {
+          {cities.map((city, cityIndex) => {
             const departureDates = tripDates.filter((date) => !city.arrival || date >= city.arrival)
+            const cityLabel = city.name.trim() || 'Новый город'
+            const previousCity = cities[cityIndex - 1]
+            const ticketRouteLabel = previousCity ? `${previousCity.name} — ${cityLabel}` : 'Приезд'
             return (
               <section className="all-city-fields" key={city.id}>
                 <label className="field city-name-field"><span>Город</span><Input value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></label>
                 <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
                 <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-                <label className="city-hotel-toggle all-city-hotel-toggle"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => updateCity(city.id, { hotelNotNeeded: event.target.checked, ...(event.target.checked ? { hotelAssigneeIds: [] } : {}) })} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><SecondaryText>Отель не нужен</SecondaryText></label>
+                <div className="field span-2"><span>Кто покупает билет ({ticketRouteLabel})</span><AssigneeSelect members={members} value={city.ticketAssigneeIds} icon="ticket" disabled={!canAssign} onChange={(ticketAssigneeIds) => updateCity(city.id, { ticketAssigneeIds })} /></div>
+                <div className="field span-2"><span>Кто бронит отель ({cityLabel})</span><AssigneeSelect members={members} value={city.hotelAssigneeIds} icon="hotel" disabled={!canAssign || city.hotelNotNeeded} onChange={(hotelAssigneeIds) => updateCity(city.id, { hotelAssigneeIds })} /></div>
+                <label className="city-hotel-toggle city-hotel-toggle-after-assignee all-city-hotel-toggle"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => updateCity(city.id, { hotelNotNeeded: event.target.checked, ...(event.target.checked ? { hotelAssigneeIds: [] } : {}) })} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><SecondaryText>Отель не нужен</SecondaryText></label>
+                <div className="field span-2"><span>Кто составляет план города ({cityLabel})</span><AssigneeSelect members={members} value={city.planAssigneeIds} icon="barefoot" disabled={!canAssign} onChange={(planAssigneeIds) => updateCity(city.id, { planAssigneeIds })} /></div>
               </section>
             )
           })}
