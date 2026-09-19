@@ -54,8 +54,16 @@ echo "→ health endpoint"
 curl -fsS "$BASE_URL/api/health" | grep -q '"ok":true' || fail "health endpoint did not report ok"
 
 echo "→ migrations applied"
-docker logs "$APP" 2>&1 | grep -qE 'Applied 001_initial\.sql|Schema is up to date' \
-  || fail "no evidence that migrations ran"
+migrations_logged=false
+for _ in $(seq 1 10); do
+  app_logs=$(docker logs "$APP" 2>&1)
+  if grep -qE 'Applied 001_initial\.sql|Schema is up to date' <<<"$app_logs"; then
+    migrations_logged=true
+    break
+  fi
+  sleep 1
+done
+[ "$migrations_logged" = true ] || fail "no evidence that migrations ran"
 
 echo "→ index page under the base path"
 curl -fsS "$BASE_URL/" | grep -q 'id="root"' || fail "index.html is not served at $BASE_URL/"
