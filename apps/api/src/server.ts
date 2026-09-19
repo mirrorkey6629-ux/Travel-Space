@@ -716,6 +716,40 @@ app.patch(`${apiPrefix}/trips/:tripId/places/:placeId`, async (request) => {
   return { place: result.rows[0] }
 })
 
+app.delete(`${apiPrefix}/trips/:tripId/places/:placeId`, async (request, reply) => {
+  const user = await requireUser(request)
+  const { tripId, placeId } = request.params as { tripId: string; placeId: string }
+  await requireTripRole(tripId, user.id)
+  const result = await db.query('DELETE FROM places WHERE id=$1 AND trip_id=$2 RETURNING id', [placeId, tripId])
+  if (result.rowCount === 0) throw httpError(404, 'Место не найдено')
+  reply.code(204)
+})
+
+app.patch(`${apiPrefix}/trips/:tripId/places/:placeId/move`, async (request) => {
+  const user = await requireUser(request)
+  const { tripId, placeId } = request.params as { tripId: string; placeId: string }
+  await requireTripRole(tripId, user.id)
+  const body = bodyOf(request.body)
+  const position = Number(body.position)
+  if (!Number.isInteger(position) || position < 0) throw httpError(400, 'Некорректная позиция точки')
+  const visitDate = optionalText(body.visitDate) || null
+  const place = (await db.query('SELECT city_id FROM places WHERE id=$1 AND trip_id=$2', [placeId, tripId])).rows[0]
+  if (!place) throw httpError(404, 'Место не найдено')
+  if (visitDate) await assertVisitDateInCity(tripId, place.city_id, visitDate)
+
+  await transaction(async (client) => {
+    // FOR UPDATE держит строки города до конца транзакции: без блокировки два
+    // одновременных переноса могли бы разъехаться в перенумерации позиций.
+    const current = await client.query('SELECT id, visit_date::text, position FROM places WHERE city_id=$1 FOR UPDATE', [place.city_id])
+    for (const update of reorderPlaces(current.rows, placeId, visitDate, position)) {
+      await client.query('UPDATE places SET visit_date=$2, position=$3, updated_at=now() WHERE id=$1', [update.id, update.visit_date, update.position])
+    }
+  })
+
+  const places = await db.query('SELECT * FROM places WHERE city_id=$1 ORDER BY visit_date NULLS FIRST, position', [place.city_id])
+  return { places: places.rows }
+})
+
 app.post(`${apiPrefix}/trips/:tripId/tasks`, async (request, reply) => {
   const user = await requireUser(request)
   const { tripId } = request.params as { tripId: string }
