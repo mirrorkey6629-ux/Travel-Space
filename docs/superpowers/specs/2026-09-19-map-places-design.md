@@ -149,7 +149,7 @@ ALTER TABLE places ADD COLUMN IF NOT EXISTS icon text NOT NULL DEFAULT 'default'
 
 - Добавляются `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`.
 - `.env` и `.env.example`: `VITE_GOOGLE_MAPS_MAP_ID`, значение `a906a0e6ca962cd2c1e96f72`.
-- `VITE_GOOGLE_MAPS_API_KEY` сейчас пуст; без него карта продолжает работать в режиме iframe-заглушки, а поиск и маркеры недоступны. Значение должен положить владелец проекта.
+- `VITE_GOOGLE_MAPS_API_KEY` и `VITE_GOOGLE_MAPS_MAP_ID` заданы в локальном `.env`, который не хранится в Git. В `.env.example` обе переменные остаются пустыми шаблонами с комментариями.
 - Map ID и переменная пробрасываются в `Dockerfile` и `compose.yaml` рядом с существующим ключом.
 - В Google Cloud должны быть включены Maps JavaScript API и Places API (New), на обоих стоит поставить ограничение квоты, чтобы не выйти за бесплатный лимит.
 
