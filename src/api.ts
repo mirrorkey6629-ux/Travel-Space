@@ -10,6 +10,7 @@ export type ApiTripSummary = {
   name: string
   start_date: string
   end_date: string
+  time_zone: string
   role: ApiRole
   background_removed?: boolean
   background_document_id?: string | null
@@ -36,8 +37,16 @@ export type ApiCity = {
   transport_out_type: TransportType | null
   transport_in_departure_time: string
   transport_in_arrival_time: string
+  transport_in_departure_date: string
+  transport_in_arrival_date: string
+  transport_in_departure_time_zone: string
+  transport_in_arrival_time_zone: string
   transport_out_departure_time: string
   transport_out_arrival_time: string
+  transport_out_departure_date: string
+  transport_out_arrival_date: string
+  transport_out_departure_time_zone: string
+  transport_out_arrival_time_zone: string
   transport_in_departure_station: string
   transport_in_departure_station_url: string
   transport_in_arrival_station: string
@@ -108,6 +117,7 @@ export type ApiTripDetails = ApiTripSummary & {
   day_notes: ApiDayNote[]
   documents: ApiDocument[]
   members: ApiMember[]
+  member_count?: number
 }
 
 export const session = {
@@ -150,10 +160,13 @@ export const api = {
   downloadAvatar: () => checkedResponse('/me/avatar').then((response) => response.blob()),
   trips: () => request<{ trips: ApiTripSummary[] }>('/trips'),
   trip: (id: string) => request<{ trip: ApiTripDetails }>(`/trips/${id}`),
-  createTrip: (value: { name: string; startDate: string; endDate: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>('/trips', json('POST', value)),
-  updateTrip: (id: string, value: { name: string; startDate: string; endDate: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),
+  createTrip: (value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>('/trips', json('POST', value)),
+  updateTrip: (id: string, value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),
   deleteTrip: (id: string, confirmation: string) => request<void>(`/trips/${id}`, json('DELETE', { confirmation })),
   createInvitation: (id: string, expiresInHours: number) => request<{ invitation: { id: string; url: string; expiresAt: string } }>(`/trips/${id}/invitations`, json('POST', { expiresInHours })),
+  viewLink: (id: string) => request<{ viewLink: { url: string } }>(`/trips/${id}/view-link`),
+  publicTrip: (token: string) => request<{ trip: ApiTripDetails }>(`/public-trips/${encodeURIComponent(token)}`),
+  downloadPublicDocument: (token: string, documentId: string) => checkedResponse(`/public-trips/${encodeURIComponent(token)}/documents/${documentId}`).then((response) => response.blob()),
   removeMember: (tripId: string, memberId: string) => request<void>(`/trips/${tripId}/members/${memberId}`, { method: 'DELETE' }),
   downloadMemberAvatar: (tripId: string, memberId: string) => checkedResponse(`/trips/${tripId}/members/${memberId}/avatar`).then((response) => response.blob()),
   exportTrip: async (tripId: string) => {
