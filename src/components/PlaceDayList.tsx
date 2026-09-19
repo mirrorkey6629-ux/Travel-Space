@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { DndContext, MeasuringStrategy, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent } from '@dnd-kit/core'
-import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { placeIconUrl, type PlaceIconKey } from '../placeIcons'
 import { UNSCHEDULED_KEY } from '../places'
 
@@ -107,18 +107,29 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
     if (!from || !to) return
     const moved = (base[from] ?? []).find((place) => place.id === movedId)
     if (!moved) return
-    const withoutMoved = (base[from] ?? []).filter((place) => place.id !== movedId)
-    const targetBase = from === to ? withoutMoved : [...(base[to] ?? [])]
-    // Курсор ниже середины точки — встаём после неё, выше — перед ней.
-    const overIndex = dayKeys.includes(overId) ? targetBase.length : targetBase.findIndex((place) => place.id === overId)
-    const translated = active.rect.current.translated
-    const below = !!(translated && over.rect && translated.top > over.rect.top + over.rect.height / 2)
-    const index = overIndex < 0 ? targetBase.length : overIndex + (below ? 1 : 0)
-    const inserted = [...targetBase.slice(0, index), moved, ...targetBase.slice(index)]
     const next: Record<string, ListPlace[]> = {}
     for (const key of dayKeys) next[key] = base[key] ?? []
-    next[from] = from === to ? inserted : withoutMoved
-    next[to] = inserted
+
+    if (from === to) {
+      // Внутри дня действует обычная семантика сортировки: навёл на соседа —
+      // занял его место. Правило «ниже середины» здесь требовало протащить
+      // строку почти на полторы её высоты, и при двух точках попасть в это
+      // окно было практически невозможно.
+      const list = base[from] ?? []
+      const activeIndex = list.findIndex((place) => place.id === movedId)
+      const overIndex = dayKeys.includes(overId) ? list.length - 1 : list.findIndex((place) => place.id === overId)
+      if (activeIndex < 0 || overIndex < 0 || activeIndex === overIndex) return
+      next[from] = arrayMove(list, activeIndex, overIndex)
+    } else {
+      const toItems = base[to] ?? []
+      // В чужой день вставляем по курсору: ниже середины точки — после неё, выше — перед.
+      const overIndex = dayKeys.includes(overId) ? toItems.length : toItems.findIndex((place) => place.id === overId)
+      const translated = active.rect.current.translated
+      const below = !!(translated && over.rect && translated.top > over.rect.top + over.rect.height / 2)
+      const index = overIndex < 0 ? toItems.length : overIndex + (below ? 1 : 0)
+      next[from] = (base[from] ?? []).filter((place) => place.id !== movedId)
+      next[to] = [...toItems.slice(0, index), moved, ...toItems.slice(index)]
+    }
     // Без этой отсечки каждое движение мыши перерисовывало бы весь список заново.
     if (sameOrder(next, base)) return
     setPreview(next)
