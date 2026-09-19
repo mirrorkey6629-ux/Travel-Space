@@ -15,7 +15,8 @@
     "build:api": "pnpm --dir apps/api build",
     "build:all": "pnpm build && pnpm build:api",
     "preview": "vite preview",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -b --pretty false",
+    "test": "vitest run"
   },
   "devDependencies": {
     "@types/react": "latest",
@@ -24,7 +25,8 @@
     "react": "latest",
     "react-dom": "latest",
     "typescript": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "vitest": "^5.0.1"
   },
   "engines": {
     "node": ">=22"
