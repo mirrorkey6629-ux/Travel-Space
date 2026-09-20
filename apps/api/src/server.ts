@@ -26,6 +26,12 @@ const optionalCoordinate = (value: unknown, min: number, max: number) => {
   if (!Number.isFinite(number) || number < min || number > max) throw httpError(400, 'Некорректные координаты места')
   return number
 }
+const optionalRubles = (value: unknown) => {
+  if (value === undefined || value === null || value === '') return undefined
+  const number = Number(value)
+  if (!Number.isSafeInteger(number) || number < 0 || number > 1_000_000_000) throw httpError(400, 'Некорректная сумма оплаты')
+  return number
+}
 const datePattern = /^\d{4}-\d{2}-\d{2}$/
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 // V8 кладёт в стек регулярных выражений кадр на каждый повтор группы, поэтому
@@ -55,6 +61,9 @@ async function validatedCityAssignees(tripId: string, body: Json) {
     ticketAssigneeIds: parse(body.ticketAssigneeIds),
     hotelAssigneeIds: parse(body.hotelAssigneeIds),
     planAssigneeIds: parse(body.planAssigneeIds),
+    hotelPayerIds: parse(body.hotelPayerIds),
+    transportInPayerIds: parse(body.transportInPayerIds),
+    transportOutPayerIds: parse(body.transportOutPayerIds),
   }
   const ids = [...new Set(Object.values(result).flatMap((value) => value ?? []))]
   if (ids.some((id) => !uuidPattern.test(id))) throw httpError(400, 'Некорректный ответственный')
@@ -507,7 +516,7 @@ app.get(`${apiPrefix}/public-trips/:token`, async (request) => {
     trip: {
       ...trip,
       role: 'member',
-      cities: cities.rows.map(({ created_by: _createdBy, updated_by: _updatedBy, ...city }) => ({ ...city, train_in: '', train_out: '', ticket_assignee_ids: [], hotel_assignee_ids: [], plan_assignee_ids: [] })),
+      cities: cities.rows.map(({ created_by: _createdBy, updated_by: _updatedBy, ...city }) => ({ ...city, train_in: '', train_out: '', ticket_assignee_ids: [], hotel_assignee_ids: [], plan_assignee_ids: [], hotel_payer_ids: [], transport_in_payer_ids: [], transport_out_payer_ids: [] })),
       places: places.rows.map(({ created_by: _createdBy, updated_by: _updatedBy, ...place }) => place),
       tasks: tasks.rows.map(({ created_by: _createdBy, updated_by: _updatedBy, ...task }) => task),
       day_notes: dayNotes.rows,
@@ -542,7 +551,10 @@ app.delete(`${apiPrefix}/trips/:tripId/members/:memberId`, async (request, reply
       `UPDATE cities SET
          ticket_assignee_ids=array_remove(ticket_assignee_ids,$2::uuid),
          hotel_assignee_ids=array_remove(hotel_assignee_ids,$2::uuid),
-         plan_assignee_ids=array_remove(plan_assignee_ids,$2::uuid)
+         plan_assignee_ids=array_remove(plan_assignee_ids,$2::uuid),
+         hotel_payer_ids=array_remove(hotel_payer_ids,$2::uuid),
+         transport_in_payer_ids=array_remove(transport_in_payer_ids,$2::uuid),
+         transport_out_payer_ids=array_remove(transport_out_payer_ids,$2::uuid)
        WHERE trip_id=$1`,
       [tripId, memberId],
     )
@@ -628,7 +640,8 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
        hotel_url=coalesce($26,hotel_url), hotel_check_in_time=coalesce($27,hotel_check_in_time), hotel_check_out_time=coalesce($28,hotel_check_out_time),
        hotel_notes=coalesce($29,hotel_notes), transport_in_notes=coalesce($30,transport_in_notes), transport_out_notes=coalesce($31,transport_out_notes),
        transport_in_ticket_on_site=coalesce($32,transport_in_ticket_on_site), transport_out_ticket_on_site=coalesce($33,transport_out_ticket_on_site),
-       ticket_assignee_ids=$34, hotel_assignee_ids=$35, plan_assignee_ids=$36, updated_at=now()
+       ticket_assignee_ids=$34, hotel_assignee_ids=$35, plan_assignee_ids=$36,
+       hotel_payer_ids=$37, hotel_total_amount_rubles=coalesce($38,hotel_total_amount_rubles), updated_at=now()
      WHERE id=$1 AND trip_id=$2 RETURNING *`,
     [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut),
       optionalText(body.transportInType), optionalText(body.transportOutType), optionalText(body.transportInDepartureTime), optionalText(body.transportInArrivalTime),
@@ -640,7 +653,9 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
       (body.transportOutType ?? current.transport_out_type) === 'plane' ? false : typeof body.transportOutTicketOnSite === 'boolean' ? body.transportOutTicketOnSite : null,
       assignees.ticketAssigneeIds === undefined ? current.ticket_assignee_ids : assignees.ticketAssigneeIds,
       (typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed) ? [] : assignees.hotelAssigneeIds === undefined ? current.hotel_assignee_ids : assignees.hotelAssigneeIds,
-      assignees.planAssigneeIds === undefined ? current.plan_assignee_ids : assignees.planAssigneeIds],
+      assignees.planAssigneeIds === undefined ? current.plan_assignee_ids : assignees.planAssigneeIds,
+      assignees.hotelPayerIds === undefined ? current.hotel_payer_ids : assignees.hotelPayerIds,
+      optionalRubles(body.hotelTotalAmountRubles)],
   )
   const scheduled = await db.query(
     `UPDATE cities SET
@@ -648,9 +663,15 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
        transport_in_departure_time_zone=coalesce($5,transport_in_departure_time_zone), transport_in_arrival_time_zone=coalesce($6,transport_in_arrival_time_zone),
        transport_out_departure_date=coalesce($7,transport_out_departure_date), transport_out_arrival_date=coalesce($8,transport_out_arrival_date),
        transport_out_departure_time_zone=coalesce($9,transport_out_departure_time_zone), transport_out_arrival_time_zone=coalesce($10,transport_out_arrival_time_zone),
-       transport_in_name=coalesce($11,transport_in_name), transport_out_name=coalesce($12,transport_out_name)
+       transport_in_name=coalesce($11,transport_in_name), transport_out_name=coalesce($12,transport_out_name),
+       transport_in_payer_ids=$13, transport_out_payer_ids=$14,
+       transport_in_total_amount_rubles=coalesce($15,transport_in_total_amount_rubles),
+       transport_out_total_amount_rubles=coalesce($16,transport_out_total_amount_rubles)
      WHERE id=$1 AND trip_id=$2 RETURNING *`,
-    [cityId, tripId, optionalText(body.transportInDepartureDate), optionalText(body.transportInArrivalDate), optionalText(body.transportInDepartureTimeZone), optionalText(body.transportInArrivalTimeZone), optionalText(body.transportOutDepartureDate), optionalText(body.transportOutArrivalDate), optionalText(body.transportOutDepartureTimeZone), optionalText(body.transportOutArrivalTimeZone), optionalText(body.transportInName), optionalText(body.transportOutName)],
+    [cityId, tripId, optionalText(body.transportInDepartureDate), optionalText(body.transportInArrivalDate), optionalText(body.transportInDepartureTimeZone), optionalText(body.transportInArrivalTimeZone), optionalText(body.transportOutDepartureDate), optionalText(body.transportOutArrivalDate), optionalText(body.transportOutDepartureTimeZone), optionalText(body.transportOutArrivalTimeZone), optionalText(body.transportInName), optionalText(body.transportOutName),
+      assignees.transportInPayerIds === undefined ? current.transport_in_payer_ids : assignees.transportInPayerIds,
+      assignees.transportOutPayerIds === undefined ? current.transport_out_payer_ids : assignees.transportOutPayerIds,
+      optionalRubles(body.transportInTotalAmountRubles), optionalRubles(body.transportOutTotalAmountRubles)],
   )
   return { city: scheduled.rows[0] ?? result.rows[0] }
 })

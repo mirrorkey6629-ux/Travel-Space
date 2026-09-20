@@ -136,13 +136,15 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .info-row-copy > span { min-width: 0; display: block; color: var(--color-text-secondary); font-size: var(--type-text-size); line-height: var(--type-text-line-height); font-weight: var(--type-text-weight); letter-spacing: var(--type-text-letter-spacing); }
 .info-row-metadata { min-width: 0; display: block; overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: var(--type-text-weight); }
 .info-row-trigger { cursor: pointer; }
+.info-row-disabled { opacity: .42; }
+.info-row-disabled .info-row-trigger, .info-row-disabled .info-row-actions button { cursor: not-allowed; }
 .info-row-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
 .add-row { width: 100%; min-height: 60px; height: 60px; padding: 18px; border: 0; border-radius: 16px; color: #fff; background: var(--glass-soft); display: grid; place-items: center; cursor: pointer; transition: background .15s, opacity .15s; }
 .add-row:hover:not(:disabled) { background: rgba(255,255,255,.23); }
 .add-row:disabled { opacity: .4; cursor: not-allowed; }
 .trips-import-link { margin-top: 36px; }
 .profile-screen { display: grid; place-items: center; padding: 40px; }
-.profile-card-screen { position: relative; z-index: 1; width: min(560px, 100%); max-height: calc(100vh - 80px); padding: 48px 72px; border-radius: 24px; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; align-items: center; gap: 28px; }
+.profile-card-screen { position: relative; z-index: 1; width: min(680px, 100%); max-height: calc(100vh - 80px); padding: 48px 72px; border-radius: 24px; overflow-y: auto; scrollbar-width: none; display: flex; flex-direction: column; align-items: center; gap: 28px; }
 .profile-card-screen::-webkit-scrollbar { display: none; }
 .profile-card-screen h1 { margin: 0; font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
 .profile-avatar-button { position: relative; width: 200px; height: 200px; flex: 0 0 200px; padding: 0; overflow: hidden; border-radius: 50%; background: transparent; }
@@ -172,7 +174,6 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .invite-result { display: flex; flex-direction: column; gap: 8px; }
 .invite-result .form-control input { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .invite-result small { color: var(--color-text-secondary); }
-.invite-divider { height: 1px; background: rgba(255,255,255,.18); }
 .member-list { display: flex; flex-direction: column; gap: 8px; }
 .member-row { min-height: 64px; padding: 10px 12px 10px 16px; border-radius: 16px; background: var(--glass-soft); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .member-row > div:first-child { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -189,6 +190,10 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .invite-screen-card > .ui-button { width: 100%; }
 .invite-screen-card .field { text-align: left; }
 .invite-screen-card > .typography-group { text-align: center; }
+.invite-screen-card .member-list + .typography-group,
+.invite-screen-card > .ui-button + .typography-group { margin-top: 4px; }
+.invite-screen-card > .typography-group + .ui-button,
+.invite-screen-card > .typography-group + .invite-result { margin-top: -12px; }
 .city-row:disabled { opacity: 1; cursor: default; }
 .day-description.read-only textarea { cursor: default; }
 .day-description.read-only:focus-within { background: var(--glass-soft); }
@@ -196,6 +201,9 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .day-places a { color: inherit; text-decoration: none; }
 .day-places a:hover { color: var(--color-text-primary); }
 .setup-screen { display: grid; place-items: center; padding: 40px; }
+.setup-editor-content { width: min(680px, 100%); height: calc(100vh - 80px); min-height: 0; display: flex; flex-direction: column; gap: 16px; }
+.setup-editor-content > .setup-card { width: 100%; max-height: none; min-height: 0; flex: 1 1 auto; }
+.setup-editor-content > .ui-button { width: 100%; flex: 0 0 auto; }
 .setup-card { --setup-pad-x: 120px; --setup-pad-y: 48px; position: relative; width: min(680px, 100%); max-height: calc(100vh - 80px); overflow: auto; scrollbar-width: none; border-radius: 24px; padding: var(--setup-pad-y) var(--setup-pad-x); display: flex; flex-direction: column; gap: 28px; text-align: center; }
 .setup-card::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .setup-card.editing-all { overflow: hidden; padding: 0; }
@@ -256,6 +264,12 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .transport-dialog { width: 100%; }
 .transport-editor-card { min-height: 0; flex: 1 1 auto; padding: 48px; overflow-y: auto; scrollbar-width: none; border-radius: 24px; }
 .transport-editor-card::-webkit-scrollbar { display: none; width: 0; height: 0; }
+.dialog-fields.hotel-editor-fields { gap: 8px; }
+.dialog-fields.hotel-details-fields { gap: 8px; }
+.hotel-time-fields { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.hotel-time-fields .field { gap: 8px; }
+.hotel-location-fields { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
+.hotel-notes-group .form-textarea { min-height: 132px; }
 
 /* Поля диалогов завёрнуты в fieldset: нативный disabled гасит разом все контролы
    внутри, поэтому новое поле нельзя забыть закрыть. Собственное оформление
@@ -312,6 +326,13 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .transport-route-headings .transport-duration { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
 .transport-notes-group { order: 1; margin-top: 16px; }
 .transport-stack-fields .form-textarea { min-height: 132px; }
+.transport-payment-group { display: flex; min-width: 0; flex-direction: column; margin-top: 16px; }
+.transport-payment-group > h3 { margin: 0 0 12px; }
+.transport-payment-fields { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.transport-payment-amount input { appearance: textfield; -moz-appearance: textfield; }
+.transport-payment-amount input::-webkit-inner-spin-button,
+.transport-payment-amount input::-webkit-outer-spin-button { margin: 0; appearance: none; -webkit-appearance: none; }
+.transport-payment-share { margin: 8px 0 0; color: var(--color-text-secondary); text-align: left; font-size: 13px; line-height: 18px; }
 .transport-completion-hint { margin: 24px 0 0; color: var(--color-text-secondary); text-align: center; font-size: 13px; line-height: 18px; }
 .transport-route-group > h3 { margin: 0; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); letter-spacing: var(--type-head-m-letter-spacing); }
 .transport-route-grid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -498,6 +519,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .links-card h3 button .ui-icon { margin: auto; }
 .links-card .divider { margin: 20px 0; }
 .links-card p { margin: 0 0 10px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
+.links-card > .ui-button { width: 100%; margin-top: 28px; }
 .profile-card { display: flex; flex-direction: column; gap: 20px; }
 .profile-card .profile-info-row { width: 100%; min-height: 54px; padding: 0; border-radius: 0; background: transparent; }
 .profile-card .profile-info-row .info-row-content { width: 100%; }
@@ -507,6 +529,14 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .document-row + .document-row { margin-top: 4px; }
 .document-check { position: relative; width: 17px; height: 17px; flex: 0 0 17px; border: 1.5px solid rgba(255,255,255,.72); border-radius: 4px; }
 .document-check.checked { border-color: #fff; background: #fff; }
+.expenses-screen-content { height: calc(100dvh - 80px); }
+.expenses-card { display: flex; flex-direction: column; gap: 28px; }
+.expenses-card > .typography-group { text-align: center; }
+.expenses-group { display: flex; flex-direction: column; gap: 12px; }
+.expenses-group h2 { margin: 0; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
+.expenses-list { display: flex; flex-direction: column; gap: 8px; }
+.expense-row { min-height: 92px; }
+.expenses-empty { margin: auto 0; color: var(--color-text-secondary); font-size: var(--type-text-size); text-align: center; }
 .document-check.checked::after { content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 8px; border: solid #000; border-width: 0 2px 2px 0; transform: translate(-50%, -58%) rotate(45deg); transform-origin: center; }
 .calendar-column { min-width: 0; min-height: 0; height: 100vh; padding: 32px 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 20px; }
 .sidebar, .calendar-column { scrollbar-width: none; }
@@ -573,7 +603,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .city-day .place-row:hover .place-row-handle, .city-day .place-row:focus-visible .place-row-handle { opacity: .75; }
 .city-day .place-row.is-dragging .place-row-handle { opacity: .75; cursor: grabbing; }
 .city-route-content { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.city-map { min-height: 300px; flex: 1; margin-bottom: 12px; overflow: hidden; border-radius: 16px; background: rgba(255,255,255,.1); }
+.city-map { min-height: 300px; flex: 1; overflow: hidden; border-radius: 16px; background: rgba(255,255,255,.1); }
 .city-map iframe { display: block; width: 100%; height: 100%; border: 0; }
 .google-map-picker { width: 100%; height: 100%; min-height: 300px; }
 .upload-button { margin-top: 12px; min-height: 52px; border-radius: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; background: var(--glass-soft); cursor: pointer; }
@@ -586,6 +616,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
   .choice-card { height: 180px; }
   .auth-modal { width: calc(100% - 40px); padding: 32px 24px; }
   .setup-card { --setup-pad-x: 24px; --setup-pad-y: 48px; }
+  .setup-editor-content { height: calc(100dvh - 40px); }
   .transport-editor-card { padding: 48px 24px; }
   .trips-card { --trips-pad-x: 24px; --trips-pad-y: 48px; }
   .dashboard { height: auto; min-height: 100vh; overflow: visible; padding: 20px; grid-template-columns: 1fr; }
@@ -610,6 +641,8 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
   .transport-fields { grid-template-columns: 1fr; }
   .transport-mode-grid { grid-template-columns: 1fr; }
   .transport-route-grid { grid-template-columns: 1fr; }
+  .transport-payment-fields { grid-template-columns: 1fr; }
+  .hotel-time-fields { grid-template-columns: 1fr; }
   .transport-dialog .ui-tabs { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .transport-editor-screen { padding: 88px 20px 20px; }
   .transport-editor-content { height: calc(100dvh - 108px); }

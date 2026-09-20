@@ -22,8 +22,8 @@ import { AccessContext, tripAccess, useAccess } from './tripAccess'
 type Place = { id: string; name: string; url: string; icon: PlaceIconKey; latitude?: number; longitude?: number }
 type Task = { id: string; title: string; done: boolean }
 type TravelFile = { id: string; name: string; category: string; uploadedBy?: string; uploadedAt?: string }
-type HotelDetails = { name: string; url: string; checkInTime: string; checkOutTime: string; notes: string }
-type TransportDetails = { type?: TransportType; name: string; departureDate: string; arrivalDate: string; departureTime: string; arrivalTime: string; departureTimeZone: string; arrivalTimeZone: string; departureStation: string; departureStationUrl: string; arrivalStation: string; arrivalStationUrl: string; notes: string; ticketOnSite: boolean }
+type HotelDetails = { name: string; url: string; checkInTime: string; checkOutTime: string; notes: string; payerIds: string[]; totalAmountRubles: number }
+type TransportDetails = { type?: TransportType; name: string; departureDate: string; arrivalDate: string; departureTime: string; arrivalTime: string; departureTimeZone: string; arrivalTimeZone: string; departureStation: string; departureStationUrl: string; arrivalStation: string; arrivalStationUrl: string; notes: string; ticketOnSite: boolean; payerIds: string[]; totalAmountRubles: number }
 type TripMember = { id: string; email: string; displayName: string; role: 'owner' | 'member'; hasAvatar?: boolean; avatarUrl?: string }
 type CurrentUser = { id: string; email: string; displayName: string; hasAvatar: boolean; avatarUrl?: string }
 type DayPeriod = 'morning' | 'day' | 'evening'
@@ -40,6 +40,8 @@ type City = {
   hotelCheckInTime: string
   hotelCheckOutTime: string
   hotelNotes: string
+  hotelPayerIds: string[]
+  hotelTotalAmountRubles: number
   trainIn: string
   trainOut: string
   transportIn: TransportDetails
@@ -230,10 +232,12 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
       hotelCheckInTime: city.hotel_check_in_time ?? '',
       hotelCheckOutTime: city.hotel_check_out_time ?? '',
       hotelNotes: city.hotel_notes ?? '',
+      hotelPayerIds: city.hotel_payer_ids ?? [],
+      hotelTotalAmountRubles: city.hotel_total_amount_rubles ?? 0,
       trainIn,
       trainOut,
-      transportIn: { type: city.transport_in_type ?? undefined, name: city.transport_in_name ?? '', departureDate: city.transport_in_departure_date, arrivalDate: city.transport_in_arrival_date, departureTime: city.transport_in_departure_time, arrivalTime: city.transport_in_arrival_time, departureTimeZone: city.transport_in_departure_time_zone, arrivalTimeZone: city.transport_in_arrival_time_zone, departureStation: city.transport_in_departure_station, departureStationUrl: city.transport_in_departure_station_url, arrivalStation: city.transport_in_arrival_station, arrivalStationUrl: city.transport_in_arrival_station_url, notes: city.transport_in_notes ?? '', ticketOnSite: Boolean(city.transport_in_ticket_on_site) },
-      transportOut: { type: city.transport_out_type ?? undefined, name: city.transport_out_name ?? '', departureDate: city.transport_out_departure_date, arrivalDate: city.transport_out_arrival_date, departureTime: city.transport_out_departure_time, arrivalTime: city.transport_out_arrival_time, departureTimeZone: city.transport_out_departure_time_zone, arrivalTimeZone: city.transport_out_arrival_time_zone, departureStation: city.transport_out_departure_station, departureStationUrl: city.transport_out_departure_station_url, arrivalStation: city.transport_out_arrival_station, arrivalStationUrl: city.transport_out_arrival_station_url, notes: city.transport_out_notes ?? '', ticketOnSite: Boolean(city.transport_out_ticket_on_site) },
+      transportIn: { type: city.transport_in_type ?? undefined, name: city.transport_in_name ?? '', departureDate: city.transport_in_departure_date, arrivalDate: city.transport_in_arrival_date, departureTime: city.transport_in_departure_time, arrivalTime: city.transport_in_arrival_time, departureTimeZone: city.transport_in_departure_time_zone, arrivalTimeZone: city.transport_in_arrival_time_zone, departureStation: city.transport_in_departure_station, departureStationUrl: city.transport_in_departure_station_url, arrivalStation: city.transport_in_arrival_station, arrivalStationUrl: city.transport_in_arrival_station_url, notes: city.transport_in_notes ?? '', ticketOnSite: Boolean(city.transport_in_ticket_on_site), payerIds: city.transport_in_payer_ids ?? [], totalAmountRubles: city.transport_in_total_amount_rubles ?? 0 },
+      transportOut: { type: city.transport_out_type ?? undefined, name: city.transport_out_name ?? '', departureDate: city.transport_out_departure_date, arrivalDate: city.transport_out_arrival_date, departureTime: city.transport_out_departure_time, arrivalTime: city.transport_out_arrival_time, departureTimeZone: city.transport_out_departure_time_zone, arrivalTimeZone: city.transport_out_arrival_time_zone, departureStation: city.transport_out_departure_station, departureStationUrl: city.transport_out_departure_station_url, arrivalStation: city.transport_out_arrival_station, arrivalStationUrl: city.transport_out_arrival_station_url, notes: city.transport_out_notes ?? '', ticketOnSite: Boolean(city.transport_out_ticket_on_site), payerIds: city.transport_out_payer_ids ?? [], totalAmountRubles: city.transport_out_total_amount_rubles ?? 0 },
       ticketAssigneeIds: city.ticket_assignee_ids ?? [],
       hotelAssigneeIds: city.hotel_assignee_ids ?? [],
       planAssigneeIds: city.plan_assignee_ids ?? [],
@@ -500,7 +504,6 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
       <GalaxyBackground />
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
       <form className="glass profile-card-screen" onSubmit={submit}>
-        <h1>Профиль</h1>
         <button className="profile-avatar-button" type="button" disabled={!access.canEdit} onClick={() => avatarInputRef.current?.click()} aria-label="Загрузить новый аватар">
           <img className="profile-avatar" src={avatarUrl} alt="Аватар профиля" />
           <span className="profile-avatar-overlay"><Icon name="edit" size={32} /></span>
@@ -604,19 +607,17 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
         ? <div className="member-list">{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={!isOwner || member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</div>
         : <p>Не удалось загрузить список участников.</p>}
       {isOwner && <>
-        <div className="invite-divider" />
         <TypographyGroup headingLevel="h2" variant="head-m-text" title="Ссылка-приглашение" text="Ссылка действует 24 часа. Новая ссылка сразу отключит предыдущую. Все вошедшие по ней станут гостями." />
-        {invite && <div className="invite-result"><Input readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /><small>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</small></div>}
+        {invite && <div className="invite-result"><Input label="Активная ссылка" icon={<Icon name="link" />} readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /><small>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</small></div>}
         <Button size="l" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(24)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button>
-        <div className="invite-divider" />
         <TypographyGroup headingLevel="h2" variant="head-m-text" title="Доступ на просмотр" text={'Постоянная ссылка без присоединения к поездке и\u00a0возможности редактирования'} />
-        <div className="invite-result"><Input readOnly value={viewLink} placeholder="Загружаем ссылку…" trailingIcon={viewLink ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку на просмотр" onTrailingIconClick={viewLink ? () => void navigator.clipboard.writeText(viewLink) : undefined} /></div>
+        <div className="invite-result"><Input icon={<Icon name="link" />} readOnly value={viewLink} placeholder="Загружаем ссылку…" trailingIcon={viewLink ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку на просмотр" onTrailingIconClick={viewLink ? () => void navigator.clipboard.writeText(viewLink) : undefined} /></div>
       </>}
     </section>
   </main>
 }
 
-const emptyTransport = (): TransportDetails => ({ name: '', departureDate: '', arrivalDate: '', departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', departureStation: '', departureStationUrl: '', arrivalStation: '', arrivalStationUrl: '', notes: '', ticketOnSite: false })
+const emptyTransport = (): TransportDetails => ({ name: '', departureDate: '', arrivalDate: '', departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', departureStation: '', departureStationUrl: '', arrivalStation: '', arrivalStationUrl: '', notes: '', ticketOnSite: false, payerIds: [], totalAmountRubles: 0 })
 const transportPayload = (city: City) => ({
   transportInType: city.transportIn?.type,
   transportOutType: city.transportOut?.type,
@@ -646,12 +647,16 @@ const transportPayload = (city: City) => ({
   transportOutNotes: city.transportOut?.notes ?? '',
   transportInTicketOnSite: city.transportIn?.ticketOnSite ?? false,
   transportOutTicketOnSite: city.transportOut?.ticketOnSite ?? false,
+  transportInPayerIds: city.transportIn?.payerIds ?? [],
+  transportOutPayerIds: city.transportOut?.payerIds ?? [],
+  transportInTotalAmountRubles: city.transportIn?.totalAmountRubles ?? 0,
+  transportOutTotalAmountRubles: city.transportOut?.totalAmountRubles ?? 0,
 })
-const hotelPayload = (city: City) => ({ hotelNotNeeded: city.hotelNotNeeded, hotel: city.hotel, hotelUrl: city.hotelUrl, hotelCheckInTime: city.hotelCheckInTime ?? '', hotelCheckOutTime: city.hotelCheckOutTime ?? '', hotelNotes: city.hotelNotes ?? '' })
+const hotelPayload = (city: City) => ({ hotelNotNeeded: city.hotelNotNeeded, hotel: city.hotel, hotelUrl: city.hotelUrl, hotelCheckInTime: city.hotelCheckInTime ?? '', hotelCheckOutTime: city.hotelCheckOutTime ?? '', hotelNotes: city.hotelNotes ?? '', hotelPayerIds: city.hotelPayerIds ?? [], hotelTotalAmountRubles: city.hotelTotalAmountRubles ?? 0 })
 const assignmentPayload = (city: City) => ({ ticketAssigneeIds: city.ticketAssigneeIds, hotelAssigneeIds: city.hotelNotNeeded ? [] : city.hotelAssigneeIds, planAssigneeIds: city.planAssigneeIds })
-const emptyCity = (): City => ({ id: uid(), name: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotelNotNeeded: false, hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), ticketAssigneeIds: [], hotelAssigneeIds: [], planAssigneeIds: [], places: {}, tasks: [], files: [] })
+const emptyCity = (): City => ({ id: uid(), name: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotelNotNeeded: false, hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', hotelPayerIds: [], hotelTotalAmountRubles: 0, trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), ticketAssigneeIds: [], hotelAssigneeIds: [], planAssigneeIds: [], places: {}, tasks: [], files: [] })
 
-function AssigneeSelect({ members, value, icon, disabled, onChange }: { members: TripMember[]; value: string[]; icon: IconName; disabled?: boolean; onChange: (value: string[]) => void }) {
+function AssigneeSelect({ members, value, icon, disabled, emptyLabel = 'Не назначен', onChange }: { members: TripMember[]; value: string[]; icon: IconName; disabled?: boolean; emptyLabel?: string; onChange: (value: string[]) => void }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -666,7 +671,7 @@ function AssigneeSelect({ members, value, icon, disabled, onChange }: { members:
   return <div className={`member-multi-select${open ? ' open' : ''}`} ref={containerRef}>
     <button className="form-control member-multi-select-trigger" type="button" disabled={disabled} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
       <span className="form-control-icon"><Icon name={icon} /></span>
-      <span>{selectedNames.length ? selectedNames.join(', ') : 'Не назначен'}</span>
+      <span>{selectedNames.length ? selectedNames.join(', ') : emptyLabel}</span>
     </button>
     {open && <div className="member-multi-select-menu" role="listbox" aria-multiselectable="true">
       {members.map((member) => {
@@ -697,7 +702,9 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
   const cityLabel = city.name.trim() || 'Новый город'
   const ticketRouteLabel = previousCity ? `${previousCity.name} — ${cityLabel}` : 'Приезд'
   return (
-    <form className="city-editor-view setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
+    <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
+      <section className="glass setup-card">
+      <div className="city-editor-view">
       <div className="modal-title">
         <div>{!initial && <span className="eyebrow">Новая локация</span>}<h2>{initial ? city.name : 'Добавить город'}</h2></div>
         <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
@@ -713,7 +720,9 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
         <label className="city-hotel-toggle city-hotel-toggle-after-assignee span-2"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => setCity((current) => ({ ...current, hotelNotNeeded: event.target.checked, hotelAssigneeIds: event.target.checked ? [] : current.hotelAssigneeIds }))} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><SecondaryText>Отель не нужен</SecondaryText></label>
         <div className="field span-2"><span>Кто составляет план города ({cityLabel})</span><AssigneeSelect members={members} value={city.planAssigneeIds} icon="barefoot" disabled={!canAssign} onChange={(planAssigneeIds) => setCity((current) => ({ ...current, planAssigneeIds }))} /></div>
       </div>
-      <Button type="submit" disabled={!valid}>{initial ? 'Сохранить' : 'Добавить'}</Button>
+      </div>
+      </section>
+      <Button type="submit" disabled={!valid}>Сохранить город</Button>
     </form>
   )
 }
@@ -731,7 +740,9 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
   })
 
   return (
-    <form className="all-cities-editor setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(cities) }}>
+    <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(cities) }}>
+      <section className="glass setup-card editing-all">
+      <div className="all-cities-editor">
       <IconButton type="button" className="bulk-edit-button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть редактирование" />
       <div className="all-cities-scroll">
         <h2>Все города</h2>
@@ -754,8 +765,10 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
             )
           })}
         </div>
-        <Button type="submit" disabled={!valid}>Сохранить</Button>
       </div>
+      </div>
+      </section>
+      <Button type="submit" disabled={!valid}>Сохранить поездку</Button>
     </form>
   )
 }
@@ -786,12 +799,13 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
   return (
     <main className="screen trip-background setup-screen" style={tripBackgroundStyle(trip)}>
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onExit} aria-label="Назад" />
-      <section className={`glass setup-card${editingAll ? ' editing-all' : ''}`}>
-        {editingAll ? (
+      {editingAll ? (
           <AllCitiesEditor trip={trip} onClose={() => setEditingAll(false)} onSave={(cities) => { setTrip((current) => ({ ...current, cities: sortCitiesByDate(cities) })); setEditingAll(false) }} />
         ) : editing !== undefined ? (
           <CityEditor trip={trip} initial={editing ?? undefined} onSave={upsertCity} onClose={() => setEditing(undefined)} />
         ) : (
+          <div className="setup-editor-content">
+          <section className="glass setup-card">
           <div className="setup-content setup-transition">
             <div className="trip-fields">
               <input className="title-input" value={trip.name} onChange={(e) => setTrip((current) => ({ ...current, name: e.target.value }))} placeholder="Название поездки" />
@@ -812,10 +826,11 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
               <AddRow icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
               {trip.cities.length > 0 && <button className="route-overview-link" type="button" onClick={() => setEditingAll(true)}><SecondaryText interactive>Посмотреть весь маршрут</SecondaryText></button>}
             </div>
-            {trip.cities.length > 0 && <Button disabled={!trip.name.trim() || !access.canEdit} onClick={() => onCreate(trip)}>{initial ? 'Сохранить' : 'Создать'}</Button>}
+          </div>
+          </section>
+          {trip.cities.length > 0 && <Button disabled={!trip.name.trim() || !access.canEdit} onClick={() => onCreate(trip)}>Сохранить поездку</Button>}
           </div>
         )}
-      </section>
     </main>
   )
 }
@@ -844,7 +859,7 @@ const withAssignees = (label: string, ids: string[], members: TripMember[]) => {
 }
 const withTicketDetails = (label: string, ticketOnSite: boolean | undefined, ids: string[], members: TripMember[]) => ticketOnSite ? `${label} (покупаем на месте)` : withAssignees(label, ids, members)
 
-function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online, onCity, onHotel, onTransport, onEdit, onInvite, onTrips, onProfile }: { trip: Trip; user: CurrentUser | null; tripCount: number; selectedCityId?: string | null; cacheState: CacheState; online: boolean; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onEdit: () => void; onInvite: () => void; onTrips: () => void; onProfile: () => void }) {
+function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online, onCity, onHotel, onTransport, onExpenses, onEdit, onInvite, onTrips, onProfile }: { trip: Trip; user: CurrentUser | null; tripCount: number; selectedCityId?: string | null; cacheState: CacheState; online: boolean; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onExpenses: () => void; onEdit: () => void; onInvite: () => void; onTrips: () => void; onProfile: () => void }) {
   const access = useAccess()
   const daysLeft = Math.ceil((parseDate(trip.startDate).getTime() - new Date().getTime()) / 86400000)
   const isAdmin = user?.email.toLowerCase() === ADMIN_EMAIL
@@ -891,7 +906,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
         <TypographyGroup className="readiness-heading" title="Готовность к поездке" text={`${countdownText} · Готовность ${readinessPercent}%`} />
         {hotelCities.length > 0 && <><h3>Отели</h3>{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withAssignees(city.name, city.hotelAssigneeIds, members)}</DocumentStatus>)}</>}
         <h3 className={hotelCities.length > 0 ? 'readiness-transport-heading' : undefined}>Транспорт</h3>
-        {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}><TransportLabel label={withTicketDetails('Приезд', trip.cities[0].transportIn?.ticketOnSite, trip.cities[0].ticketAssigneeIds, members)} type={trip.cities[0].transportIn?.type} /></DocumentStatus>}
+        {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}><TransportLabel label={withTicketDetails(`Дом — ${trip.cities[0].name}`, trip.cities[0].transportIn?.ticketOnSite, trip.cities[0].ticketAssigneeIds, members)} type={trip.cities[0].transportIn?.type} /></DocumentStatus>}
         {trip.cities.slice(0, -1).map((city, index) => {
           const nextCity = trip.cities[index + 1]
           const checked = isTransportComplete(city.transportOut, city.trainOut) || isTransportComplete(nextCity.transportIn, nextCity.trainIn)
@@ -899,7 +914,8 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
           const ticketOnSite = city.transportOut?.ticketOnSite || nextCity.transportIn?.ticketOnSite
           return <DocumentStatus key={`${city.id}:${nextCity.id}`} checked={checked} onClick={() => onTransport(city, 'out')}><TransportLabel label={withTicketDetails(`${city.name} — ${nextCity.name}`, ticketOnSite, nextCity.ticketAssigneeIds, members)} type={type} /></DocumentStatus>
         })}
-        {trip.cities.at(-1) && <DocumentStatus checked={isTransportComplete(trip.cities.at(-1)!.transportOut, trip.cities.at(-1)!.trainOut)} onClick={() => onTransport(trip.cities.at(-1)!, 'out')}><TransportLabel label={withTicketDetails('Отъезд', trip.cities.at(-1)!.transportOut?.ticketOnSite, trip.cities.at(-1)!.ticketAssigneeIds, members)} type={trip.cities.at(-1)!.transportOut?.type} /></DocumentStatus>}
+        {trip.cities.at(-1) && <DocumentStatus checked={isTransportComplete(trip.cities.at(-1)!.transportOut, trip.cities.at(-1)!.trainOut)} onClick={() => onTransport(trip.cities.at(-1)!, 'out')}><TransportLabel label={withTicketDetails(`${trip.cities.at(-1)!.name} — Дом`, trip.cities.at(-1)!.transportOut?.ticketOnSite, trip.cities.at(-1)!.ticketAssigneeIds, members)} type={trip.cities.at(-1)!.transportOut?.type} /></DocumentStatus>}
+        <Button size="m" theme="secondary" onClick={onExpenses}>Посмотреть траты</Button>
       </section>}
       {user && <section className="glass sidebar-card profile-card">
         <InfoRow className="profile-info-row" image={user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`} imageAlt="Аватар профиля" imageShape="circle" title={user.displayName} subtitle={user.email} onClick={onProfile} />
@@ -909,6 +925,53 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
         </div>}
       </section>}
     </aside>
+  )
+}
+
+type TripExpense = { id: string; title: string; payerIds: string[]; totalAmountRubles: number; transportType?: TransportType }
+
+const hasExpense = (details: TransportDetails | undefined) => Boolean(details && details.totalAmountRubles > 0)
+const formatRubles = (value: number) => `${value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`
+
+function tripExpenses(trip: Trip): { hotels: TripExpense[]; transport: TripExpense[] } {
+  const hotels = trip.cities
+    .filter((city) => city.hotelTotalAmountRubles > 0)
+    .map((city) => ({ id: `hotel:${city.id}`, title: city.hotel.trim() || `Отель · ${city.name}`, payerIds: city.hotelPayerIds, totalAmountRubles: city.hotelTotalAmountRubles }))
+  const transport: TripExpense[] = []
+  const firstCity = trip.cities[0]
+  if (firstCity && hasExpense(firstCity.transportIn)) transport.push({ id: `transport-in:${firstCity.id}`, title: `Дом — ${firstCity.name}`, payerIds: firstCity.transportIn.payerIds, totalAmountRubles: firstCity.transportIn.totalAmountRubles, transportType: firstCity.transportIn.type })
+  trip.cities.slice(0, -1).forEach((city, index) => {
+    const nextCity = trip.cities[index + 1]
+    const details = hasExpense(city.transportOut) ? city.transportOut : nextCity.transportIn
+    if (!hasExpense(details)) return
+    transport.push({ id: `transport:${city.id}:${nextCity.id}`, title: `${city.name} — ${nextCity.name}`, payerIds: details.payerIds, totalAmountRubles: details.totalAmountRubles, transportType: details.type })
+  })
+  const lastCity = trip.cities.at(-1)
+  if (lastCity && hasExpense(lastCity.transportOut)) transport.push({ id: `transport-out:${lastCity.id}`, title: `${lastCity.name} — Дом`, payerIds: lastCity.transportOut.payerIds, totalAmountRubles: lastCity.transportOut.totalAmountRubles, transportType: lastCity.transportOut.type })
+  return { hotels, transport }
+}
+
+function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
+  const expenses = tripExpenses(trip)
+  const members = trip.members ?? []
+  const allExpenses = [...expenses.hotels, ...expenses.transport]
+  const expenseRow = (expense: TripExpense) => {
+    const payers = assigneeNames(expense.payerIds, members) || 'Плательщик не указан'
+    const share = expense.payerIds.length > 0 ? ` · по ${formatRubles(expense.totalAmountRubles / expense.payerIds.length)}` : ''
+    return <InfoRow key={expense.id} className="expense-row" title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} subtitle={`Заплатили: ${payers}${share}`} metadata={`Общая сумма ${formatRubles(expense.totalAmountRubles)}`} />
+  }
+  return (
+    <main className="transport-editor-screen trip-background setup-transition" style={tripBackgroundStyle(trip)}>
+      <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
+      <div className="transport-editor-content expenses-screen-content">
+        <section className="glass transport-editor-card expenses-card">
+          <TypographyGroup title="Траты" text={`Всего ${formatRubles(allExpenses.reduce((sum, expense) => sum + expense.totalAmountRubles, 0))}`} />
+          {allExpenses.length === 0 && <p className="expenses-empty">Трат пока нет</p>}
+          {expenses.hotels.length > 0 && <section className="expenses-group"><h2>Отели</h2><div className="expenses-list">{expenses.hotels.map(expenseRow)}</div></section>}
+          {expenses.transport.length > 0 && <section className="expenses-group"><h2>Транспорт</h2><div className="expenses-list">{expenses.transport.map(expenseRow)}</div></section>}
+        </section>
+      </div>
+    </main>
   )
 }
 
@@ -1055,7 +1118,7 @@ const documentMetadata = (file: TravelFile) => {
   return [file.uploadedBy, uploadedAt].filter(Boolean).join(' · ')
 }
 
-function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, ticketName, tickets, readOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; onSave: (value: TransportDetails) => void; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
+function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, readOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; onSave: (value: TransportDetails) => void; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
   const [draft, setDraft] = useState<TransportDetails>({ ...value, ticketOnSite: value.type === 'plane' ? false : value.ticketOnSite })
   const departureDateRef = useRef<HTMLInputElement>(null)
   const arrivalDateRef = useRef<HTMLInputElement>(null)
@@ -1065,6 +1128,8 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   const departureTimeZone = draft.departureTimeZone || defaultTimeZone
   const arrivalTimeZone = draft.arrivalTimeZone || defaultTimeZone
   const durationLabel = formatTravelDuration(draft.departureTime, draft.arrivalTime, draft.departureDate, draft.arrivalDate, departureTimeZone, arrivalTimeZone)
+  const journeyText = durationLabel ?? 'Тут появится время в пути'
+  const journeySummary = draft.type ? `${transportEmoji[draft.type]} ${journeyText}` : journeyText
   return (
     <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); onSave(draft) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
@@ -1083,9 +1148,9 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
               </div>
             </fieldset>
             <div className="transport-ticket-list">
-              {visibleTickets.map((ticket) => <InfoRow key={ticket.id} className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={ticket.name} subtitle={documentMetadata(ticket)} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }])]} />)}
-              {legacyTicketName && <InfoRow className="transport-ticket-row" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={legacyTicketName} />}
-              {ticketCount < 1 && !readOnly && <InfoRow className="transport-ticket-row transport-ticket-row-empty" image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
+              {visibleTickets.map((ticket) => <InfoRow key={ticket.id} className="transport-ticket-row" disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={ticket.name} subtitle={documentMetadata(ticket)} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }])]} />)}
+              {legacyTicketName && <InfoRow className="transport-ticket-row" disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={legacyTicketName} />}
+              {ticketCount < 1 && !readOnly && <InfoRow className="transport-ticket-row transport-ticket-row-empty" disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
             </div>
             <div className="transport-ticket-meta-row">
               <button className="transport-ticket-on-site" type="button" disabled={readOnly || draft.type === 'plane'} onClick={() => setDraft({ ...draft, ticketOnSite: !draft.ticketOnSite })}>
@@ -1098,7 +1163,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
             <div className="transport-route-layout">
               <div className="transport-route-headings">
                 <h3>{departureLabel} — {arrivalLabel}</h3>
-                {(draft.type || durationLabel) && <p className="transport-duration">{draft.type && <span className="transport-duration-emoji" aria-hidden="true">{transportEmoji[draft.type]}</span>}{durationLabel}</p>}
+                <p className="transport-duration">{journeySummary}</p>
               </div>
               <div className="transport-route-columns">
                 <section className="transport-route-group transport-route-arrival">
@@ -1122,6 +1187,14 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
             <section className="transport-route-group transport-notes-group">
               <h3>Что стоит помнить</h3>
               <Textarea aria-label="Заметки о транспорте" placeholder="Места, ориентиры и важная информация" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
+              <div className="transport-payment-group">
+                <h3>Оплата</h3>
+                <div className="transport-payment-fields">
+                  <AssigneeSelect members={members} value={draft.payerIds} icon="face" emptyLabel="Кто платил" onChange={(payerIds) => setDraft({ ...draft, payerIds })} />
+                  <Input showLabel={false} controlClassName="transport-payment-amount" aria-label="Общая сумма в рублях" icon={<Icon name="money-bag" />} type="number" min="0" max="1000000000" step="1" inputMode="numeric" placeholder="Общая сумма, ₽" value={draft.totalAmountRubles || ''} onChange={(event) => setDraft({ ...draft, totalAmountRubles: Math.max(0, Number.parseInt(event.target.value, 10) || 0) })} />
+                </div>
+                {draft.totalAmountRubles > 0 && draft.payerIds.length > 0 && <p className="transport-payment-share">По {(draft.totalAmountRubles / draft.payerIds.length).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ заплатил каждый</p>}
+              </div>
               <p className="transport-completion-hint">P.S. Галочка в меню появится после заполнения дат, времени, названий&nbsp;локаций&nbsp;и&nbsp;прикрепления&nbsp;билета</p>
             </section>
           </fieldset>
@@ -1133,31 +1206,48 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   )
 }
 
-function HotelDialog({ cityName, value, booking, readOnly = false, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; booking?: TravelFile; readOnly?: boolean; onSave: (value: HotelDetails) => void; onBooking: () => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
+function HotelDialog({ cityName, value, members, booking, readOnly = false, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; members: TripMember[]; booking?: TravelFile; readOnly?: boolean; onSave: (value: HotelDetails) => void; onBooking: () => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(value)
   return (
-    <div className="overlay" role="presentation">
-      <form className="glass modal editor transport-dialog hotel-dialog" role="dialog" aria-modal="true" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); onSave({ name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim() }) }}>
-        <div className="modal-title transport-dialog-title">
-          <div id="hotel-title"><TypographyGroup headingLevel="h2" title={`Отель ${cityName}`} text="Галочка в меню появится, когда все поля будут заполнены и появится файл с бронью отеля" /></div>
-          <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
-        </div>
-        <fieldset className="dialog-fields" disabled={readOnly}>
-        <div className="field-grid">
-          <Input label="Время заселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkInTime} onChange={(event) => setDraft({ ...draft, checkInTime: manualTime(event.target.value) })} />
-          <Input label="Время выселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkOutTime} onChange={(event) => setDraft({ ...draft, checkOutTime: manualTime(event.target.value) })} />
-          <Input icon={<Icon name="attractions" />} controlClassName="transport-wide" aria-label="Название отеля" placeholder="Название отеля" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoFocus />
-          <Input icon={<Icon name="add-pin" />} trailingIcon={draft.url.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.url.trim() ? () => void navigator.clipboard.writeText(draft.url.trim()) : undefined} controlClassName="transport-wide transport-link-input" aria-label="Ссылка на отель в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} />
-        </div>
-        </fieldset>
-        {(booking || !readOnly) && <div className={booking ? 'document-card-group' : ''}><InfoRow className={booking ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" title={booking ? 'Бронь отеля' : 'Прикрепить бронь'} subtitle={booking ? booking.name : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }])] : readOnly ? [] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />{booking && documentMetadata(booking) && <p className="document-card-metadata">{documentMetadata(booking)}</p>}</div>}
+    <form className="transport-editor-screen trip-background setup-transition" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); onSave({ name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim(), payerIds: draft.payerIds, totalAmountRubles: draft.totalAmountRubles }) }}>
+      <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
+      <div className="transport-editor-content">
+        <section className="glass editor transport-dialog transport-editor-card hotel-editor-card">
+          <div id="hotel-title" className="transport-dialog-title"><TypographyGroup headingLevel="h2" title={`Отель ${cityName}`} /></div>
+          <fieldset className="dialog-fields hotel-editor-fields" disabled={readOnly}>
+            <div className="hotel-time-fields">
+              <Input label="Время заселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkInTime} onChange={(event) => setDraft({ ...draft, checkInTime: manualTime(event.target.value) })} />
+              <Input label="Время выселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkOutTime} onChange={(event) => setDraft({ ...draft, checkOutTime: manualTime(event.target.value) })} />
+            </div>
+            <div className="hotel-location-fields">
+              <Input showLabel={false} icon={<Icon name="attractions" />} aria-label="Название отеля" placeholder="Название отеля" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoFocus />
+              <Input showLabel={false} icon={<Icon name="hotel" />} trailingIcon={draft.url.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.url.trim() ? () => void navigator.clipboard.writeText(draft.url.trim()) : undefined} controlClassName="transport-link-input" aria-label="Ссылка на отель в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} />
+            </div>
+          </fieldset>
+          {(booking || !readOnly) && <InfoRow className={booking ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" title={booking ? booking.name : 'Прикрепить бронь'} subtitle={booking ? documentMetadata(booking) : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }])] : readOnly ? [] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />}
+          <fieldset className="dialog-fields hotel-details-fields" disabled={readOnly}>
+            <section className="transport-route-group transport-notes-group hotel-notes-group">
+              <h3>Что стоит помнить</h3>
+              <Textarea aria-label="Заметки об отеле" placeholder="Места, ориентиры и важная информация" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
+              <div className="transport-payment-group">
+                <h3>Оплата</h3>
+                <div className="transport-payment-fields">
+                  <AssigneeSelect members={members} value={draft.payerIds} icon="face" emptyLabel="Кто платил" onChange={(payerIds) => setDraft({ ...draft, payerIds })} />
+                  <Input showLabel={false} controlClassName="transport-payment-amount" aria-label="Общая сумма за отель в рублях" icon={<Icon name="money-bag" />} type="number" min="0" max="1000000000" step="1" inputMode="numeric" placeholder="Общая сумма, ₽" value={draft.totalAmountRubles || ''} onChange={(event) => setDraft({ ...draft, totalAmountRubles: Math.max(0, Number.parseInt(event.target.value, 10) || 0) })} />
+                </div>
+                {draft.totalAmountRubles > 0 && draft.payerIds.length > 0 && <p className="transport-payment-share">По {(draft.totalAmountRubles / draft.payerIds.length).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ заплатил каждый</p>}
+              </div>
+            </section>
+          </fieldset>
+          <p className="transport-completion-hint">P.S. Галочка в меню появится, когда все поля будут заполнены и&nbsp;появится&nbsp;файл&nbsp;с&nbsp;бронью&nbsp;отеля</p>
+        </section>
         {!readOnly && <Button type="submit">Сохранить</Button>}
-      </form>
-    </div>
+      </div>
+    </form>
   )
 }
 
-function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; readOnly?: boolean; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onPanelClose: () => void; onClose: () => void }) {
+function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; readOnly?: boolean; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
   const [contentTransition, setContentTransition] = useState<'idle' | 'out' | 'in'>('idle')
   const [transportDirection, setTransportDirection] = useState<'in' | 'out' | null>(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
@@ -1346,14 +1436,15 @@ function CityPanel({ city, previousCity, nextCity, tripStartDate, tripEndDate, t
           </div>
         </div>
       </section>
-      {transportDirection && <TransportDialog readOnly={readOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : `Дом — ${draft.name}`) : (nextCity ? `${draft.name} — ${nextCity.name}` : `${draft.name} — Дом`)} departureLabel={transportDirection === 'in' ? previousCity?.name || 'Дом' : draft.name} arrivalLabel={transportDirection === 'in' ? draft.name : nextCity?.name || 'Дом'} defaultTimeZone={tripTimeZone} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
-      {hotelOpen && <HotelDialog readOnly={readOnly} cityName={draft.name} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes }; setDraft(next); onChange(next); setHotelOpen(false); onPanelClose() }} />}
+      {transportDirection && <TransportDialog readOnly={readOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : `Дом — ${draft.name}`) : (nextCity ? `${draft.name} — ${nextCity.name}` : `${draft.name} — Дом`)} departureLabel={transportDirection === 'in' ? previousCity?.name || 'Дом' : draft.name} arrivalLabel={transportDirection === 'in' ? draft.name : nextCity?.name || 'Дом'} defaultTimeZone={tripTimeZone} members={members} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
+      {hotelOpen && <HotelDialog readOnly={readOnly} cityName={draft.name} members={members} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes, payerIds: draft.hotelPayerIds, totalAmountRubles: draft.hotelTotalAmountRubles }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes, hotelPayerIds: hotel.payerIds, hotelTotalAmountRubles: hotel.totalAmountRubles }; setDraft(next); onChange(next); setHotelOpen(false); onPanelClose() }} />}
     </>
   )
 }
 
 function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; cacheState: CacheState; online: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => void; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
   const [showPast, setShowPast] = useState(false)
+  const [expensesOpen, setExpensesOpen] = useState(false)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
   const [selectedPanel, setSelectedPanel] = useState<'hotel' | 'in' | 'out' | null>(null)
   const [panelReturnCityId, setPanelReturnCityId] = useState<string | null>(null)
@@ -1364,13 +1455,15 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
   const visibleDays = showPast ? allDays : allDays.filter((date) => date >= today)
   const selectedCity = trip.cities.find((city) => city.id === selectedCityId) ?? null
   const selectedCityIndex = selectedCity ? trip.cities.findIndex((city) => city.id === selectedCity.id) : -1
+  if (expensesOpen) return <ExpensesScreen trip={trip} onBack={() => setExpensesOpen(false)} />
   return (
     <main className="screen trip-background dashboard" style={tripBackgroundStyle(trip)}>
-      <TripSidebar trip={trip} user={user} tripCount={tripCount} cacheState={cacheState} online={online} selectedCityId={selectedCityId} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onHotel={(city) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(direction) }} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
+      <TripSidebar trip={trip} user={user} tripCount={tripCount} cacheState={cacheState} online={online} selectedCityId={selectedCityId} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onHotel={(city) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(direction) }} onExpenses={() => setExpensesOpen(true)} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
       <section className={`calendar-column${selectedCity ? ' city-active' : ''}`}>
         {selectedCity ? (
           <CityPanel
             city={selectedCity}
+            members={trip.members ?? []}
             tripStartDate={trip.startDate}
             tripEndDate={trip.endDate}
             tripTimeZone={trip.timeZone}

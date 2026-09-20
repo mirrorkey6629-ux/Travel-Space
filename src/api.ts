@@ -33,6 +33,8 @@ export type ApiCity = {
   hotel_check_in_time: string
   hotel_check_out_time: string
   hotel_notes: string
+  hotel_payer_ids: string[]
+  hotel_total_amount_rubles: number
   train_in: string
   train_out: string
   transport_in_type: TransportType | null
@@ -63,6 +65,10 @@ export type ApiCity = {
   transport_out_notes: string
   transport_in_ticket_on_site: boolean
   transport_out_ticket_on_site: boolean
+  transport_in_payer_ids: string[]
+  transport_out_payer_ids: string[]
+  transport_in_total_amount_rubles: number
+  transport_out_total_amount_rubles: number
   ticket_assignee_ids: string[]
   hotel_assignee_ids: string[]
   plan_assignee_ids: string[]
