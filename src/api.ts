@@ -37,6 +37,8 @@ export type ApiCity = {
   train_out: string
   transport_in_type: TransportType | null
   transport_out_type: TransportType | null
+  transport_in_name: string
+  transport_out_name: string
   transport_in_departure_time: string
   transport_in_arrival_time: string
   transport_in_departure_date: string

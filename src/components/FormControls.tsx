@@ -41,14 +41,16 @@ export function Textarea({ label, controlClassName = '', fieldClassName = '', ..
 type SelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   content: 'date' | 'list'
   icon?: ReactNode
+  displayValue?: ReactNode
   controlClassName?: string
   children: ReactNode
 }
 
-export function Select({ content, icon, controlClassName = '', children, ...props }: SelectProps) {
+export function Select({ content, icon, displayValue, controlClassName = '', children, ...props }: SelectProps) {
   return (
-    <span className={`form-control form-select form-select-${content}${icon ? ' form-control-with-icon' : ''}${controlClassName ? ` ${controlClassName}` : ''}`}>
+    <span className={`form-control form-select form-select-${content}${icon ? ' form-control-with-icon' : ''}${displayValue !== undefined ? ' form-select-with-display-value' : ''}${controlClassName ? ` ${controlClassName}` : ''}`}>
       {icon && <span className="form-control-icon">{icon}</span>}
+      {displayValue !== undefined && <span className="form-select-display-value" aria-hidden="true">{displayValue}</span>}
       <select {...props}>{children}</select>
     </span>
   )

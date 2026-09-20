@@ -250,7 +250,12 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .editor { display: flex; flex-direction: column; gap: 28px; }
 .modal-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; }
 .modal-title h2 { margin: 4px 0 0; font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
-.transport-dialog { max-height: calc(100vh - 48px); overflow-y: auto; }
+.transport-editor-screen { position: fixed; z-index: 20; inset: 0; height: 100dvh; padding: 40px; overflow: hidden; }
+.transport-editor-content { position: relative; z-index: 1; width: min(680px, 100%); height: calc(100dvh - 80px); margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.transport-editor-content > .ui-button { width: 100%; flex: 0 0 auto; }
+.transport-dialog { width: 100%; }
+.transport-editor-card { min-height: 0; flex: 1 1 auto; padding: 48px; overflow-y: auto; scrollbar-width: none; border-radius: 24px; }
+.transport-editor-card::-webkit-scrollbar { display: none; width: 0; height: 0; }
 
 /* Поля диалогов завёрнуты в fieldset: нативный disabled гасит разом все контролы
    внутри, поэтому новое поле нельзя забыть закрыть. Собственное оформление
@@ -266,9 +271,18 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .dialog-fields:disabled .transport-date-picker, .dialog-fields:disabled .transport-time-picker, .dialog-fields:disabled .transport-time-zone-picker { cursor: default; }
 /* Кнопка копирования внутри отключённого fieldset всё равно не нажмётся. */
 .dialog-fields:disabled .form-control-trailing-icon { display: none; }
-.transport-dialog-title { position: relative; display: block; padding: 0 56px; text-align: center; }
-.transport-dialog-title > .icon-button { position: absolute; top: 0; right: 0; }
+.transport-dialog-title { position: relative; display: block; padding: 0 32px; text-align: center; }
 .transport-dialog-title .typography-group-title { margin-top: 0; }
+.transport-dialog-stack { display: flex; flex-direction: column; gap: 28px; }
+.transport-mode-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.transport-ticket-setup { order: 0; display: flex; min-width: 0; flex-direction: column; gap: 8px; margin-top: 8px; }
+.transport-mode-fields { gap: 12px; }
+.transport-mode-fields + .transport-ticket-list { margin-top: 12px; }
+.transport-section-title { margin: 0; color: var(--color-text-primary); font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); letter-spacing: var(--type-head-m-letter-spacing); }
+.transport-mode-stack { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.transport-route-layout + .transport-notes-group { margin-top: 8px; }
+.transport-stack-fields { display: contents; }
+.transport-dialog-stack > .ui-button { width: 100%; }
 .ui-tabs { width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
 .ui-tab { min-width: 0; min-height: 48px; padding: 8px 12px; border-radius: 16px; color: #fff; background: var(--glass-soft); font: inherit; transition: background .15s, color .15s, opacity .15s; }
 .ui-tab:hover:not(:disabled):not(.selected) { background: rgba(255,255,255,.23); }
@@ -276,21 +290,34 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .ui-tab.selected .ui-icon { filter: brightness(0); }
 .ui-tab:disabled { opacity: .42; cursor: not-allowed; }
 .ui-tab:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.transport-label { display: inline-flex; align-items: center; gap: 4px; }
+.transport-label { display: inline-flex; align-items: center; gap: 8px; }
 .transport-label .ui-icon { flex: 0 0 auto; }
-.transport-emoji { width: 20px; flex: 0 0 20px; font-size: 20px; line-height: 20px; text-align: center; }
+.transport-emoji { width: 1em; flex: 0 0 1em; font-size: 1em; line-height: 1; text-align: center; }
 .transport-dialog .field-grid > .transport-wide { grid-column: span 2; }
 .transport-dialog .field-grid { gap: 8px; }
 .transport-column { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
 .transport-route-group { grid-column: 1 / -1; display: flex; min-width: 0; flex-direction: column; gap: 12px; }
 .transport-route-group + .transport-route-group { margin-top: 16px; }
+.transport-route-layout { order: -1; display: flex; min-width: 0; flex-direction: column; gap: 24px; }
+.transport-route-columns { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.transport-route-columns > .transport-route-group { grid-column: auto; }
+.transport-route-columns > .transport-route-departure { grid-column: 1; grid-row: 1; }
+.transport-route-columns > .transport-route-arrival { grid-column: 2; grid-row: 1; }
+.transport-route-columns .transport-route-group + .transport-route-group { margin-top: 0; }
+.transport-route-column { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
+.transport-route-headings { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; text-align: center; }
+.transport-route-headings h3 { margin: 0; text-align: center; font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
+.transport-route-headings .transport-duration { margin: 0; white-space: nowrap; font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); letter-spacing: var(--type-text-letter-spacing); }
+.transport-duration-emoji { font-size: 1em; line-height: 1; }
+.transport-route-headings .transport-duration { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.transport-notes-group { order: 1; margin-top: 16px; }
+.transport-stack-fields .form-textarea { min-height: 132px; }
+.transport-completion-hint { margin: 24px 0 0; color: var(--color-text-secondary); text-align: center; font-size: 13px; line-height: 18px; }
 .transport-route-group > h3 { margin: 0; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); letter-spacing: var(--type-head-m-letter-spacing); }
 .transport-route-grid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .transport-type-select { width: 100%; height: 60px; min-height: 60px; max-height: 60px; flex: 0 0 60px; box-sizing: border-box; padding: 0 16px; border-radius: 16px; font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
 .transport-type-select select { cursor: pointer; }
 .transport-date-picker { position: relative; cursor: pointer; }
-.transport-date-picker .ui-icon,
-.transport-time-picker .ui-icon { width: 20px; height: 20px; flex: 0 0 20px; }
 .transport-date-picker input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; pointer-events: none; }
 .transport-time-picker { min-width: 0; }
 .transport-time-picker input { min-width: 0; flex: 1 1 auto; }
@@ -307,8 +334,10 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .trip-time-zone-value { color: inherit; }
 .trip-time-zone-picker select { position: absolute; inset: 0 0 0 1.1em; width: calc(100% - 1.1em); opacity: 0; cursor: pointer; }
 .transport-duration { margin: 4px 0; color: var(--color-text-secondary); text-align: center; font-size: var(--type-text-s-size); font-weight: var(--type-text-s-weight); line-height: var(--type-text-s-line-height); letter-spacing: var(--type-text-s-letter-spacing); }
-.transport-ticket-on-site { align-self: flex-start; padding: 0; display: inline-flex; align-items: center; gap: 9px; color: var(--color-text-secondary); background: transparent; font: inherit; }
-.transport-ticket-on-site:hover { color: var(--color-text-primary); }
+.transport-ticket-meta-row { min-height: 18px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.transport-ticket-on-site { padding: 0; display: inline-flex; align-items: center; gap: 7px; color: var(--color-text-secondary); background: transparent; font-size: 13px; line-height: 18px; }
+.transport-ticket-on-site:hover:not(:disabled) { color: var(--color-text-primary); }
+.transport-ticket-on-site:disabled { opacity: .42; cursor: not-allowed; }
 .transport-ticket-on-site:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 3px; border-radius: 4px; }
 .transport-ticket-row { width: 100%; }
 .transport-ticket-list { display: flex; flex-direction: column; gap: 16px; }
@@ -350,6 +379,9 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .field .form-control select,
 .field .form-control textarea { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: 0; outline: 0; box-shadow: none; appearance: none; -webkit-appearance: none; background: transparent; color: var(--color-text-primary); font: inherit; }
 .form-control input::placeholder, .form-control textarea::placeholder { color: var(--color-text-secondary); opacity: 1; }
+.form-select-with-display-value { position: relative; }
+.form-select-display-value { min-width: 0; flex: 1; overflow: hidden; color: var(--color-text-primary); text-overflow: ellipsis; white-space: nowrap; pointer-events: none; }
+.form-select-with-display-value select { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .form-textarea { height: 112px; padding: 16px; align-items: stretch; }
 .form-textarea textarea { resize: vertical; min-height: 78px; }
 .transport-link-input input { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -504,6 +536,8 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .day-event-line:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 3px; border-radius: 2px; }
 .day-places ol { margin: 0; padding-left: 24px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
 .day-places li + li { margin-top: 8px; }
+.day-places li.transport-place { margin-left: -24px; list-style: none; display: flex; align-items: flex-start; gap: 8px; }
+.day-places li.transport-place .ui-icon { width: 16px; height: 16px; margin-top: 2px; flex: 0 0 16px; opacity: .7; }
 .day-places button { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; }
 .day-places .day-add-locations { color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
 .day-places button:hover { color: var(--color-text-primary); }
@@ -552,6 +586,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
   .choice-card { height: 180px; }
   .auth-modal { width: calc(100% - 40px); padding: 32px 24px; }
   .setup-card { --setup-pad-x: 24px; --setup-pad-y: 48px; }
+  .transport-editor-card { padding: 48px 24px; }
   .trips-card { --trips-pad-x: 24px; --trips-pad-y: 48px; }
   .dashboard { height: auto; min-height: 100vh; overflow: visible; padding: 20px; grid-template-columns: 1fr; }
   .sidebar, .calendar-column { position: static; width: auto; height: auto; max-height: none; padding: 0; overflow: visible; }
@@ -573,8 +608,13 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
   .field.span-2 { grid-column: auto; }
   .transport-dialog .field-grid > .transport-wide { grid-column: auto; }
   .transport-fields { grid-template-columns: 1fr; }
+  .transport-mode-grid { grid-template-columns: 1fr; }
   .transport-route-grid { grid-template-columns: 1fr; }
   .transport-dialog .ui-tabs { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .transport-editor-screen { padding: 88px 20px 20px; }
+  .transport-editor-content { height: calc(100dvh - 108px); }
+  .transport-editor-card { padding: 28px 20px; }
+  .transport-dialog-title { padding: 0; }
   .city-row { grid-template-columns: 1fr; gap: 2px; }
   .city-row-with-image { grid-template-columns: 48px minmax(0, 1fr); gap: 8px; }
   .date-summary { line-height: var(--type-text-line-height); }
