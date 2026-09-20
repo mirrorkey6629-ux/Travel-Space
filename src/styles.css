@@ -333,6 +333,9 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .transport-payment-amount input::-webkit-inner-spin-button,
 .transport-payment-amount input::-webkit-outer-spin-button { margin: 0; appearance: none; -webkit-appearance: none; }
 .transport-payment-share { margin: 8px 0 0; color: var(--color-text-secondary); text-align: left; font-size: 13px; line-height: 18px; }
+.transport-time-picker-disabled { opacity: .48; cursor: default; }
+.transport-time-picker-disabled input,
+.transport-time-picker-disabled select { cursor: default; }
 .transport-completion-hint { margin: 24px 0 0; color: var(--color-text-secondary); text-align: center; font-size: 13px; line-height: 18px; }
 .transport-route-group > h3 { margin: 0; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); letter-spacing: var(--type-head-m-letter-spacing); }
 .transport-route-grid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

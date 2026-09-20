@@ -850,8 +850,7 @@ const isTransportComplete = (details: TransportDetails | undefined, ticketName: 
   && (ticketName.trim() || (details.type !== 'plane' && details.ticketOnSite))
   && details.departureDate.trim()
   && details.arrivalDate.trim()
-  && details.departureTime.trim()
-  && details.arrivalTime.trim(),
+  && (details.ticketOnSite || (details.departureTime.trim() && details.arrivalTime.trim())),
 )
 
 const isHotelComplete = (city: City) => Boolean(city.hotel.trim() && city.hotelUrl.trim() && city.hotelCheckInTime?.trim() && city.hotelCheckOutTime?.trim() && city.files.some((file) => file.category === 'hotel-booking'))
@@ -1129,7 +1128,10 @@ const documentMetadata = (file: TravelFile) => {
 }
 
 function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, readOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; onSave: (value: TransportDetails) => void; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
-  const [draft, setDraft] = useState<TransportDetails>({ ...value, ticketOnSite: value.type === 'plane' ? false : value.ticketOnSite })
+  const [draft, setDraft] = useState<TransportDetails>(() => {
+    const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
+    return { ...value, ticketOnSite, ...(ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) }
+  })
   const departureDateRef = useRef<HTMLInputElement>(null)
   const arrivalDateRef = useRef<HTMLInputElement>(null)
   const visibleTickets = tickets.slice(0, 1)
@@ -1141,7 +1143,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   const journeyText = durationLabel ?? 'Тут появится время в пути'
   const journeySummary = draft.type ? `${transportEmoji[draft.type]} ${journeyText}` : journeyText
   return (
-    <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); onSave(draft) }}>
+    <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); onSave(draft.ticketOnSite ? { ...draft, departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : draft) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
       <div className="transport-editor-content">
         <section className="glass editor transport-dialog transport-editor-card">
@@ -1163,7 +1165,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
               {ticketCount < 1 && !readOnly && <InfoRow className="transport-ticket-row transport-ticket-row-empty" disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
             </div>
             <div className="transport-ticket-meta-row">
-              <button className="transport-ticket-on-site" type="button" disabled={readOnly || draft.type === 'plane'} onClick={() => setDraft({ ...draft, ticketOnSite: !draft.ticketOnSite })}>
+              <button className="transport-ticket-on-site" type="button" disabled={readOnly || draft.type === 'plane'} onClick={() => setDraft({ ...draft, ticketOnSite: !draft.ticketOnSite, ...(!draft.ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) })}>
                 <span className={`document-check${draft.ticketOnSite ? ' checked' : ''}`} role="checkbox" aria-checked={draft.ticketOnSite} />
                 <span>Билет купить на месте</span>
               </button>
@@ -1179,7 +1181,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
                 <section className="transport-route-group transport-route-arrival">
                   <div className="transport-route-column">
                 <label className="form-control transport-date-picker" onClick={(event) => { event.preventDefault(); if (readOnly) return; arrivalDateRef.current?.showPicker() }}><span className="form-control-icon"><Icon name="calendar-month" /></span><span>{formatCompactNumericDate(draft.arrivalDate)}</span><input ref={arrivalDateRef} aria-label="Дата приезда" type="date" value={draft.arrivalDate} onChange={(event) => setDraft({ ...draft, arrivalDate: event.target.value })} /></label>
-                <label className="form-control transport-time-picker"><span className="form-control-icon"><Icon name="time" /></span><input aria-label="Время приезда" type="time" value={draft.arrivalTime} onChange={(event) => setDraft({ ...draft, arrivalTime: event.target.value })} /><span className="transport-time-zone-picker"><span>{formatTimeZoneOffset(arrivalTimeZone, draft.arrivalDate)}</span><select aria-label="Часовой пояс приезда" value={draft.arrivalTimeZone} onChange={(event) => setDraft({ ...draft, arrivalTimeZone: event.target.value })}><option value="">По часовому поясу поездки — {formatTimeZoneOption(defaultTimeZone, draft.arrivalDate)}</option>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, draft.arrivalDate)}</option>)}</select></span></label>
+                <label className={`form-control transport-time-picker${draft.ticketOnSite ? ' transport-time-picker-disabled' : ''}`} aria-disabled={draft.ticketOnSite || undefined}><span className="form-control-icon"><Icon name="time" /></span><input aria-label="Время приезда" type="time" disabled={draft.ticketOnSite} value={draft.arrivalTime} onChange={(event) => setDraft({ ...draft, arrivalTime: event.target.value })} /><span className="transport-time-zone-picker"><span>{formatTimeZoneOffset(arrivalTimeZone, draft.arrivalDate)}</span><select aria-label="Часовой пояс приезда" disabled={draft.ticketOnSite} value={draft.arrivalTimeZone} onChange={(event) => setDraft({ ...draft, arrivalTimeZone: event.target.value })}><option value="">По часовому поясу поездки — {formatTimeZoneOption(defaultTimeZone, draft.arrivalDate)}</option>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, draft.arrivalDate)}</option>)}</select></span></label>
                 <Input showLabel={false} aria-label="Место приезда" icon={<Icon name="attractions" />} placeholder="Название места" value={draft.arrivalStation} onChange={(event) => setDraft({ ...draft, arrivalStation: event.target.value })} />
                 <Input showLabel={false} aria-label="Ссылка Google Maps места приезда" icon={<Icon name="directions-transit" />} trailingIcon={draft.arrivalStationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.arrivalStationUrl.trim() ? () => void navigator.clipboard.writeText(draft.arrivalStationUrl.trim()) : undefined} controlClassName="transport-link-input" type="url" placeholder="Ссылка Google Maps" value={draft.arrivalStationUrl} onChange={(event) => setDraft({ ...draft, arrivalStationUrl: event.target.value })} />
                   </div>
@@ -1187,7 +1189,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
                 <section className="transport-route-group transport-route-departure">
                   <div className="transport-route-column">
                 <label className="form-control transport-date-picker" onClick={(event) => { event.preventDefault(); if (readOnly) return; departureDateRef.current?.showPicker() }}><span className="form-control-icon"><Icon name="calendar-month" /></span><span>{formatCompactNumericDate(draft.departureDate)}</span><input ref={departureDateRef} aria-label="Дата отъезда" type="date" value={draft.departureDate} onChange={(event) => setDraft({ ...draft, departureDate: event.target.value })} /></label>
-                <label className="form-control transport-time-picker"><span className="form-control-icon"><Icon name="time" /></span><input aria-label="Время отъезда" type="time" value={draft.departureTime} onChange={(event) => setDraft({ ...draft, departureTime: event.target.value })} /><span className="transport-time-zone-picker"><span>{formatTimeZoneOffset(departureTimeZone, draft.departureDate)}</span><select aria-label="Часовой пояс отправления" value={draft.departureTimeZone} onChange={(event) => setDraft({ ...draft, departureTimeZone: event.target.value })}><option value="">По часовому поясу поездки — {formatTimeZoneOption(defaultTimeZone, draft.departureDate)}</option>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, draft.departureDate)}</option>)}</select></span></label>
+                <label className={`form-control transport-time-picker${draft.ticketOnSite ? ' transport-time-picker-disabled' : ''}`} aria-disabled={draft.ticketOnSite || undefined}><span className="form-control-icon"><Icon name="time" /></span><input aria-label="Время отъезда" type="time" disabled={draft.ticketOnSite} value={draft.departureTime} onChange={(event) => setDraft({ ...draft, departureTime: event.target.value })} /><span className="transport-time-zone-picker"><span>{formatTimeZoneOffset(departureTimeZone, draft.departureDate)}</span><select aria-label="Часовой пояс отправления" disabled={draft.ticketOnSite} value={draft.departureTimeZone} onChange={(event) => setDraft({ ...draft, departureTimeZone: event.target.value })}><option value="">По часовому поясу поездки — {formatTimeZoneOption(defaultTimeZone, draft.departureDate)}</option>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, draft.departureDate)}</option>)}</select></span></label>
                 <Input showLabel={false} aria-label="Место отправления" icon={<Icon name="attractions" />} placeholder="Название места" value={draft.departureStation} onChange={(event) => setDraft({ ...draft, departureStation: event.target.value })} />
                 <Input showLabel={false} aria-label="Ссылка Google Maps места отправления" icon={<Icon name="directions-transit" />} trailingIcon={draft.departureStationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.departureStationUrl.trim() ? () => void navigator.clipboard.writeText(draft.departureStationUrl.trim()) : undefined} controlClassName="transport-link-input" type="url" placeholder="Ссылка Google Maps" value={draft.departureStationUrl} onChange={(event) => setDraft({ ...draft, departureStationUrl: event.target.value })} />
                   </div>
@@ -1197,15 +1199,15 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
             <section className="transport-route-group transport-notes-group">
               <h3>Что стоит помнить</h3>
               <Textarea aria-label="Заметки о транспорте" placeholder="Места, ориентиры и важная информация" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
-              <div className="transport-payment-group">
+              {!draft.ticketOnSite && <div className="transport-payment-group">
                 <h3>Оплата</h3>
                 <div className="transport-payment-fields">
                   <AssigneeSelect members={members} value={draft.payerIds} icon="face" emptyLabel="Кто платил" onChange={(payerIds) => setDraft({ ...draft, payerIds })} />
                   <MoneyInput ariaLabel="Общая сумма в рублях" value={draft.totalAmountRubles} onChange={(totalAmountRubles) => setDraft({ ...draft, totalAmountRubles })} />
                 </div>
                 {draft.totalAmountRubles > 0 && draft.payerIds.length > 1 && <p className="transport-payment-share">По {(draft.totalAmountRubles / draft.payerIds.length).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ заплатил каждый</p>}
-              </div>
-              <p className="transport-completion-hint">P.S. Галочка в меню появится после заполнения дат, времени, названий&nbsp;локаций&nbsp;и&nbsp;прикрепления&nbsp;билета</p>
+              </div>}
+              <p className="transport-completion-hint">{draft.ticketOnSite ? 'P.S. Галочка в меню появится после заполнения дат и названий\u00a0локаций' : 'P.S. Галочка в меню появится после заполнения дат, времени, названий\u00a0локаций\u00a0и\u00a0прикрепления\u00a0билета'}</p>
             </section>
           </fieldset>
         </div>
