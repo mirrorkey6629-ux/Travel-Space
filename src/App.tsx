@@ -618,6 +618,12 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
 }
 
 const emptyTransport = (): TransportDetails => ({ name: '', departureDate: '', arrivalDate: '', departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', departureStation: '', departureStationUrl: '', arrivalStation: '', arrivalStationUrl: '', notes: '', ticketOnSite: false, payerIds: [], totalAmountRubles: 0 })
+
+function MoneyInput({ value, onChange, ariaLabel }: { value: number; onChange: (value: number) => void; ariaLabel: string }) {
+  const [focused, setFocused] = useState(false)
+  const displayValue = value > 0 ? (focused ? String(value) : `${value.toLocaleString('ru-RU')} ₽`) : ''
+  return <Input showLabel={false} controlClassName="transport-payment-amount" aria-label={ariaLabel} icon={<Icon name="money-bag" />} type="text" inputMode="numeric" placeholder="Общая сумма, ₽" value={displayValue} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onChange={(event) => onChange(Math.max(0, Number.parseInt(event.target.value.replace(/\D/g, ''), 10) || 0))} />
+}
 const transportPayload = (city: City) => ({
   transportInType: city.transportIn?.type,
   transportOutType: city.transportOut?.type,
@@ -936,7 +942,7 @@ const formatRubles = (value: number) => `${value.toLocaleString('ru-RU', { maxim
 function tripExpenses(trip: Trip): { hotels: TripExpense[]; transport: TripExpense[] } {
   const hotels = trip.cities
     .filter((city) => city.hotelTotalAmountRubles > 0)
-    .map((city) => ({ id: `hotel:${city.id}`, title: city.hotel.trim() || `Отель · ${city.name}`, payerIds: city.hotelPayerIds, totalAmountRubles: city.hotelTotalAmountRubles }))
+    .map((city) => ({ id: `hotel:${city.id}`, title: `🏨 ${city.hotel.trim() || `Отель · ${city.name}`}`, payerIds: city.hotelPayerIds, totalAmountRubles: city.hotelTotalAmountRubles }))
   const transport: TripExpense[] = []
   const firstCity = trip.cities[0]
   if (firstCity && hasExpense(firstCity.transportIn)) transport.push({ id: `transport-in:${firstCity.id}`, title: `Дом — ${firstCity.name}`, payerIds: firstCity.transportIn.payerIds, totalAmountRubles: firstCity.transportIn.totalAmountRubles, transportType: firstCity.transportIn.type })
@@ -957,8 +963,12 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
   const allExpenses = [...expenses.hotels, ...expenses.transport]
   const expenseRow = (expense: TripExpense) => {
     const payers = assigneeNames(expense.payerIds, members) || 'Плательщик не указан'
-    const share = expense.payerIds.length > 0 ? ` · по ${formatRubles(expense.totalAmountRubles / expense.payerIds.length)}` : ''
-    return <InfoRow key={expense.id} className="expense-row" title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} subtitle={`Заплатили: ${payers}${share}`} metadata={`Общая сумма ${formatRubles(expense.totalAmountRubles)}`} />
+    const paymentText = expense.payerIds.length === 1
+      ? `${payers} · ${formatRubles(expense.totalAmountRubles)}`
+      : expense.payerIds.length > 1
+        ? `Заплатили ${payers} · По ${formatRubles(expense.totalAmountRubles / expense.payerIds.length)}`
+        : payers
+    return <InfoRow key={expense.id} className="expense-row" title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} subtitle={paymentText} metadata={`Общая сумма ${formatRubles(expense.totalAmountRubles)}`} />
   }
   return (
     <main className="transport-editor-screen trip-background setup-transition" style={tripBackgroundStyle(trip)}>
@@ -1191,9 +1201,9 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
                 <h3>Оплата</h3>
                 <div className="transport-payment-fields">
                   <AssigneeSelect members={members} value={draft.payerIds} icon="face" emptyLabel="Кто платил" onChange={(payerIds) => setDraft({ ...draft, payerIds })} />
-                  <Input showLabel={false} controlClassName="transport-payment-amount" aria-label="Общая сумма в рублях" icon={<Icon name="money-bag" />} type="number" min="0" max="1000000000" step="1" inputMode="numeric" placeholder="Общая сумма, ₽" value={draft.totalAmountRubles || ''} onChange={(event) => setDraft({ ...draft, totalAmountRubles: Math.max(0, Number.parseInt(event.target.value, 10) || 0) })} />
+                  <MoneyInput ariaLabel="Общая сумма в рублях" value={draft.totalAmountRubles} onChange={(totalAmountRubles) => setDraft({ ...draft, totalAmountRubles })} />
                 </div>
-                {draft.totalAmountRubles > 0 && draft.payerIds.length > 0 && <p className="transport-payment-share">По {(draft.totalAmountRubles / draft.payerIds.length).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ заплатил каждый</p>}
+                {draft.totalAmountRubles > 0 && draft.payerIds.length > 1 && <p className="transport-payment-share">По {(draft.totalAmountRubles / draft.payerIds.length).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ заплатил каждый</p>}
               </div>
               <p className="transport-completion-hint">P.S. Галочка в меню появится после заполнения дат, времени, названий&nbsp;локаций&nbsp;и&nbsp;прикрепления&nbsp;билета</p>
             </section>
@@ -1233,9 +1243,9 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
                 <h3>Оплата</h3>
                 <div className="transport-payment-fields">
                   <AssigneeSelect members={members} value={draft.payerIds} icon="face" emptyLabel="Кто платил" onChange={(payerIds) => setDraft({ ...draft, payerIds })} />
-                  <Input showLabel={false} controlClassName="transport-payment-amount" aria-label="Общая сумма за отель в рублях" icon={<Icon name="money-bag" />} type="number" min="0" max="1000000000" step="1" inputMode="numeric" placeholder="Общая сумма, ₽" value={draft.totalAmountRubles || ''} onChange={(event) => setDraft({ ...draft, totalAmountRubles: Math.max(0, Number.parseInt(event.target.value, 10) || 0) })} />
+                  <MoneyInput ariaLabel="Общая сумма за отель в рублях" value={draft.totalAmountRubles} onChange={(totalAmountRubles) => setDraft({ ...draft, totalAmountRubles })} />
                 </div>
-                {draft.totalAmountRubles > 0 && draft.payerIds.length > 0 && <p className="transport-payment-share">По {(draft.totalAmountRubles / draft.payerIds.length).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ заплатил каждый</p>}
+                {draft.totalAmountRubles > 0 && draft.payerIds.length > 1 && <p className="transport-payment-share">По {(draft.totalAmountRubles / draft.payerIds.length).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ заплатил каждый</p>}
               </div>
             </section>
           </fieldset>
