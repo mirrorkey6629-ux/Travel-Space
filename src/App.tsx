@@ -1140,7 +1140,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   const departureTimeZone = draft.departureTimeZone || defaultTimeZone
   const arrivalTimeZone = draft.arrivalTimeZone || defaultTimeZone
   const durationLabel = formatTravelDuration(draft.departureTime, draft.arrivalTime, draft.departureDate, draft.arrivalDate, departureTimeZone, arrivalTimeZone)
-  const journeyText = durationLabel ?? 'Тут появится время в пути'
+  const journeyText = draft.ticketOnSite ? 'Билет покупаем на месте' : durationLabel ?? 'Тут появится время в пути'
   const journeySummary = draft.type ? `${transportEmoji[draft.type]} ${journeyText}` : journeyText
   return (
     <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); onSave(draft.ticketOnSite ? { ...draft, departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : draft) }}>
