@@ -552,7 +552,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .day-content { min-width: 0; display: grid; grid-template-columns: 116px minmax(0, 1fr); align-items: stretch; gap: 40px; }
 .day-date-column { width: 116px; padding-top: 4px; }
 .day-date-column h2 { margin: 0; white-space: nowrap; color: var(--color-text-primary); font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
-.day-date-column p { margin: 8px 0 0; color: var(--color-text-secondary); font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
+.day-date-column p { margin: 4px 0 0; color: var(--color-text-secondary); font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
 .day-panels { min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .day-description { order: 2; }
 .day-column { min-width: 0; min-height: 322px; padding: 16px; border-radius: 16px; background: var(--color-background-secondary); display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 12px; }
@@ -569,6 +569,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .day-schedule > h3 { margin-top: 0; }
 .day-events .empty-text { margin: 0; padding: 0; text-align: left; }
 .day-event-list { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.day-event-list > li { width: 100%; display: flex; }
 .day-event-line { padding: 0; border: 0; color: var(--color-text-secondary); background: transparent; display: inline-flex; align-items: flex-start; gap: 6px; font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); text-align: left; }
 .day-event-line .ui-icon { width: 20px; height: 20px; margin-top: 0; flex: 0 0 20px; opacity: .7; }
 .day-event-line:hover { color: var(--color-text-primary); }

@@ -1370,6 +1370,38 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     setTransportDirection(null)
     onPanelClose()
   }
+  const saveHotel = (hotel: HotelDetails) => {
+    const cleanUrl = hotel.url.trim()
+    const oldUrl = draft.hotelUrl.trim()
+    const date = draft.arrival || UNSCHEDULED_KEY
+    const matchesHotelPoint = (item: Place) => item.icon === 'hotel' && (item.url.trim() === cleanUrl || Boolean(oldUrl && item.url.trim() === oldUrl))
+    const existingEntry = Object.entries(draft.places).find(([, items]) => items.some(matchesHotelPoint))
+    const existing = existingEntry?.[1].find(matchesHotelPoint)
+    let places = draft.places
+
+    if (!cleanUrl && existing && existingEntry) {
+      places = { ...places, [existingEntry[0]]: existingEntry[1].filter((item) => item.id !== existing.id) }
+      onDeletePlace(existing.id)
+    } else if (cleanUrl) {
+      const name = hotel.name.trim() || `Отель · ${draft.name}`
+      if (existing) {
+        const place = { ...existing, name, url: cleanUrl, icon: 'hotel' as const }
+        places = Object.fromEntries(Object.entries(places).map(([key, items]) => [key, items.filter((item) => item.id !== existing.id)]))
+        places = { ...places, [date]: [...(places[date] ?? []), place] }
+        onUpdatePlace({ ...draft, places }, date, place)
+      } else {
+        const place = { id: uid(), name, url: cleanUrl, icon: 'hotel' as const }
+        places = { ...places, [date]: [...(places[date] ?? []), place] }
+        onAddPlace({ ...draft, places }, date, place)
+      }
+    }
+
+    const next = { ...draft, places, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes, hotelPayerIds: hotel.payerIds, hotelTotalAmountRubles: hotel.totalAmountRubles }
+    setDraft(next)
+    onChange(next)
+    setHotelOpen(false)
+    onPanelClose()
+  }
   return (
     <>
       <section className="glass city-page-card setup-transition">
@@ -1452,7 +1484,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
         </div>
       </section>
       {transportDirection && <TransportDialog readOnly={readOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : `Дом — ${draft.name}`) : (nextCity ? `${draft.name} — ${nextCity.name}` : `${draft.name} — Дом`)} departureLabel={transportDirection === 'in' ? previousCity?.name || 'Дом' : draft.name} arrivalLabel={transportDirection === 'in' ? draft.name : nextCity?.name || 'Дом'} defaultTimeZone={tripTimeZone} members={members} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
-      {hotelOpen && <HotelDialog readOnly={readOnly} cityName={draft.name} members={members} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes, payerIds: draft.hotelPayerIds, totalAmountRubles: draft.hotelTotalAmountRubles }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={(hotel) => { const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes, hotelPayerIds: hotel.payerIds, hotelTotalAmountRubles: hotel.totalAmountRubles }; setDraft(next); onChange(next); setHotelOpen(false); onPanelClose() }} />}
+      {hotelOpen && <HotelDialog readOnly={readOnly} cityName={draft.name} members={members} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes, payerIds: draft.hotelPayerIds, totalAmountRubles: draft.hotelTotalAmountRubles }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={saveHotel} />}
     </>
   )
 }

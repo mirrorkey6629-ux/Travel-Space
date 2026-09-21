@@ -23,6 +23,7 @@
   --type-text-weight: 400;
   --type-text-line-height: 20px;
   --type-text-letter-spacing: 0;
+  --type-text-paragraph-spacing: 12px;
 
   --type-text-s-size: 13px;
   --type-text-s-weight: 400;
@@ -52,6 +53,21 @@
   font-weight: var(--type-text-weight);
   line-height: var(--type-text-line-height);
   letter-spacing: var(--type-text-letter-spacing);
+}
+
+.type-text-paragraphs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--type-text-paragraph-spacing);
+  font-family: var(--font-family);
+  font-size: var(--type-text-size);
+  font-weight: var(--type-text-weight);
+  line-height: var(--type-text-line-height);
+  letter-spacing: var(--type-text-letter-spacing);
+}
+
+.type-text-paragraphs > p {
+  margin: 0;
 }
 
 .type-text-s {

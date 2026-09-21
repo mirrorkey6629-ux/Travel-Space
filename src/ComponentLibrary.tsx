@@ -78,7 +78,7 @@ export default function ComponentLibrary() {
         <Section id="typography" title="Типографика" description="Единая шкала текста проекта" className="kit-typography-section">
           <Specimen name="Head L"><Variant label="32px · Medium"><p className="type-head-l kit-type-line">Название поездки</p></Variant></Specimen>
           <Specimen name="Head M"><Variant label="20px · Medium"><p className="type-head-m kit-type-line">Название города</p></Variant></Specimen>
-          <Specimen name="Text"><Variant label="15px · Regular"><p className="kit-type-line">Основной текст и подписи</p></Variant></Specimen>
+          <Specimen name="Text"><Variant label="15px · Regular · Абзацы 12px"><div className="type-text-paragraphs kit-type-line"><p>Первый абзац основного текста</p><p>Второй абзац с отступом 12px</p></div></Variant></Specimen>
           <Specimen name="Text S"><Variant label="13px · Regular"><p className="type-text-s kit-type-line">Вспомогательный текст</p></Variant></Specimen>
           <Specimen name="Secondary text"><Variant label="Default"><SecondaryText>Вторичный текст</SecondaryText></Variant><Variant label="Interactive"><button className="kit-secondary-text-demo"><SecondaryText interactive>Наведи на текст</SecondaryText></button></Variant></Specimen>
         </Section>
