@@ -7,7 +7,7 @@ const at = (path: string, method = 'GET') => classifyRequest(method, new URL(pat
 describe('classifyRequest', () => {
   it('раскладывает статику и данные поездки', () => {
     expect(at('/travel/assets/autumn-garden.jpg')).toBe('asset')
-    expect(at('/travel/assets/icons/place.svg')).toBe('asset')
+    expect(at('/travel/assets/icons/pin.svg')).toBe('asset')
     expect(at('/travel/api/trips')).toBe('data')
     expect(at('/travel/api/trips/abc')).toBe('data')
     expect(at('/travel/api/me')).toBe('data')

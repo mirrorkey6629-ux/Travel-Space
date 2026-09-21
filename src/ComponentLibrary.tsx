@@ -9,9 +9,11 @@ import { TypographyGroup } from './components/TypographyGroup'
 import { Tabs } from './components/Tabs'
 import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
+import { IconText } from './components/IconText'
+import { ItemList } from './components/ItemList'
 import './component-library.css'
 
-const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'barefoot', 'bus', 'calendar-month', 'casino', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'email', 'encrypted', 'face', 'footprint', 'hotel', 'image', 'key', 'link', 'money-bag', 'pin-home', 'plane', 'planet', 'refresh', 'sailing', 'ticket', 'time', 'train', 'upload-file']
+const icons: IconName[] = ['add-plus', 'arrow-back', 'attractions', 'barefoot', 'calendar-month', 'casino', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit', 'email', 'encrypted', 'face', 'footprint', 'hotel', 'link', 'money-bag', 'pin', 'pin-add', 'pin-home', 'plane', 'planet', 'refresh', 'sailing', 'ticket', 'time', 'train']
 
 const navigation = [
   { id: 'colors', label: 'Цвета' },
@@ -90,6 +92,7 @@ export default function ComponentLibrary() {
         <Section id="typography-groups" title="Группы текста" description="Готовые сочетания заголовков и поясняющего текста" className="kit-typography-groups-section">
           <Specimen name="Head L + Text"><Variant label="Gap 8"><TypographyGroup title="Название поездки" text="4–15 октября · 12 дней" /></Variant></Specimen>
           <Specimen name="Head M + Text"><Variant label="Gap 4"><TypographyGroup variant="head-m-text" headingLevel="h3" title="Осака" text="Прибытие" /></Variant></Specimen>
+          <Specimen name="Icon + Text"><Variant label="Icon"><IconText icon={<Icon name="train" />}>Аэропорт Кансай</IconText></Variant><Variant label="Checkbox · Empty"><button className="kit-check-row" onClick={() => setChecked(!checked)}><IconText checked={false}>Не прикреплено</IconText></button></Variant><Variant label="Checkbox · Checked"><button className="kit-check-row" onClick={() => setChecked(!checked)}><IconText checked={checked}>Прикреплено</IconText></button></Variant></Specimen>
         </Section>
 
         <Section id="buttons" title="Кнопки" description="Основные действия и компактные контролы">
@@ -105,6 +108,7 @@ export default function ComponentLibrary() {
         </Section>
 
         <Section id="lists" title="Списки и плашки" description="Карточки основного интерфейса" className="kit-lists-section">
+          <Specimen name="Item list"><Variant label="Gap 10" wide><ItemList><IconText icon={<Icon name="train" />}>Киото</IconText><IconText icon={<Icon name="rocket-launch" />}>Киото – Токио</IconText><IconText icon={<Icon name="train" />}>Токио</IconText></ItemList></Variant></Specimen>
           <Specimen name="City row"><div className="kit-city-row-controls"><label className="kit-toggle"><span>Картинка</span><input type="checkbox" checked={cityRowImage} onChange={(event) => setCityRowImage(event.target.checked)} /><i aria-hidden="true" /></label></div><Variant label="Default" wide><CityRow city="Осака" dates="4–6 окт" duration="1,5 дня" image={cityRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" /></Variant><Variant label="Selected" wide><CityRow className="kit-selected" city="📌 Киото" dates="7–10 окт" duration="2,5 дня" image={cityRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" /></Variant></Specimen>
           <Specimen name="Info row">
             <div className="kit-info-row-controls">
@@ -121,7 +125,6 @@ export default function ComponentLibrary() {
         </Section>
 
         <Section id="states" title="Чекбоксы и состояния" className="kit-states-section">
-          <Specimen name="Document checkbox"><Variant label="Empty"><button className="kit-check-row" onClick={() => setChecked(!checked)}><span className="document-check" />Не прикреплено</button></Variant><Variant label="Checked"><button className="kit-check-row" onClick={() => setChecked(!checked)}><span className={`document-check${checked ? ' checked' : ''}`} />Прикреплено</button></Variant></Specimen>
           <Specimen name="Status text"><Variant label="Default"><span>Основной текст</span></Variant><Variant label="Muted"><span className="kit-muted">Вспомогательный текст</span></Variant><Variant label="Error"><span className="app-error kit-inline-error">Текст ошибки</span></Variant></Specimen>
         </Section>
 

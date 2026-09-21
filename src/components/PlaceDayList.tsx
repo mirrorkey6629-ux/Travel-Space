@@ -3,16 +3,17 @@ import { DndContext, MeasuringStrategy, PointerSensor, closestCorners, useDroppa
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { placeIconUrl, type PlaceIconKey } from '../placeIcons'
 import { UNSCHEDULED_KEY } from '../places'
+import { IconText } from './IconText'
+import { ItemList } from './ItemList'
 
 export type ListPlace = { id: string; name: string; icon: PlaceIconKey }
 
-const handleUrl = `${import.meta.env.BASE_URL}assets/icons/drag-handle.svg`
+const handleUrl = `${import.meta.env.BASE_URL}assets/icons/drag.svg?v=20260921-3`
 
 function RowBody({ place, draggable = false }: { place: ListPlace; draggable?: boolean }) {
   return (
     <>
-      <img className="ui-icon" src={placeIconUrl(place.icon)} width={16} height={16} alt="" aria-hidden="true" />
-      <span>{place.name}</span>
+      <IconText icon={<img className="ui-icon" src={placeIconUrl(place.icon)} width={24} height={24} alt="" />}>{place.name}</IconText>
       {/* Подсказка, что строку можно перетащить. Тащится вся строка, поэтому
           иконка декоративная и своих обработчиков не имеет. */}
       {draggable && <img className="ui-icon place-row-handle" src={handleUrl} width={16} height={16} alt="" aria-hidden="true" />}
@@ -55,11 +56,13 @@ function Day({ dayKey, title, places, active, readOnly, lockedPlaceIds, onActiva
   return (
     <div ref={setNodeRef} className={`city-day${dayKey === UNSCHEDULED_KEY ? ' unscheduled-day' : ''}${active ? ' is-active' : ''}${isOver ? ' is-over' : ''}`}>
       <h3><button type="button" className="city-day-title" aria-pressed={active} onClick={onActivate}>{title}</button></h3>
-      {places.map((place) => readOnly || lockedPlaceIds.has(place.id)
-        ? <button key={place.id} type="button" className="place-row" onClick={() => onFocusPlace(place.id)}>
-            <RowBody place={place} />
-          </button>
-        : <PlaceRow key={place.id} place={place} locked={false} onFocus={onFocusPlace} />)}
+      <ItemList>
+        {places.map((place) => readOnly || lockedPlaceIds.has(place.id)
+          ? <button key={place.id} type="button" className="place-row" onClick={() => onFocusPlace(place.id)}>
+              <RowBody place={place} />
+            </button>
+          : <PlaceRow key={place.id} place={place} locked={false} onFocus={onFocusPlace} />)}
+      </ItemList>
     </div>
   )
 }

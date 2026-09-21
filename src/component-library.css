@@ -89,6 +89,7 @@
 .kit-input-specimen .kit-variant { width: 100%; flex: 0 0 auto; display: grid; grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; }
 .kit-input-specimen .kit-variant-example { width: 100%; }
 .kit-variant-example > .city-row, .kit-variant-example > .info-row { width: 100%; }
+.kit-variant-example > .item-list { width: 100%; color: var(--color-text-secondary); }
 .city-row.kit-selected { background: rgba(255,255,255,.25); }
 .kit-check-row { padding: 0; color: #fff; background: transparent; display: flex; align-items: center; gap: 9px; }
 .kit-muted { color: rgba(255,255,255,.58); }

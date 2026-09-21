@@ -51,7 +51,7 @@ export function MapSearch({ maps, map, onPick }: {
   return (
     <div className="map-search">
       <div className="map-search-field">
-        <Icon name="add-pin" />
+        <Icon name="pin-add" />
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти место" aria-label="Поиск места на карте" />
       </div>
       {suggestions.length > 0 && (

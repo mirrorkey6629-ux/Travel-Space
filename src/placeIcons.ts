@@ -4,21 +4,22 @@ export type PlaceIconOption = { key: PlaceIconKey; label: string; file: string }
 
 // Порядок задаёт порядок кнопок в тултипе, поэтому базовая идёт первой.
 export const PLACE_ICON_OPTIONS: PlaceIconOption[] = [
-  { key: 'default', label: 'Базовая', file: 'place' },
+  { key: 'default', label: 'Базовая', file: 'pin' },
   { key: 'sightseeing', label: 'Посмотреть', file: 'attractions' },
   { key: 'food', label: 'Поесть', file: 'restaurant' },
   { key: 'cafe', label: 'Кофе', file: 'local-cafe' },
-  { key: 'hotel', label: 'Отель', file: 'hotel' },
+  { key: 'hotel', label: 'Отель', file: 'pin-home' },
   { key: 'shopping', label: 'Шопинг', file: 'shopping-bag' },
   { key: 'nature', label: 'Природа', file: 'park' },
-  { key: 'transport', label: 'Транспорт', file: 'directions-transit' },
+  { key: 'transport', label: 'Транспорт', file: 'train' },
 ]
 
 const iconFiles = new Map(PLACE_ICON_OPTIONS.map((option) => [option.key, option.file]))
+const PLACE_ICON_ASSET_VERSION = '20260921-6'
 
-export const placeIconFile = (key: PlaceIconKey) => iconFiles.get(key) ?? 'place'
+export const placeIconFile = (key: PlaceIconKey) => iconFiles.get(key) ?? 'pin'
 
-export const placeIconUrl = (key: PlaceIconKey) => `${import.meta.env.BASE_URL}assets/icons/${placeIconFile(key)}.svg`
+export const placeIconUrl = (key: PlaceIconKey) => `${import.meta.env.BASE_URL}assets/icons/${placeIconFile(key)}.svg?v=${PLACE_ICON_ASSET_VERSION}`
 
 const googleTypeIcons: Record<string, PlaceIconKey> = {
   restaurant: 'food', meal_takeaway: 'food', meal_delivery: 'food', bakery: 'food',

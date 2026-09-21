@@ -4,7 +4,7 @@ import { PLACE_ICON_OPTIONS, iconForGoogleTypes } from './placeIcons'
 describe('PLACE_ICON_OPTIONS', () => {
   it('описывает восемь вариантов с подписями и файлами', () => {
     expect(PLACE_ICON_OPTIONS).toHaveLength(8)
-    expect(PLACE_ICON_OPTIONS[0]).toEqual({ key: 'default', label: 'Базовая', file: 'place' })
+    expect(PLACE_ICON_OPTIONS[0]).toEqual({ key: 'default', label: 'Базовая', file: 'pin' })
     expect(PLACE_ICON_OPTIONS.every((option) => option.label && option.file)).toBe(true)
   })
 })

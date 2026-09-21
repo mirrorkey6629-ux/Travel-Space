@@ -14,6 +14,7 @@ import { placeIconUrl, type PlaceIconKey } from './placeIcons'
 import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
 import { CacheIndicator } from './components/CacheIndicator'
+import { IconText } from './components/IconText'
 import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
@@ -179,7 +180,7 @@ const formatTravelTimes = (departureTime: string, arrivalTime: string) => {
   if (arrivalTime) return `Прибытие ${arrivalTime}`
   return ''
 }
-const transportEventIcon = (type?: TransportType): IconName => type === 'train' ? 'train' : type === 'plane' ? 'plane' : type === 'bus' ? 'bus' : type === 'ship' ? 'sailing' : 'ticket'
+const transportEventIcon = (type?: TransportType): IconName => type === 'train' || type === 'bus' ? 'train' : type === 'plane' ? 'plane' : type === 'ship' ? 'sailing' : 'rocket-launch'
 const formatShortRange = (from: string, to: string) => {
   const start = parseDate(from)
   const end = parseDate(to)
@@ -853,7 +854,7 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
 }
 
 function DocumentStatus({ checked, children, onClick }: { checked: boolean; children: React.ReactNode; onClick?: () => void }) {
-  return <button type="button" className="document-row" onClick={onClick}><span className={`document-check${checked ? ' checked' : ''}`} role="checkbox" aria-checked={checked} /><SecondaryText interactive>{children}</SecondaryText></button>
+  return <button type="button" className="document-row" onClick={onClick}><IconText checked={checked}>{children}</IconText></button>
 }
 
 const isTransportComplete = (details: TransportDetails | undefined, ticketName: string) => Boolean(
@@ -873,7 +874,14 @@ const withAssignees = (label: string, ids: string[], members: TripMember[]) => {
   const names = assigneeNames(ids, members)
   return names ? `${label} (${names})` : label
 }
-const withTicketDetails = (label: string, ticketOnSite: boolean | undefined, ids: string[], members: TripMember[]) => ticketOnSite ? `${label} (покупаем на месте)` : withAssignees(label, ids, members)
+const TICKET_ON_SITE_PAGE_TEXT = 'Билет купить на месте'
+const TICKET_ON_SITE_SUMMARY_TEXT = '(купить на месте)'
+const withTicketOnSiteSummary = (parts: Array<string | undefined>, ticketOnSite: boolean | undefined) => {
+  if (ticketOnSite) return TICKET_ON_SITE_SUMMARY_TEXT
+  const details = parts.filter(Boolean).join(' · ')
+  return details
+}
+const withTicketDetails = (label: string, ticketOnSite: boolean | undefined, ids: string[], members: TripMember[]) => ticketOnSite ? `${label} ${TICKET_ON_SITE_SUMMARY_TEXT}` : withAssignees(label, ids, members)
 
 function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online, onCity, onHotel, onTransport, onExpenses, onEdit, onInvite, onTrips, onProfile }: { trip: Trip; user: CurrentUser | null; tripCount: number; selectedCityId?: string | null; cacheState: CacheState; online: boolean; onCity: (city: City) => void; onHotel: (city: City) => void; onTransport: (city: City, direction: 'in' | 'out') => void; onExpenses: () => void; onEdit: () => void; onInvite: () => void; onTrips: () => void; onProfile: () => void }) {
   const access = useAccess()
@@ -995,7 +1003,7 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
   )
 }
 
-function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, onEvent, onCity, onAddLocations, onDescriptionChange }: { date: string; cities: City[]; allCities: City[]; tripTimeZone: string; description: string; hidden: boolean; onEvent: (city: City, panel: 'hotel' | 'in' | 'out') => void; onCity: (city: City) => void; onAddLocations: (city: City, date: string) => void; onDescriptionChange: (description: string) => void }) {
+function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, onEvent, onCity, onDescriptionChange }: { date: string; cities: City[]; allCities: City[]; tripTimeZone: string; description: string; hidden: boolean; onEvent: (city: City, panel: 'hotel' | 'in' | 'out') => void; onCity: (city: City) => void; onDescriptionChange: (description: string) => void }) {
   const day = parseDate(date)
   const [descriptionDraft, setDescriptionDraft] = useState(description)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
@@ -1029,7 +1037,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     const departurePlace = outgoing.departureStation.trim() || incoming.departureStation.trim() || departureCity.name
     const arrivalPlace = outgoing.arrivalStation.trim() || incoming.arrivalStation.trim() || arrivalCity.name
     const ticketOnSite = outgoing.ticketOnSite || incoming.ticketOnSite
-    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} – ${arrivalCity.name}`, subtitle: [travelTimes, durationLabel, ticketOnSite ? 'Купить на месте' : ''].filter(Boolean).join(' · '), icon: transportEventIcon(outgoing.type || incoming.type), city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in', kind: 'transfer', departureName: departurePlace, departureUrl: outgoing.departureStationUrl || incoming.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: outgoing.arrivalStationUrl || incoming.arrivalStationUrl })
+    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} – ${arrivalCity.name}`, subtitle: withTicketOnSiteSummary([travelTimes, durationLabel], ticketOnSite), icon: transportEventIcon(outgoing.type || incoming.type), city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in', kind: 'transfer', departureName: departurePlace, departureUrl: outgoing.departureStationUrl || incoming.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: outgoing.arrivalStationUrl || incoming.arrivalStationUrl })
     if (!arrivalCity.hotelNotNeeded) {
       const checkInTime = arrivalCity.hotelCheckInTime.trim()
       events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel', kind: 'hotel-in' })
@@ -1056,7 +1064,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const travelTimes = formatTravelTimes(departureTime, arrivalTime)
       const ticketOnSite = city.transportIn.ticketOnSite || previousTransport?.ticketOnSite
       const routeTitle = `${previousCity?.name || 'Дом'} – ${city.name}`
-      result.push({ key: `${city.id}:arrival`, title: routeTitle, subtitle: [travelTimes, durationLabel, ticketOnSite ? 'Купить на месте' : ''].filter(Boolean).join(' · '), icon: transportEventIcon(city.transportIn.type || previousTransport?.type), city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportIn.departureStationUrl || previousTransport?.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportIn.arrivalStationUrl || previousTransport?.arrivalStationUrl })
+      result.push({ key: `${city.id}:arrival`, title: routeTitle, subtitle: withTicketOnSiteSummary([travelTimes, durationLabel], ticketOnSite), icon: transportEventIcon(city.transportIn.type || previousTransport?.type), city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportIn.departureStationUrl || previousTransport?.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportIn.arrivalStationUrl || previousTransport?.arrivalStationUrl })
       if (!city.hotelNotNeeded) {
         const checkInTime = city.hotelCheckInTime.trim()
         result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel', kind: 'hotel-in' })
@@ -1075,13 +1083,12 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const durationLabel = formatTravelDuration(departureTime, arrivalTime, city.transportOut.departureDate || city.departure, city.transportOut.arrivalDate || city.departure, city.transportOut.departureTimeZone || tripTimeZone, city.transportOut.arrivalTimeZone || tripTimeZone)
       const travelTimes = formatTravelTimes(departureTime, arrivalTime)
       const routeTitle = `${city.name} – ${allCities[cityIndex + 1]?.name || 'Дом'}`
-      result.push({ key: `${city.id}:departure`, title: routeTitle, subtitle: [travelTimes, durationLabel, city.transportOut.ticketOnSite ? 'Купить на месте' : ''].filter(Boolean).join(' · '), icon: transportEventIcon(city.transportOut.type), city, panel: 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportOut.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportOut.arrivalStationUrl })
+      result.push({ key: `${city.id}:departure`, title: routeTitle, subtitle: withTicketOnSiteSummary([travelTimes, durationLabel], city.transportOut.ticketOnSite), icon: transportEventIcon(city.transportOut.type), city, panel: 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportOut.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportOut.arrivalStationUrl })
     }
     if (result.length === 0) result.push({ key: `${city.id}:city-day`, title: `День в ${cityInLocative(city.name)}`, icon: 'footprint', city, kind: 'city' })
     events.push(...result)
   })
   const places = cities.flatMap((city) => (city.places[date] ?? []).map((place) => ({ ...place, city })))
-  const locationCity = cities.at(-1)
   type TimelineItem =
     | { type: 'event'; key: string; event: DayEvent }
     | { type: 'location'; key: string; name: string; url: string; icon: PlaceIconKey; city: City }
@@ -1145,14 +1152,14 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
                   if (item.type === 'arrow') return <li key={item.key} className="day-timeline-arrow" aria-hidden="true" />
                   if (item.type === 'event') {
                     const event = item.event
-                    return <li key={item.key}>{!access.canBrowse ? <span className="day-event-line read-only">{event.icon && <Icon name={event.icon} size={20} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={20} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></button>}</li>
+                    const eventText = `${event.title}${event.subtitle ? `${event.subtitle.startsWith('(') ? ' ' : ' · '}${event.subtitle}` : ''}`
+                    return <li key={item.key}>{!access.canBrowse ? <span className="day-event-line read-only">{event.icon && <Icon name={event.icon} size={20} />}<span>{eventText}</span></span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={20} />}<span>{eventText}</span></button>}</li>
                   }
                   return <li key={item.key} className="day-location-line"><img className="ui-icon" src={placeIconUrl(item.icon)} width={20} height={20} alt="" aria-hidden="true" />{!access.canBrowse ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>) : <button type="button" onClick={() => onCity(item.city)}>{item.name}</button>}</li>
                 })}</ol>}
                 {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
               </>}
             </div>
-            {access.canEdit && ordinaryPlaces.length === 0 && events.every((event) => event.kind !== 'city') && locationCity && <div className="day-places"><button type="button" className="day-add-locations" onClick={() => onAddLocations(locationCity, date)}>Добавьте места для посещения</button></div>}
           </section>
         </div>
       </div>
@@ -1162,7 +1169,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
 
 const transportNames: Record<TransportType, string> = { train: 'Поезд', plane: 'Самолёт', bus: 'Автобус', ship: 'Корабль' }
 const transportNamePlaceholders: Record<TransportType, string> = { train: 'Название поезда', plane: 'Название или номер рейса', bus: 'Название автобуса или номер рейса', ship: 'Название корабля' }
-const transportIconNames: Record<TransportType, IconName> = { train: 'train', plane: 'plane', bus: 'bus', ship: 'sailing' }
+const transportIconNames: Record<TransportType, IconName> = { train: 'train', plane: 'plane', bus: 'train', ship: 'sailing' }
 const timeZones = ['Europe/Moscow', 'Europe/London', 'Europe/Paris', 'Europe/Istanbul', 'Asia/Dubai', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Shanghai', 'Asia/Bangkok', 'America/New_York', 'America/Los_Angeles']
 const formatTimeZoneOption = (timeZone: string, date?: string) => {
   const referenceDate = date ? new Date(`${date}T12:00:00Z`) : new Date()
@@ -1200,7 +1207,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   const departureTimeZone = draft.departureTimeZone || defaultTimeZone
   const arrivalTimeZone = draft.arrivalTimeZone || defaultTimeZone
   const durationLabel = formatTravelDuration(draft.departureTime, draft.arrivalTime, draft.departureDate, draft.arrivalDate, departureTimeZone, arrivalTimeZone)
-  const journeyText = draft.ticketOnSite ? 'Билет покупаем на месте' : durationLabel ?? 'Тут появится время в пути'
+  const journeyText = draft.ticketOnSite ? TICKET_ON_SITE_PAGE_TEXT : durationLabel ?? 'Тут появится время в пути'
   const journeySummary = draft.type ? `${transportEmoji[draft.type]} ${journeyText}` : journeyText
   return (
     <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); onSave(draft.ticketOnSite ? { ...draft, departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : draft) }}>
@@ -1227,7 +1234,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
             <div className="transport-ticket-meta-row">
               <button className="transport-ticket-on-site" type="button" disabled={readOnly || draft.type === 'plane'} onClick={() => setDraft({ ...draft, ticketOnSite: !draft.ticketOnSite, ...(!draft.ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) })}>
                 <span className={`document-check${draft.ticketOnSite ? ' checked' : ''}`} role="checkbox" aria-checked={draft.ticketOnSite} />
-                <span>Билет купить на месте</span>
+                <span>{TICKET_ON_SITE_PAGE_TEXT}</span>
               </button>
             </div>
           </div>
@@ -1645,7 +1652,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
         ) : (
           <div className="calendar-content setup-transition">
             {allDays.some((date) => date < today) && <button className="past-toggle" onClick={() => setShowPast(!showPast)}>{showPast ? 'Скрыть прошедшие дни' : 'Показать прошедшие дни'}</button>}
-            {visibleDays.map((date) => <DayCard key={date} date={date} cities={trip.cities.filter((city) => date >= city.arrival && date <= city.departure)} allCities={trip.cities} tripTimeZone={trip.timeZone} description={trip.dayDescriptions[date] ?? ''} hidden={date < today} onDescriptionChange={(description) => onDayDescriptionChange(date, description)} onEvent={(city, panel) => { setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(panel) }} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onAddLocations={(city, selectedDate) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(selectedDate); setSelectedPanel(null) }} />)}
+            {visibleDays.map((date) => <DayCard key={date} date={date} cities={trip.cities.filter((city) => date >= city.arrival && date <= city.departure)} allCities={trip.cities} tripTimeZone={trip.timeZone} description={trip.dayDescriptions[date] ?? ''} hidden={date < today} onDescriptionChange={(description) => onDayDescriptionChange(date, description)} onEvent={(city, panel) => { setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(panel) }} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} />)}
             {visibleDays.length === 0 && <article className="glass empty-calendar"><h2>Все дни уже прошли</h2><Button onClick={() => setShowPast(true)}>Показать поездку</Button></article>}
           </div>
         )}

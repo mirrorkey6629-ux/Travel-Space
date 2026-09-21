@@ -81,7 +81,7 @@ function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false) {
   image.width = 24
   image.height = 24
   image.alt = ''
-  image.src = draft ? `${import.meta.env.BASE_URL}assets/icons/add-pin.svg` : placeIconUrl(icon)
+  image.src = draft ? `${import.meta.env.BASE_URL}assets/icons/pin-add.svg` : placeIconUrl(icon)
   element.appendChild(image)
   return element
 }
@@ -237,7 +237,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
     return () => { active = false }
   }, [mapsReady, placesSignature, activeDate])
 
-  // Черновой пин — тот же AdvancedMarkerElement, но с иконкой add-pin.
+  // Черновой пин — тот же AdvancedMarkerElement, но с иконкой pin-add.
   useEffect(() => {
     const maps = mapsRef.current
     const map = mapRef.current

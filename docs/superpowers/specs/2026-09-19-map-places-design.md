@@ -38,7 +38,7 @@
 
 | Ключ | Подпись | Файл глифа | Источник |
 |---|---|---|---|
-| `default` | Базовая | `place.svg` | новый |
+| `default` | Базовая | `pin.svg` | новый |
 | `sightseeing` | Посмотреть | `attractions.svg` | уже есть |
 | `food` | Поесть | `restaurant.svg` | новый |
 | `cafe` | Кофе | `local-cafe.svg` | новый |
