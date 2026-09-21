@@ -50,6 +50,28 @@ function geocodeOnce(geocoder: any, address: string): Promise<Coordinates | null
   })
 }
 
+function coordinatesFromMapsUrl(value: string): Coordinates | null {
+  let decoded = value.trim()
+  try { decoded = decodeURIComponent(decoded) } catch { /* Оставляем исходную ссылку. */ }
+  const match = decoded.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/) ?? decoded.match(/[?&](?:q|query|ll)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
+  if (!match) return null
+  const lat = Number(match[1])
+  const lng = Number(match[2])
+  return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null
+}
+
+function addressFromMapsUrl(value: string): string {
+  try {
+    const url = new URL(value)
+    const query = url.searchParams.get('q') || url.searchParams.get('query')
+    if (query && !coordinatesFromMapsUrl(value)) return query
+    const place = url.pathname.match(/\/place\/([^/]+)/)?.[1]
+    return place ? decodeURIComponent(place).replace(/\+/g, ' ') : ''
+  } catch {
+    return ''
+  }
+}
+
 function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false) {
   const element = document.createElement('div')
   element.className = `place-marker${draft ? ' place-marker-draft' : ''}${dimmed ? ' is-dimmed' : ''}`
@@ -63,8 +85,9 @@ function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false) {
   return element
 }
 
-export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDate, onAdd, onUpdate, onDelete, onResolvePlace, focusRequest, onFocusHandled }: {
+export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, readOnly, formatDate, onAdd, onUpdate, onDelete, onResolvePlace, focusRequest, onFocusHandled }: {
   query: string
+  centerUrl?: string
   places: MapPlace[]
   dates: string[]
   activeDate: string | null
@@ -120,6 +143,30 @@ export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDa
     }).catch(() => undefined)
     return () => { active = false }
   }, [key])
+
+  // Ссылка города задаёт исходный центр независимо от наличия точек маршрута.
+  // В полной ссылке Google Maps координаты обычно лежат после `@`; если их нет,
+  // геокодируем название места из ссылки, а для короткой ссылки используем город.
+  useEffect(() => {
+    const maps = mapsRef.current
+    const map = mapRef.current
+    if (!maps || !map) return
+    const direct = coordinatesFromMapsUrl(centerUrl)
+    if (direct) {
+      map.panTo(direct)
+      map.setZoom(12)
+      return
+    }
+    const address = addressFromMapsUrl(centerUrl) || query
+    if (!address.trim()) return
+    let active = true
+    void geocodeOnce(new maps.Geocoder(), address).then((coordinates) => {
+      if (!active || !coordinates) return
+      map.panTo(coordinates)
+      map.setZoom(12)
+    })
+    return () => { active = false }
+  }, [mapsReady, centerUrl, query])
 
   // Клик по пустому месту карты ставит черновой пин, повторный клик его переставляет.
   useEffect(() => {
@@ -247,7 +294,7 @@ export function PlacesMap({ query, places, dates, activeDate, readOnly, formatDa
     closePopup()
   }
 
-  if (!key) return <iframe title={`Карта: ${query}`} src={`https://www.google.com/maps?q=${encodeURIComponent(query)}&z=12&output=embed`} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" />
+  if (!key) return <iframe title={`Карта: ${query}`} src={`https://www.google.com/maps?q=${encodeURIComponent(addressFromMapsUrl(centerUrl) || query)}&z=12&output=embed`} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" />
 
   const popupPosition = selected && Number.isFinite(selected.latitude) && Number.isFinite(selected.longitude)
     ? { lat: selected.latitude!, lng: selected.longitude! }

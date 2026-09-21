@@ -22,6 +22,7 @@ export type ApiCity = {
   id: string
   trip_id: string
   name: string
+  google_maps_url: string
   position: number
   arrival_date: string
   departure_date: string

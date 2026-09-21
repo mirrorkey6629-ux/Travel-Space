@@ -11,7 +11,7 @@ import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
 import './component-library.css'
 
-const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'barefoot', 'bus', 'calendar-month', 'casino', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'email', 'encrypted', 'face', 'hotel', 'image', 'key', 'link', 'money-bag', 'pin-home', 'plane', 'planet', 'refresh', 'sailing', 'ticket', 'time', 'train', 'upload-file']
+const icons: IconName[] = ['add-circle', 'add-pin', 'add-plus', 'arrow-back', 'attractions', 'barefoot', 'bus', 'calendar-month', 'casino', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit-location', 'edit', 'email', 'encrypted', 'face', 'footprint', 'hotel', 'image', 'key', 'link', 'money-bag', 'pin-home', 'plane', 'planet', 'refresh', 'sailing', 'ticket', 'time', 'train', 'upload-file']
 
 const navigation = [
   { id: 'colors', label: 'Цвета' },

@@ -30,6 +30,7 @@ type DayPeriod = 'morning' | 'day' | 'evening'
 type City = {
   id: string
   name: string
+  googleMapsUrl: string
   arrival: string
   departure: string
   arrivalPeriod?: DayPeriod
@@ -85,7 +86,6 @@ const isoDate = (date: Date) => date.toISOString().slice(0, 10)
 const daysBetween = (from: string, to: string) => Math.max(0, Math.round((parseDate(to).getTime() - parseDate(from).getTime()) / 86400000))
 const periodOrder: Record<DayPeriod, number> = { morning: 0, day: 1, evening: 2 }
 const periodDayPart: Record<DayPeriod, number> = { morning: 0, day: 0.5, evening: 1 }
-const periodAdverb: Record<DayPeriod, string> = { morning: 'утром', day: 'днём', evening: 'вечером' }
 const cityDays = (city: City) => {
   const dateDays = daysBetween(city.arrival, city.departure)
   const arrivalPeriod = city.arrivalPeriod ?? 'morning'
@@ -166,13 +166,14 @@ const formatTravelDuration = (departureTime: string, arrivalTime: string, depart
       return guess
     }
     const duration = Math.round((timestamp(arrivalDate, arrivalTime, arrivalTimeZone) - timestamp(departureDate, departureTime, departureTimeZone)) / 60000)
-    if (duration >= 0) return `В пути ${Math.floor(duration / 60)}ч ${duration % 60}мин`
+    if (duration >= 0) return `В пути ${Math.floor(duration / 60)} ч ${duration % 60} мин`
   }
   let duration = arrivalMinutes - departureMinutes
   if (departureDate && arrivalDate) duration += Math.round((parseDate(arrivalDate).getTime() - parseDate(departureDate).getTime()) / 86400000) * 1440
   if (duration < 0) duration += 1440
-  return `В пути ${Math.floor(duration / 60)}ч ${duration % 60}мин`
+  return `В пути ${Math.floor(duration / 60)} ч ${duration % 60} мин`
 }
+const formatRoutePoint = (place: string, time: string) => time ? `${place} (${time})` : place
 const formatShortRange = (from: string, to: string) => {
   const start = parseDate(from)
   const end = parseDate(to)
@@ -222,6 +223,7 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
     return {
       id: city.id,
       name: city.name,
+      googleMapsUrl: city.google_maps_url ?? '',
       arrival: city.arrival_date.slice(0, 10),
       departure: city.departure_date.slice(0, 10),
       arrivalPeriod: city.arrival_period,
@@ -660,7 +662,8 @@ const transportPayload = (city: City) => ({
 })
 const hotelPayload = (city: City) => ({ hotelNotNeeded: city.hotelNotNeeded, hotel: city.hotel, hotelUrl: city.hotelUrl, hotelCheckInTime: city.hotelCheckInTime ?? '', hotelCheckOutTime: city.hotelCheckOutTime ?? '', hotelNotes: city.hotelNotes ?? '', hotelPayerIds: city.hotelPayerIds ?? [], hotelTotalAmountRubles: city.hotelTotalAmountRubles ?? 0 })
 const assignmentPayload = (city: City) => ({ ticketAssigneeIds: city.ticketAssigneeIds, hotelAssigneeIds: city.hotelNotNeeded ? [] : city.hotelAssigneeIds, planAssigneeIds: city.planAssigneeIds })
-const emptyCity = (): City => ({ id: uid(), name: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotelNotNeeded: false, hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', hotelPayerIds: [], hotelTotalAmountRubles: 0, trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), ticketAssigneeIds: [], hotelAssigneeIds: [], planAssigneeIds: [], places: {}, tasks: [], files: [] })
+const cityLocationPayload = (city: City) => ({ googleMapsUrl: city.googleMapsUrl.trim() })
+const emptyCity = (): City => ({ id: uid(), name: '', googleMapsUrl: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotelNotNeeded: false, hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', hotelPayerIds: [], hotelTotalAmountRubles: 0, trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), ticketAssigneeIds: [], hotelAssigneeIds: [], planAssigneeIds: [], places: {}, tasks: [], files: [] })
 
 function AssigneeSelect({ members, value, icon, disabled, emptyLabel = 'Не назначен', onChange }: { members: TripMember[]; value: string[]; icon: IconName; disabled?: boolean; emptyLabel?: string; onChange: (value: string[]) => void }) {
   const [open, setOpen] = useState(false)
@@ -719,6 +722,7 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
       <input ref={imageFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current); imagePreviewUrlRef.current = URL.createObjectURL(file); setCity((current) => ({ ...current, imageFile: file, imageUrl: imagePreviewUrlRef.current ?? undefined })); event.currentTarget.value = '' }} />
       <div className="field-grid">
         <label className="field span-2"><span>Город</span><Input value={city.name} onChange={(e) => setCity({ ...city, name: e.target.value })} placeholder="Например, Осака" autoFocus /></label>
+        <label className="field span-2"><span>Ссылка на город в Google Maps</span><Input icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(e) => setCity({ ...city, googleMapsUrl: e.target.value })} placeholder="Ссылка Google Maps" /></label>
         <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(e) => { const value = e.target.value; setCity((current) => ({ ...current, arrival: value, departure: current.departure < value ? '' : current.departure })) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(e) => setCity((current) => ({ ...current, arrivalPeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
         <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(e) => setCity((current) => ({ ...current, departure: e.target.value }))}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(e) => setCity((current) => ({ ...current, departurePeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
         <div className="field span-2"><span>Кто покупает билет ({ticketRouteLabel})</span><AssigneeSelect members={members} value={city.ticketAssigneeIds} icon="ticket" disabled={!canAssign} onChange={(ticketAssigneeIds) => setCity((current) => ({ ...current, ticketAssigneeIds }))} /></div>
@@ -761,6 +765,7 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
             return (
               <section className="all-city-fields" key={city.id}>
                 <label className="field city-name-field"><span>Город</span><Input value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></label>
+                <label className="field span-2"><span>Ссылка на город в Google Maps</span><Input icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(event) => updateCity(city.id, { googleMapsUrl: event.target.value })} placeholder="Ссылка Google Maps" /></label>
                 <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
                 <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
                 <div className="field span-2"><span>Кто покупает билет ({ticketRouteLabel})</span><AssigneeSelect members={members} value={city.ticketAssigneeIds} icon="ticket" disabled={!canAssign} onChange={(ticketAssigneeIds) => updateCity(city.id, { ticketAssigneeIds })} /></div>
@@ -1012,13 +1017,11 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     const incoming = arrivalCity.transportIn
     const departureTime = outgoing.departureTime.trim() || incoming.departureTime.trim()
     const arrivalTime = outgoing.arrivalTime.trim() || incoming.arrivalTime.trim()
-    const departureLabel = departureTime ? `Отъезд в ${departureTime}` : `Отъезд ${periodAdverb[departureCity.departurePeriod ?? 'evening']}`
-    const arrivalLabel = arrivalTime ? `Прибытие в ${arrivalTime}` : `Прибытие ${periodAdverb[arrivalCity.arrivalPeriod ?? 'morning']}`
     const durationLabel = formatTravelDuration(departureTime, arrivalTime, outgoing.departureDate || incoming.departureDate || departureCity.departure, outgoing.arrivalDate || incoming.arrivalDate || arrivalCity.arrival, outgoing.departureTimeZone || incoming.departureTimeZone || tripTimeZone, outgoing.arrivalTimeZone || incoming.arrivalTimeZone || tripTimeZone)
     const hasOutgoingDetails = Boolean(departureCity.trainOut || outgoing.type || outgoing.departureTime.trim() || outgoing.arrivalTime.trim() || outgoing.departureStation.trim() || outgoing.arrivalStation.trim())
     const departurePlace = outgoing.departureStation.trim() || incoming.departureStation.trim() || departureCity.name
     const arrivalPlace = outgoing.arrivalStation.trim() || incoming.arrivalStation.trim() || arrivalCity.name
-    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departurePlace} — ${arrivalPlace}`, subtitle: [departureLabel, arrivalLabel, durationLabel].filter(Boolean).join(' · '), icon: 'ticket', city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in' })
+    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${formatRoutePoint(departurePlace, departureTime)} — ${formatRoutePoint(arrivalPlace, arrivalTime)}`, subtitle: durationLabel, icon: 'ticket', city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in' })
     if (!arrivalCity.hotelNotNeeded) {
       const checkInTime = arrivalCity.hotelCheckInTime.trim()
       events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel' })
@@ -1026,7 +1029,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     const arrivalPeriod = arrivalCity.arrivalPeriod ?? 'morning'
     const departurePeriod = arrivalCity.departurePeriod ?? 'evening'
     if (arrivalCity.arrival === date && arrivalCity.departure === date && periodOrder[departurePeriod] > periodOrder[arrivalPeriod]) {
-      events.push({ key: `${arrivalCity.id}:city-day-between-transfers`, title: `День в ${cityInLocative(arrivalCity.name)}`, icon: 'barefoot', city: arrivalCity })
+      events.push({ key: `${arrivalCity.id}:city-day-between-transfers`, title: `День в ${cityInLocative(arrivalCity.name)}`, icon: 'footprint', city: arrivalCity })
     }
   })
   cities.forEach((city) => {
@@ -1041,11 +1044,10 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const departurePlace = city.transportIn.departureStation.trim() || previousTransport?.departureStation.trim() || previousCity?.name || 'Дом'
       const arrivalPlace = city.transportIn.arrivalStation.trim() || previousTransport?.arrivalStation.trim() || city.name
       const hasIncomingDetails = Boolean(city.trainIn || city.transportIn.type || city.transportIn.departureTime.trim() || city.transportIn.arrivalTime.trim() || city.transportIn.departureStation.trim() || city.transportIn.arrivalStation.trim())
-      const departureLabel = departureTime ? `Отъезд в ${departureTime}` : 'Отъезд'
-      const arrivalLabel = arrivalTime ? `Прибытие в ${arrivalTime}` : `Прибытие ${periodAdverb[city.arrivalPeriod ?? 'morning']}`
       const durationLabel = formatTravelDuration(departureTime, arrivalTime, city.transportIn.departureDate || previousTransport?.departureDate || previousCity?.departure || city.arrival, city.transportIn.arrivalDate || previousTransport?.arrivalDate || city.arrival, city.transportIn.departureTimeZone || previousTransport?.departureTimeZone || tripTimeZone, city.transportIn.arrivalTimeZone || previousTransport?.arrivalTimeZone || tripTimeZone)
       const ticketOnSite = city.transportIn.ticketOnSite || previousTransport?.ticketOnSite
-      result.push({ key: `${city.id}:arrival`, title: ticketOnSite ? `${departurePlace} — ${arrivalPlace} (покупаем на месте)` : `${departurePlace} — ${arrivalPlace}`, subtitle: [departureLabel, arrivalLabel, durationLabel].filter(Boolean).join(' · '), icon: 'ticket', city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out' })
+      const routeTitle = `${formatRoutePoint(departurePlace, departureTime)} — ${formatRoutePoint(arrivalPlace, arrivalTime)}`
+      result.push({ key: `${city.id}:arrival`, title: ticketOnSite ? `${routeTitle} (покупаем на месте)` : routeTitle, subtitle: durationLabel, icon: 'ticket', city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out' })
       if (!city.hotelNotNeeded) {
         const checkInTime = city.hotelCheckInTime.trim()
         result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel' })
@@ -1062,39 +1064,39 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const cityIndex = allCities.findIndex((item) => item.id === city.id)
       const arrivalPlace = city.transportOut.arrivalStation.trim() || allCities[cityIndex + 1]?.name
       const durationLabel = formatTravelDuration(departureTime, arrivalTime, city.transportOut.departureDate || city.departure, city.transportOut.arrivalDate || city.departure, city.transportOut.departureTimeZone || tripTimeZone, city.transportOut.arrivalTimeZone || tripTimeZone)
-      const routeTitle = arrivalPlace ? `${departurePlace} — ${arrivalPlace}` : departurePlace
-      result.push({ key: `${city.id}:departure`, title: city.transportOut.ticketOnSite ? `${routeTitle} (покупаем на месте)` : routeTitle, subtitle: [departureTime ? `Отъезд в ${departureTime}` : `Отъезд ${periodAdverb[city.departurePeriod ?? 'evening']}`, arrivalTime ? `Прибытие в ${arrivalTime}` : undefined, durationLabel].filter(Boolean).join(' · '), icon: 'ticket', city, panel: 'out' })
+      const routeTitle = arrivalPlace ? `${formatRoutePoint(departurePlace, departureTime)} — ${formatRoutePoint(arrivalPlace, arrivalTime)}` : formatRoutePoint(departurePlace, departureTime)
+      result.push({ key: `${city.id}:departure`, title: city.transportOut.ticketOnSite ? `${routeTitle} (покупаем на месте)` : routeTitle, subtitle: durationLabel, icon: 'ticket', city, panel: 'out' })
     }
-    if (result.length === 0) result.push({ key: `${city.id}:city-day`, title: `День в ${cityInLocative(city.name)}`, icon: 'barefoot', city })
+    if (result.length === 0) result.push({ key: `${city.id}:city-day`, title: `День в ${cityInLocative(city.name)}`, icon: 'footprint', city })
     events.push(...result)
   })
   const places = cities.flatMap((city) => (city.places[date] ?? []).map((place) => ({ ...place, city })))
   const locationCity = cities.at(-1)
-  const cityTitle = cities.map((city) => city.name).join(' — ')
   return (
     <article className={`glass day-card${hidden ? ' past' : ''}`}>
-      <div className="day-card-heading">
-        <div className="day-city-heading"><h2>{day.getDate()} {ruMonths[day.getMonth()]}</h2>{cityTitle && <p>{cityTitle}</p>}</div>
-      </div>
       <div className="day-content">
-        <label className={`day-column day-description${access.canEdit ? '' : ' read-only'}`}>
-          <span>Заметки</span>
-          <textarea ref={descriptionRef} value={descriptionDraft} placeholder={access.canEdit ? 'Короткое описание дня' : ''} readOnly={!access.canEdit} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => { if (access.canEdit && descriptionDraft !== description) onDescriptionChange(descriptionDraft) }} />
-        </label>
-        <section className="day-column day-events" aria-label="События дня">
-          <h3>События</h3>
-          {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
-            {events.length > 0 && <ul className="day-event-list">{events.map((event) => <li key={event.key}>{!access.canBrowse ? <span className="day-event-line read-only">{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></button>}</li>)}</ul>}
-            {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
-          </>}
-        </section>
-        <section className="day-column day-places" aria-label="Локации дня">
-          <h3>Локации</h3>
-          {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
-            {places.length > 0 && <ol>{places.map((place) => <li className={place.icon === 'transport' ? 'transport-place' : undefined} key={`${place.city.id}:${place.id}`}>{place.icon === 'transport' && <img className="ui-icon" src={placeIconUrl('transport')} width={16} height={16} alt="" aria-hidden="true" />}{!access.canBrowse ? (place.url ? <a href={place.url} target="_blank" rel="noreferrer">{place.name}</a> : <span>{place.name}</span>) : <button type="button" onClick={() => onCity(place.city)}>{place.name}</button>}</li>)}</ol>}
-            {access.canEdit && places.length === 0 && locationCity && <button type="button" className="day-add-locations" onClick={() => onAddLocations(locationCity, date)}>Добавьте места для посещения</button>}
-          </>}
-        </section>
+        <div className="day-date-column"><h2>{day.getDate()} {ruMonths[day.getMonth()].slice(0, 3)}</h2><p>{ruWeekdays[day.getDay()]}</p></div>
+        <div className="day-panels">
+          <label className={`day-column day-description${access.canEdit ? '' : ' read-only'}`}>
+            <span>Заметки</span>
+            <textarea ref={descriptionRef} value={descriptionDraft} placeholder={access.canEdit ? 'Короткое описание дня' : ''} readOnly={!access.canEdit} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => { if (access.canEdit && descriptionDraft !== description) onDescriptionChange(descriptionDraft) }} />
+          </label>
+          <section className="day-column day-schedule" aria-label="События и локации дня">
+            <h3>События и локации</h3>
+            <div className="day-events">
+              {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
+                {events.length > 0 && <ul className="day-event-list">{events.map((event) => <li key={event.key}>{!access.canBrowse ? <span className="day-event-line read-only">{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></button>}</li>)}</ul>}
+                {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
+              </>}
+            </div>
+            <div className="day-places">
+              {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
+                {places.length > 0 && <ul>{places.map((place) => <li key={`${place.city.id}:${place.id}`}><img className="ui-icon" src={placeIconUrl(place.icon)} width={16} height={16} alt="" aria-hidden="true" />{!access.canBrowse ? (place.url ? <a href={place.url} target="_blank" rel="noreferrer">{place.name}</a> : <span>{place.name}</span>) : <button type="button" onClick={() => onCity(place.city)}>{place.name}</button>}</li>)}</ul>}
+                {access.canEdit && places.length === 0 && locationCity && <button type="button" className="day-add-locations" onClick={() => onAddLocations(locationCity, date)}>Добавьте места для посещения</button>}
+              </>}
+            </div>
+          </section>
+        </div>
       </div>
     </article>
   )
@@ -1403,6 +1405,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
             <div className="city-map">
               <PlacesMap
                 query={mapPoint}
+                centerUrl={draft.googleMapsUrl}
                 places={Object.entries(draft.places).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude })))}
                 dates={dateRange(draft.arrival, draft.departure)}
                 activeDate={activeDate}
@@ -1574,10 +1577,17 @@ export default function App() {
     const account = await api.me()
     const user: CurrentUser = account.user
     if (user.hasAvatar) {
-      const blob = await api.downloadAvatar()
-      if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current)
-      avatarObjectUrlRef.current = URL.createObjectURL(blob)
-      user.avatarUrl = avatarObjectUrlRef.current
+      try {
+        const blob = await api.downloadAvatar()
+        if (avatarObjectUrlRef.current) URL.revokeObjectURL(avatarObjectUrlRef.current)
+        avatarObjectUrlRef.current = URL.createObjectURL(blob)
+        user.avatarUrl = avatarObjectUrlRef.current
+      } catch {
+        // Метаданные и файловое хранилище могут разъехаться после переноса базы.
+        // Отсутствующий аватар не должен блокировать вход в аккаунт.
+        user.hasAvatar = false
+        user.avatarUrl = undefined
+      }
     }
     setCurrentUser(user)
     keepStorage()
@@ -1690,7 +1700,7 @@ export default function App() {
     for (const [position, city] of draft.cities.entries()) {
       const result = await api.createCity(created.trip.id, {
         name: city.name, position, arrivalDate: city.arrival, departureDate: city.departure,
-        arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city),
+        arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city),
       })
       cityIds.set(city.id, result.city.id)
       if (city.imageFile) await api.uploadDocument(created.trip.id, result.city.id, 'city-image', city.imageFile)
@@ -1740,7 +1750,7 @@ export default function App() {
           if (!draftIds.has(city.id)) await api.deleteCity(draft.id, city.id)
         }
         for (const [position, city] of draft.cities.entries()) {
-          const payload = { name: city.name, position, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }
+          const payload = { name: city.name, position, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }
           const cityId = existingIds.has(city.id) ? city.id : (await api.createCity(draft.id, payload)).city.id
           if (existingIds.has(city.id)) await api.updateCity(draft.id, city.id, payload)
           if (city.imageDeleteId) await api.deleteDocument(city.imageDeleteId)
@@ -1756,7 +1766,7 @@ export default function App() {
 
   const updateCity = async (city: City) => {
     if (!trip?.id) return
-    try { await api.updateCity(trip.id, city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }) }
+    try { await api.updateCity(trip.id, city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }) }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка сохранения') }
   }
 

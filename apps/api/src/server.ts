@@ -17,6 +17,17 @@ const bodyOf = (value: unknown) => (value && typeof value === 'object' ? value a
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : ''
 const passwordText = (value: unknown) => typeof value === 'string' ? value : ''
 const optionalText = (value: unknown) => typeof value === 'string' ? value.trim() : undefined
+const avatarPathOrClear = async (userId: string, storageKey: string) => {
+  const filePath = path.join(config.uploadDir, storageKey)
+  if (existsSync(filePath)) return filePath
+  await db.query(
+    `UPDATE users
+        SET avatar_storage_key=NULL, avatar_original_name=NULL, avatar_mime_type=NULL, updated_at=now()
+      WHERE id=$1 AND avatar_storage_key=$2`,
+    [userId, storageKey],
+  )
+  throw httpError(404, 'Аватар не найден')
+}
 const validTimeZone = (value: string) => {
   try { new Intl.DateTimeFormat('en-US', { timeZone: value }).format(); return true } catch { return false }
 }
@@ -169,8 +180,9 @@ app.get(`${apiPrefix}/me/avatar`, async (request, reply) => {
   const user = await requireUser(request)
   const avatar = (await db.query<{ avatar_storage_key: string; avatar_mime_type: string }>('SELECT avatar_storage_key,avatar_mime_type FROM users WHERE id=$1', [user.id])).rows[0]
   if (!avatar?.avatar_storage_key) throw httpError(404, 'Аватар не найден')
+  const avatarPath = await avatarPathOrClear(user.id, avatar.avatar_storage_key)
   reply.header('Content-Type', avatar.avatar_mime_type)
-  return reply.send(createReadStream(path.join(config.uploadDir, avatar.avatar_storage_key)))
+  return reply.send(createReadStream(avatarPath))
 })
 
 app.post(`${apiPrefix}/me/avatar`, async (request) => {
@@ -270,10 +282,10 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
         if (!oldId || !name || !datePattern.test(arrivalDate) || !datePattern.test(departureDate) || arrivalDate < startDate || departureDate > endDate || departureDate < arrivalDate || !['morning','day','evening'].includes(arrivalPeriod) || !['morning','day','evening'].includes(departurePeriod)) throw httpError(400, 'Некорректные данные города в файле')
         const city = (await client.query(
           `INSERT INTO cities(trip_id,name,position,arrival_date,departure_date,arrival_period,departure_period,hotel_not_needed,hotel,hotel_url,hotel_check_in_time,hotel_check_out_time,train_in,train_out,created_by,
-             transport_in_type,transport_out_type,transport_in_name,transport_out_name,transport_in_departure_time,transport_in_arrival_time,transport_out_departure_time,transport_out_arrival_time,transport_in_departure_station,transport_in_departure_station_url,transport_in_arrival_station,transport_in_arrival_station_url,transport_out_departure_station,transport_out_departure_station_url,transport_out_arrival_station,transport_out_arrival_station_url,hotel_notes,transport_in_notes,transport_out_notes,transport_in_ticket_on_site,transport_out_ticket_on_site)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36) RETURNING id`,
+             transport_in_type,transport_out_type,transport_in_name,transport_out_name,transport_in_departure_time,transport_in_arrival_time,transport_out_departure_time,transport_out_arrival_time,transport_in_departure_station,transport_in_departure_station_url,transport_in_arrival_station,transport_in_arrival_station_url,transport_out_departure_station,transport_out_departure_station_url,transport_out_arrival_station,transport_out_arrival_station_url,hotel_notes,transport_in_notes,transport_out_notes,transport_in_ticket_on_site,transport_out_ticket_on_site,google_maps_url)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34,$35,$36,$37) RETURNING id`,
           [createdTrip.id, name, index, arrivalDate, departureDate, arrivalPeriod, departurePeriod, source.hotelNotNeeded === true, text(source.hotel), text(source.hotelUrl), text(source.hotelCheckInTime), text(source.hotelCheckOutTime), text(source.trainIn), text(source.trainOut), user.id,
-            optionalText(source.transportInType) || null, optionalText(source.transportOutType) || null, text(source.transportInName), text(source.transportOutName), text(source.transportInDepartureTime), text(source.transportInArrivalTime), text(source.transportOutDepartureTime), text(source.transportOutArrivalTime), text(source.transportInDepartureStation), text(source.transportInDepartureStationUrl), text(source.transportInArrivalStation ?? source.transportInStation), text(source.transportInArrivalStationUrl ?? source.transportInStationUrl), text(source.transportOutDepartureStation ?? source.transportOutStation), text(source.transportOutDepartureStationUrl ?? source.transportOutStationUrl), text(source.transportOutArrivalStation), text(source.transportOutArrivalStationUrl), text(source.hotelNotes), text(source.transportInNotes), text(source.transportOutNotes), source.transportInTicketOnSite === true, source.transportOutTicketOnSite === true],
+            optionalText(source.transportInType) || null, optionalText(source.transportOutType) || null, text(source.transportInName), text(source.transportOutName), text(source.transportInDepartureTime), text(source.transportInArrivalTime), text(source.transportOutDepartureTime), text(source.transportOutArrivalTime), text(source.transportInDepartureStation), text(source.transportInDepartureStationUrl), text(source.transportInArrivalStation ?? source.transportInStation), text(source.transportInArrivalStationUrl ?? source.transportInStationUrl), text(source.transportOutDepartureStation ?? source.transportOutStation), text(source.transportOutDepartureStationUrl ?? source.transportOutStationUrl), text(source.transportOutArrivalStation), text(source.transportOutArrivalStationUrl), text(source.hotelNotes), text(source.transportInNotes), text(source.transportOutNotes), source.transportInTicketOnSite === true, source.transportOutTicketOnSite === true, text(source.googleMapsUrl)],
         )).rows[0]
         cityIds.set(oldId, city.id)
         cityDates.set(oldId, { arrivalDate, departureDate })
@@ -394,8 +406,9 @@ app.get(`${apiPrefix}/trips/:tripId/members/:memberId/avatar`, async (request, r
     [tripId, memberId],
   )).rows[0]
   if (!avatar?.avatar_storage_key) throw httpError(404, 'Аватар не найден')
+  const avatarPath = await avatarPathOrClear(memberId, avatar.avatar_storage_key)
   reply.header('Content-Type', avatar.avatar_mime_type)
-  return reply.send(createReadStream(path.join(config.uploadDir, avatar.avatar_storage_key)))
+  return reply.send(createReadStream(avatarPath))
 })
 
 app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
@@ -415,7 +428,7 @@ app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
   const bundle = {
     format: 'travel-space', version: 1, exportedAt: new Date().toISOString(),
     trip: { name: trip.name, startDate: trip.start_date, endDate: trip.end_date, timeZone: trip.time_zone, backgroundRemoved: trip.background_removed },
-    cities: cities.rows.map((city) => ({ id: city.id, name: city.name, arrivalDate: String(city.arrival_date).slice(0,10), departureDate: String(city.departure_date).slice(0,10), arrivalPeriod: city.arrival_period, departurePeriod: city.departure_period, hotelNotNeeded: city.hotel_not_needed, hotel: city.hotel, hotelUrl: city.hotel_url, hotelCheckInTime: city.hotel_check_in_time, hotelCheckOutTime: city.hotel_check_out_time, hotelNotes: city.hotel_notes, trainIn: city.train_in, trainOut: city.train_out,
+    cities: cities.rows.map((city) => ({ id: city.id, name: city.name, googleMapsUrl: city.google_maps_url, arrivalDate: String(city.arrival_date).slice(0,10), departureDate: String(city.departure_date).slice(0,10), arrivalPeriod: city.arrival_period, departurePeriod: city.departure_period, hotelNotNeeded: city.hotel_not_needed, hotel: city.hotel, hotelUrl: city.hotel_url, hotelCheckInTime: city.hotel_check_in_time, hotelCheckOutTime: city.hotel_check_out_time, hotelNotes: city.hotel_notes, trainIn: city.train_in, trainOut: city.train_out,
       transportInType: city.transport_in_type, transportOutType: city.transport_out_type, transportInName: city.transport_in_name, transportOutName: city.transport_out_name, transportInDepartureTime: city.transport_in_departure_time, transportInArrivalTime: city.transport_in_arrival_time, transportOutDepartureTime: city.transport_out_departure_time, transportOutArrivalTime: city.transport_out_arrival_time, transportInDepartureStation: city.transport_in_departure_station, transportInDepartureStationUrl: city.transport_in_departure_station_url, transportInArrivalStation: city.transport_in_arrival_station, transportInArrivalStationUrl: city.transport_in_arrival_station_url, transportOutDepartureStation: city.transport_out_departure_station, transportOutDepartureStationUrl: city.transport_out_departure_station_url, transportOutArrivalStation: city.transport_out_arrival_station, transportOutArrivalStationUrl: city.transport_out_arrival_station_url, transportInNotes: city.transport_in_notes, transportOutNotes: city.transport_out_notes, transportInTicketOnSite: city.transport_in_ticket_on_site, transportOutTicketOnSite: city.transport_out_ticket_on_site })),
     places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, latitude: place.latitude, longitude: place.longitude, position: place.position, icon: place.icon })),
     tasks: tasks.rows.map((task) => ({ cityId: task.city_id, dueDate: task.due_date ? String(task.due_date).slice(0,10) : null, title: task.title, done: task.done })),
@@ -602,9 +615,9 @@ app.post(`${apiPrefix}/trips/:tripId/cities`, async (request, reply) => {
   const position = Number(bodyOf(request.body).position)
   const nextPosition = Number.isInteger(position) ? position : Number((await db.query('SELECT coalesce(max(position), -1) + 1 AS value FROM cities WHERE trip_id = $1', [tripId])).rows[0].value)
   const result = await db.query(
-    `INSERT INTO cities(trip_id, name, position, arrival_date, departure_date, arrival_period, departure_period, hotel_not_needed, hotel, hotel_url, hotel_check_in_time, hotel_check_out_time, hotel_notes, transport_in_notes, transport_out_notes, transport_in_name, transport_out_name, created_by, ticket_assignee_ids, hotel_assignee_ids, plan_assignee_ids)
-     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *`,
-    [tripId, input.name, nextPosition, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, body.hotelNotNeeded === true, text(body.hotel), text(body.hotelUrl), text(body.hotelCheckInTime), text(body.hotelCheckOutTime), text(body.hotelNotes), text(body.transportInNotes), text(body.transportOutNotes), text(body.transportInName), text(body.transportOutName), user.id, assignees.ticketAssigneeIds ?? [], body.hotelNotNeeded === true ? [] : assignees.hotelAssigneeIds ?? [], assignees.planAssigneeIds ?? []],
+    `INSERT INTO cities(trip_id, name, position, arrival_date, departure_date, arrival_period, departure_period, hotel_not_needed, hotel, hotel_url, hotel_check_in_time, hotel_check_out_time, hotel_notes, transport_in_notes, transport_out_notes, transport_in_name, transport_out_name, created_by, ticket_assignee_ids, hotel_assignee_ids, plan_assignee_ids, google_maps_url)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
+    [tripId, input.name, nextPosition, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, body.hotelNotNeeded === true, text(body.hotel), text(body.hotelUrl), text(body.hotelCheckInTime), text(body.hotelCheckOutTime), text(body.hotelNotes), text(body.transportInNotes), text(body.transportOutNotes), text(body.transportInName), text(body.transportOutName), user.id, assignees.ticketAssigneeIds ?? [], body.hotelNotNeeded === true ? [] : assignees.hotelAssigneeIds ?? [], assignees.planAssigneeIds ?? [], text(body.googleMapsUrl)],
   )
   reply.code(201)
   return { city: result.rows[0] }
@@ -641,7 +654,8 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
        hotel_notes=coalesce($29,hotel_notes), transport_in_notes=coalesce($30,transport_in_notes), transport_out_notes=coalesce($31,transport_out_notes),
        transport_in_ticket_on_site=coalesce($32,transport_in_ticket_on_site), transport_out_ticket_on_site=coalesce($33,transport_out_ticket_on_site),
        ticket_assignee_ids=$34, hotel_assignee_ids=$35, plan_assignee_ids=$36,
-       hotel_payer_ids=$37, hotel_total_amount_rubles=coalesce($38,hotel_total_amount_rubles), updated_at=now()
+       hotel_payer_ids=$37, hotel_total_amount_rubles=coalesce($38,hotel_total_amount_rubles),
+       google_maps_url=coalesce($39,google_maps_url), updated_at=now()
      WHERE id=$1 AND trip_id=$2 RETURNING *`,
     [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut),
       optionalText(body.transportInType), optionalText(body.transportOutType), optionalText(body.transportInDepartureTime), optionalText(body.transportInArrivalTime),
@@ -655,7 +669,7 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
       (typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed) ? [] : assignees.hotelAssigneeIds === undefined ? current.hotel_assignee_ids : assignees.hotelAssigneeIds,
       assignees.planAssigneeIds === undefined ? current.plan_assignee_ids : assignees.planAssigneeIds,
       assignees.hotelPayerIds === undefined ? current.hotel_payer_ids : assignees.hotelPayerIds,
-      optionalRubles(body.hotelTotalAmountRubles)],
+      optionalRubles(body.hotelTotalAmountRubles), optionalText(body.googleMapsUrl)],
   )
   const scheduled = await db.query(
     `UPDATE cities SET
