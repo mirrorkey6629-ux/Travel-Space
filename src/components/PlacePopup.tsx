@@ -4,12 +4,13 @@ import { Icon } from './Icon'
 import { PLACE_ICON_OPTIONS, placeIconUrl } from '../placeIcons'
 import { UNSCHEDULED_KEY, type PlaceDraft } from '../places'
 
-export function PlacePopup({ mode, draft, dates, formatDate, readOnly, mapsUrl, onEdit, onChange, onSave, onDelete, onClose }: {
+export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocked, mapsUrl, onEdit, onChange, onSave, onDelete, onClose }: {
   mode: 'view' | 'edit'
   draft: PlaceDraft
   dates: string[]
   formatDate: (value: string) => string
   readOnly?: boolean
+  dateLocked?: boolean
   mapsUrl?: string
   onEdit: () => void
   onChange: (draft: PlaceDraft) => void
@@ -48,7 +49,7 @@ export function PlacePopup({ mode, draft, dates, formatDate, readOnly, mapsUrl, 
           </button>
         ))}
       </div>
-      <Select content="date" icon={<Icon name="calendar-month" />} aria-label="Дата посещения" value={draft.date}
+      <Select content="date" icon={<Icon name="calendar-month" />} aria-label="Дата посещения" value={draft.date} disabled={dateLocked}
         onChange={(event) => onChange({ ...draft, date: event.target.value })}>
         <option value={UNSCHEDULED_KEY}>Без даты</option>
         {dates.map((date) => <option key={date} value={date}>{formatDate(date)}</option>)}

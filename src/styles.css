@@ -574,6 +574,16 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .day-event-line .ui-icon { width: 20px; height: 20px; margin-top: 0; flex: 0 0 20px; opacity: .7; }
 .day-event-line:hover { color: var(--color-text-primary); }
 .day-event-line:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 3px; border-radius: 2px; }
+.day-timeline { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
+.day-timeline > li:not(.day-timeline-arrow) { width: 100%; display: flex; }
+.day-location-line { align-items: flex-start; gap: 6px; }
+.day-location-line .ui-icon { width: 20px; height: 20px; flex: 0 0 20px; opacity: .7; }
+.day-location-line button { padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; }
+.day-location-line a { color: inherit; text-decoration: none; }
+.day-location-line button:hover, .day-location-line a:hover { color: var(--color-text-primary); }
+.day-location-line button:focus-visible, .day-location-line a:focus-visible { outline: 2px solid var(--color-text-primary); outline-offset: 3px; border-radius: 2px; }
+.day-timeline-arrow { position: relative; width: 20px; height: 24px; flex: 0 0 24px; margin-block: 4px; color: var(--color-text-secondary); }
+.day-timeline-arrow::before { content: ''; position: absolute; left: 9px; top: 1.5px; width: 2px; height: 3px; border-radius: .5px; background: currentColor; box-shadow: 0 6px currentColor, 0 12px currentColor, 0 18px currentColor; }
 .day-places ul { margin: 0; padding: 0; list-style: none; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); }
 .day-places li { display: flex; align-items: flex-start; gap: 6px; }
 .day-places li + li { margin-top: 8px; }

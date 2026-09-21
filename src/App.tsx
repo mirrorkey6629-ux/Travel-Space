@@ -173,7 +173,13 @@ const formatTravelDuration = (departureTime: string, arrivalTime: string, depart
   if (duration < 0) duration += 1440
   return `В пути ${Math.floor(duration / 60)} ч ${duration % 60} мин`
 }
-const formatRoutePoint = (place: string, time: string) => time ? `${place} (${time})` : place
+const formatTravelTimes = (departureTime: string, arrivalTime: string) => {
+  if (departureTime && arrivalTime) return `${departureTime} – ${arrivalTime}`
+  if (departureTime) return `Отъезд ${departureTime}`
+  if (arrivalTime) return `Прибытие ${arrivalTime}`
+  return ''
+}
+const transportEventIcon = (type?: TransportType): IconName => type === 'train' ? 'train' : type === 'plane' ? 'plane' : type === 'bus' ? 'bus' : type === 'ship' ? 'sailing' : 'ticket'
 const formatShortRange = (from: string, to: string) => {
   const start = parseDate(from)
   const end = parseDate(to)
@@ -709,7 +715,7 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
   const cityIndex = routeCities.findIndex((item) => item.id === city.id)
   const previousCity = cityIndex > 0 ? routeCities[cityIndex - 1] : undefined
   const cityLabel = city.name.trim() || 'Новый город'
-  const ticketRouteLabel = previousCity ? `${previousCity.name} — ${cityLabel}` : 'Приезд'
+  const ticketRouteLabel = previousCity ? `${previousCity.name} – ${cityLabel}` : 'Приезд'
   return (
     <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
       <section className="glass setup-card">
@@ -761,7 +767,7 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
             const departureDates = tripDates.filter((date) => !city.arrival || date >= city.arrival)
             const cityLabel = city.name.trim() || 'Новый город'
             const previousCity = cities[cityIndex - 1]
-            const ticketRouteLabel = previousCity ? `${previousCity.name} — ${cityLabel}` : 'Приезд'
+            const ticketRouteLabel = previousCity ? `${previousCity.name} – ${cityLabel}` : 'Приезд'
             return (
               <section className="all-city-fields" key={city.id}>
                 <label className="field city-name-field"><span>Город</span><Input value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></label>
@@ -822,7 +828,7 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
               <input className="title-input" value={trip.name} onChange={(e) => setTrip((current) => ({ ...current, name: e.target.value }))} placeholder="Название поездки" />
               <div className="date-summary">
                 <button type="button" onClick={() => openDatePicker(startDateRef)}>{trip.startDate ? formatDate(trip.startDate) : 'Дата начала'}</button>
-                <span>—</span>
+                <span>–</span>
                 <button type="button" onClick={() => openDatePicker(endDateRef)}>{trip.endDate ? formatDate(trip.endDate) : 'Дата окончания'}</button>
                 {datesValid && <span>· {formatDays(tripDays)}</span>}
                 <label className="trip-time-zone-picker"><span>·</span><span className="trip-time-zone-value">{formatTimeZoneOffset(trip.timeZone, trip.startDate)}</span><select aria-label="Основной часовой пояс поездки" value={trip.timeZone} onChange={(event) => setTrip((current) => ({ ...current, timeZone: event.target.value }))}>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, trip.startDate)}</option>)}</select></label>
@@ -916,15 +922,15 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
         <TypographyGroup className="readiness-heading" title="Готовность к поездке" text={`${countdownText} · Готовность ${readinessPercent}%`} />
         {hotelCities.length > 0 && <><h3>Отели</h3>{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withAssignees(city.name, city.hotelAssigneeIds, members)}</DocumentStatus>)}</>}
         <h3 className={hotelCities.length > 0 ? 'readiness-transport-heading' : undefined}>Транспорт</h3>
-        {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}><TransportLabel label={withTicketDetails(`Дом — ${trip.cities[0].name}`, trip.cities[0].transportIn?.ticketOnSite, trip.cities[0].ticketAssigneeIds, members)} type={trip.cities[0].transportIn?.type} /></DocumentStatus>}
+        {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}><TransportLabel label={withTicketDetails(`Дом – ${trip.cities[0].name}`, trip.cities[0].transportIn?.ticketOnSite, trip.cities[0].ticketAssigneeIds, members)} type={trip.cities[0].transportIn?.type} /></DocumentStatus>}
         {trip.cities.slice(0, -1).map((city, index) => {
           const nextCity = trip.cities[index + 1]
           const checked = isTransportComplete(city.transportOut, city.trainOut) || isTransportComplete(nextCity.transportIn, nextCity.trainIn)
           const type = city.transportOut?.type ?? nextCity.transportIn?.type
           const ticketOnSite = city.transportOut?.ticketOnSite || nextCity.transportIn?.ticketOnSite
-          return <DocumentStatus key={`${city.id}:${nextCity.id}`} checked={checked} onClick={() => onTransport(city, 'out')}><TransportLabel label={withTicketDetails(`${city.name} — ${nextCity.name}`, ticketOnSite, nextCity.ticketAssigneeIds, members)} type={type} /></DocumentStatus>
+          return <DocumentStatus key={`${city.id}:${nextCity.id}`} checked={checked} onClick={() => onTransport(city, 'out')}><TransportLabel label={withTicketDetails(`${city.name} – ${nextCity.name}`, ticketOnSite, nextCity.ticketAssigneeIds, members)} type={type} /></DocumentStatus>
         })}
-        {trip.cities.at(-1) && <DocumentStatus checked={isTransportComplete(trip.cities.at(-1)!.transportOut, trip.cities.at(-1)!.trainOut)} onClick={() => onTransport(trip.cities.at(-1)!, 'out')}><TransportLabel label={withTicketDetails(`${trip.cities.at(-1)!.name} — Дом`, trip.cities.at(-1)!.transportOut?.ticketOnSite, trip.cities.at(-1)!.ticketAssigneeIds, members)} type={trip.cities.at(-1)!.transportOut?.type} /></DocumentStatus>}
+        {trip.cities.at(-1) && <DocumentStatus checked={isTransportComplete(trip.cities.at(-1)!.transportOut, trip.cities.at(-1)!.trainOut)} onClick={() => onTransport(trip.cities.at(-1)!, 'out')}><TransportLabel label={withTicketDetails(`${trip.cities.at(-1)!.name} – Дом`, trip.cities.at(-1)!.transportOut?.ticketOnSite, trip.cities.at(-1)!.ticketAssigneeIds, members)} type={trip.cities.at(-1)!.transportOut?.type} /></DocumentStatus>}
         <Button size="m" theme="secondary" onClick={onExpenses}>Посмотреть траты</Button>
       </section>}
       {user && <section className="glass sidebar-card profile-card">
@@ -949,15 +955,15 @@ function tripExpenses(trip: Trip): { hotels: TripExpense[]; transport: TripExpen
     .map((city) => ({ id: `hotel:${city.id}`, title: `🏨 ${city.hotel.trim() || `Отель · ${city.name}`}`, payerIds: city.hotelPayerIds, totalAmountRubles: city.hotelTotalAmountRubles }))
   const transport: TripExpense[] = []
   const firstCity = trip.cities[0]
-  if (firstCity && hasExpense(firstCity.transportIn)) transport.push({ id: `transport-in:${firstCity.id}`, title: `Дом — ${firstCity.name}`, payerIds: firstCity.transportIn.payerIds, totalAmountRubles: firstCity.transportIn.totalAmountRubles, transportType: firstCity.transportIn.type })
+  if (firstCity && hasExpense(firstCity.transportIn)) transport.push({ id: `transport-in:${firstCity.id}`, title: `Дом – ${firstCity.name}`, payerIds: firstCity.transportIn.payerIds, totalAmountRubles: firstCity.transportIn.totalAmountRubles, transportType: firstCity.transportIn.type })
   trip.cities.slice(0, -1).forEach((city, index) => {
     const nextCity = trip.cities[index + 1]
     const details = hasExpense(city.transportOut) ? city.transportOut : nextCity.transportIn
     if (!hasExpense(details)) return
-    transport.push({ id: `transport:${city.id}:${nextCity.id}`, title: `${city.name} — ${nextCity.name}`, payerIds: details.payerIds, totalAmountRubles: details.totalAmountRubles, transportType: details.type })
+    transport.push({ id: `transport:${city.id}:${nextCity.id}`, title: `${city.name} – ${nextCity.name}`, payerIds: details.payerIds, totalAmountRubles: details.totalAmountRubles, transportType: details.type })
   })
   const lastCity = trip.cities.at(-1)
-  if (lastCity && hasExpense(lastCity.transportOut)) transport.push({ id: `transport-out:${lastCity.id}`, title: `${lastCity.name} — Дом`, payerIds: lastCity.transportOut.payerIds, totalAmountRubles: lastCity.transportOut.totalAmountRubles, transportType: lastCity.transportOut.type })
+  if (lastCity && hasExpense(lastCity.transportOut)) transport.push({ id: `transport-out:${lastCity.id}`, title: `${lastCity.name} – Дом`, payerIds: lastCity.transportOut.payerIds, totalAmountRubles: lastCity.transportOut.totalAmountRubles, transportType: lastCity.transportOut.type })
   return { hotels, transport }
 }
 
@@ -1001,7 +1007,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     textarea.style.height = '0'
     textarea.style.height = `${textarea.scrollHeight}px`
   }, [descriptionDraft])
-  type DayEvent = { key: string; title: string; subtitle?: string; icon?: IconName; city: City; panel?: 'hotel' | 'in' | 'out' }
+  type DayEvent = { key: string; title: string; subtitle?: string; icon?: IconName; city: City; panel?: 'hotel' | 'in' | 'out'; kind: 'hotel-out' | 'transfer' | 'hotel-in' | 'city'; departureName?: string; departureUrl?: string; arrivalName?: string; arrivalUrl?: string }
   const events: DayEvent[] = []
   const transferCityIds = new Set<string>()
   allCities.slice(0, -1).forEach((departureCity, index) => {
@@ -1011,25 +1017,27 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     transferCityIds.add(arrivalCity.id)
     if (!departureCity.hotelNotNeeded) {
       const checkOutTime = departureCity.hotelCheckOutTime.trim()
-      events.push({ key: `${departureCity.id}:check-out`, title: departureCity.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение в ${checkOutTime}` : 'Выселение', icon: 'hotel', city: departureCity, panel: 'hotel' })
+      events.push({ key: `${departureCity.id}:check-out`, title: departureCity.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до ${checkOutTime}` : 'Выселение', icon: 'hotel', city: departureCity, panel: 'hotel', kind: 'hotel-out' })
     }
     const outgoing = departureCity.transportOut
     const incoming = arrivalCity.transportIn
     const departureTime = outgoing.departureTime.trim() || incoming.departureTime.trim()
     const arrivalTime = outgoing.arrivalTime.trim() || incoming.arrivalTime.trim()
     const durationLabel = formatTravelDuration(departureTime, arrivalTime, outgoing.departureDate || incoming.departureDate || departureCity.departure, outgoing.arrivalDate || incoming.arrivalDate || arrivalCity.arrival, outgoing.departureTimeZone || incoming.departureTimeZone || tripTimeZone, outgoing.arrivalTimeZone || incoming.arrivalTimeZone || tripTimeZone)
+    const travelTimes = formatTravelTimes(departureTime, arrivalTime)
     const hasOutgoingDetails = Boolean(departureCity.trainOut || outgoing.type || outgoing.departureTime.trim() || outgoing.arrivalTime.trim() || outgoing.departureStation.trim() || outgoing.arrivalStation.trim())
     const departurePlace = outgoing.departureStation.trim() || incoming.departureStation.trim() || departureCity.name
     const arrivalPlace = outgoing.arrivalStation.trim() || incoming.arrivalStation.trim() || arrivalCity.name
-    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${formatRoutePoint(departurePlace, departureTime)} — ${formatRoutePoint(arrivalPlace, arrivalTime)}`, subtitle: durationLabel, icon: 'ticket', city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in' })
+    const ticketOnSite = outgoing.ticketOnSite || incoming.ticketOnSite
+    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} – ${arrivalCity.name}`, subtitle: [travelTimes, durationLabel, ticketOnSite ? 'Купить на месте' : ''].filter(Boolean).join(' · '), icon: transportEventIcon(outgoing.type || incoming.type), city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in', kind: 'transfer', departureName: departurePlace, departureUrl: outgoing.departureStationUrl || incoming.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: outgoing.arrivalStationUrl || incoming.arrivalStationUrl })
     if (!arrivalCity.hotelNotNeeded) {
       const checkInTime = arrivalCity.hotelCheckInTime.trim()
-      events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel' })
+      events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel', kind: 'hotel-in' })
     }
     const arrivalPeriod = arrivalCity.arrivalPeriod ?? 'morning'
     const departurePeriod = arrivalCity.departurePeriod ?? 'evening'
     if (arrivalCity.arrival === date && arrivalCity.departure === date && periodOrder[departurePeriod] > periodOrder[arrivalPeriod]) {
-      events.push({ key: `${arrivalCity.id}:city-day-between-transfers`, title: `День в ${cityInLocative(arrivalCity.name)}`, icon: 'footprint', city: arrivalCity })
+      events.push({ key: `${arrivalCity.id}:city-day-between-transfers`, title: `День в ${cityInLocative(arrivalCity.name)}`, icon: 'footprint', city: arrivalCity, kind: 'city' })
     }
   })
   cities.forEach((city) => {
@@ -1045,18 +1053,19 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const arrivalPlace = city.transportIn.arrivalStation.trim() || previousTransport?.arrivalStation.trim() || city.name
       const hasIncomingDetails = Boolean(city.trainIn || city.transportIn.type || city.transportIn.departureTime.trim() || city.transportIn.arrivalTime.trim() || city.transportIn.departureStation.trim() || city.transportIn.arrivalStation.trim())
       const durationLabel = formatTravelDuration(departureTime, arrivalTime, city.transportIn.departureDate || previousTransport?.departureDate || previousCity?.departure || city.arrival, city.transportIn.arrivalDate || previousTransport?.arrivalDate || city.arrival, city.transportIn.departureTimeZone || previousTransport?.departureTimeZone || tripTimeZone, city.transportIn.arrivalTimeZone || previousTransport?.arrivalTimeZone || tripTimeZone)
+      const travelTimes = formatTravelTimes(departureTime, arrivalTime)
       const ticketOnSite = city.transportIn.ticketOnSite || previousTransport?.ticketOnSite
-      const routeTitle = `${formatRoutePoint(departurePlace, departureTime)} — ${formatRoutePoint(arrivalPlace, arrivalTime)}`
-      result.push({ key: `${city.id}:arrival`, title: ticketOnSite ? `${routeTitle} (покупаем на месте)` : routeTitle, subtitle: durationLabel, icon: 'ticket', city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out' })
+      const routeTitle = `${previousCity?.name || 'Дом'} – ${city.name}`
+      result.push({ key: `${city.id}:arrival`, title: routeTitle, subtitle: [travelTimes, durationLabel, ticketOnSite ? 'Купить на месте' : ''].filter(Boolean).join(' · '), icon: transportEventIcon(city.transportIn.type || previousTransport?.type), city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportIn.departureStationUrl || previousTransport?.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportIn.arrivalStationUrl || previousTransport?.arrivalStationUrl })
       if (!city.hotelNotNeeded) {
         const checkInTime = city.hotelCheckInTime.trim()
-        result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение в ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel' })
+        result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel', kind: 'hotel-in' })
       }
     }
     if (date === city.departure) {
       if (!city.hotelNotNeeded) {
         const checkOutTime = city.hotelCheckOutTime.trim()
-        result.push({ key: `${city.id}:check-out`, title: city.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение в ${checkOutTime}` : 'Выселение', icon: 'hotel', city, panel: 'hotel' })
+        result.push({ key: `${city.id}:check-out`, title: city.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до ${checkOutTime}` : 'Выселение', icon: 'hotel', city, panel: 'hotel', kind: 'hotel-out' })
       }
       const departureTime = city.transportOut.departureTime.trim()
       const arrivalTime = city.transportOut.arrivalTime.trim()
@@ -1064,14 +1073,61 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const cityIndex = allCities.findIndex((item) => item.id === city.id)
       const arrivalPlace = city.transportOut.arrivalStation.trim() || allCities[cityIndex + 1]?.name
       const durationLabel = formatTravelDuration(departureTime, arrivalTime, city.transportOut.departureDate || city.departure, city.transportOut.arrivalDate || city.departure, city.transportOut.departureTimeZone || tripTimeZone, city.transportOut.arrivalTimeZone || tripTimeZone)
-      const routeTitle = arrivalPlace ? `${formatRoutePoint(departurePlace, departureTime)} — ${formatRoutePoint(arrivalPlace, arrivalTime)}` : formatRoutePoint(departurePlace, departureTime)
-      result.push({ key: `${city.id}:departure`, title: city.transportOut.ticketOnSite ? `${routeTitle} (покупаем на месте)` : routeTitle, subtitle: durationLabel, icon: 'ticket', city, panel: 'out' })
+      const travelTimes = formatTravelTimes(departureTime, arrivalTime)
+      const routeTitle = `${city.name} – ${allCities[cityIndex + 1]?.name || 'Дом'}`
+      result.push({ key: `${city.id}:departure`, title: routeTitle, subtitle: [travelTimes, durationLabel, city.transportOut.ticketOnSite ? 'Купить на месте' : ''].filter(Boolean).join(' · '), icon: transportEventIcon(city.transportOut.type), city, panel: 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportOut.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportOut.arrivalStationUrl })
     }
-    if (result.length === 0) result.push({ key: `${city.id}:city-day`, title: `День в ${cityInLocative(city.name)}`, icon: 'footprint', city })
+    if (result.length === 0) result.push({ key: `${city.id}:city-day`, title: `День в ${cityInLocative(city.name)}`, icon: 'footprint', city, kind: 'city' })
     events.push(...result)
   })
   const places = cities.flatMap((city) => (city.places[date] ?? []).map((place) => ({ ...place, city })))
   const locationCity = cities.at(-1)
+  type TimelineItem =
+    | { type: 'event'; key: string; event: DayEvent }
+    | { type: 'location'; key: string; name: string; url: string; icon: PlaceIconKey; city: City }
+    | { type: 'arrow'; key: string }
+  const managedUrls = new Set(allCities.flatMap((city) => [
+    city.hotelUrl,
+    city.transportIn.departureStationUrl,
+    city.transportIn.arrivalStationUrl,
+    city.transportOut.departureStationUrl,
+    city.transportOut.arrivalStationUrl,
+  ]).map((url) => url.trim()).filter(Boolean))
+  const ordinaryPlaces = places.filter((place) => !managedUrls.has(place.url.trim()))
+  const timeline: TimelineItem[] = []
+  const pushArrow = (key: string) => timeline.push({ type: 'arrow', key })
+  const pushLocation = (key: string, name: string | undefined, url: string | undefined, icon: PlaceIconKey, city: City) => {
+    if (!name?.trim() && !url?.trim()) return
+    timeline.push({ type: 'location', key, name: name?.trim() || city.name, url: url?.trim() || '', icon, city })
+  }
+  events.forEach((event) => {
+    if (event.kind === 'hotel-out') {
+      pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city)
+      timeline.push({ type: 'event', key: event.key, event })
+      pushArrow(`${event.key}:arrow`)
+      return
+    }
+    if (event.kind === 'transfer') {
+      pushLocation(`${event.key}:departure`, event.departureName, event.departureUrl, 'transport', event.city)
+      timeline.push({ type: 'event', key: event.key, event })
+      pushLocation(`${event.key}:arrival`, event.arrivalName, event.arrivalUrl, 'transport', event.city)
+      pushArrow(`${event.key}:arrow`)
+      return
+    }
+    if (event.kind === 'city') {
+      const cityPlaces = ordinaryPlaces.filter((place) => place.city.id === event.city.id)
+      if (cityPlaces.length > 0) {
+        cityPlaces.forEach((place) => timeline.push({ type: 'location', key: `${event.key}:${place.id}`, name: place.name, url: place.url, icon: place.icon, city: place.city }))
+      } else {
+        timeline.push({ type: 'event', key: event.key, event })
+      }
+      pushArrow(`${event.key}:arrow`)
+      return
+    }
+    pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city)
+    timeline.push({ type: 'event', key: event.key, event })
+  })
+  while (timeline.at(-1)?.type === 'arrow') timeline.pop()
   return (
     <article className={`glass day-card${hidden ? ' past' : ''}`}>
       <div className="day-content">
@@ -1085,16 +1141,18 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
             <h3>События и локации</h3>
             <div className="day-events">
               {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
-                {events.length > 0 && <ul className="day-event-list">{events.map((event) => <li key={event.key}>{!access.canBrowse ? <span className="day-event-line read-only">{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={16} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></button>}</li>)}</ul>}
+                {timeline.length > 0 && <ol className="day-timeline">{timeline.map((item) => {
+                  if (item.type === 'arrow') return <li key={item.key} className="day-timeline-arrow" aria-hidden="true" />
+                  if (item.type === 'event') {
+                    const event = item.event
+                    return <li key={item.key}>{!access.canBrowse ? <span className="day-event-line read-only">{event.icon && <Icon name={event.icon} size={20} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={20} />}<span>{event.title}{event.subtitle ? ` · ${event.subtitle}` : ''}</span></button>}</li>
+                  }
+                  return <li key={item.key} className="day-location-line"><img className="ui-icon" src={placeIconUrl(item.icon)} width={20} height={20} alt="" aria-hidden="true" />{!access.canBrowse ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>) : <button type="button" onClick={() => onCity(item.city)}>{item.name}</button>}</li>
+                })}</ol>}
                 {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
               </>}
             </div>
-            <div className="day-places">
-              {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
-                {places.length > 0 && <ul>{places.map((place) => <li key={`${place.city.id}:${place.id}`}><img className="ui-icon" src={placeIconUrl(place.icon)} width={16} height={16} alt="" aria-hidden="true" />{!access.canBrowse ? (place.url ? <a href={place.url} target="_blank" rel="noreferrer">{place.name}</a> : <span>{place.name}</span>) : <button type="button" onClick={() => onCity(place.city)}>{place.name}</button>}</li>)}</ul>}
-                {access.canEdit && places.length === 0 && locationCity && <button type="button" className="day-add-locations" onClick={() => onAddLocations(locationCity, date)}>Добавьте места для посещения</button>}
-              </>}
-            </div>
+            {access.canEdit && ordinaryPlaces.length === 0 && events.every((event) => event.kind !== 'city') && locationCity && <div className="day-places"><button type="button" className="day-add-locations" onClick={() => onAddLocations(locationCity, date)}>Добавьте места для посещения</button></div>}
           </section>
         </div>
       </div>
@@ -1176,7 +1234,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
           <fieldset className="dialog-fields transport-stack-fields" disabled={readOnly}>
             <div className="transport-route-layout">
               <div className="transport-route-headings">
-                <h3>{departureLabel} — {arrivalLabel}</h3>
+                <h3>{departureLabel} – {arrivalLabel}</h3>
                 <p className="transport-duration">{journeySummary}</p>
               </div>
               <div className="transport-route-columns">
@@ -1324,6 +1382,17 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
   const transportDocuments = (direction: 'in' | 'out') => draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).slice(0, 1)
   const hotelDocument = draft.files.find((file) => file.category === 'hotel-booking')
   const pointsCount = Object.values(draft.places).reduce((total, places) => total + places.length, 0)
+  const managedPlaceUrls = new Set([
+    draft.hotelUrl,
+    draft.transportIn.departureStationUrl,
+    draft.transportIn.arrivalStationUrl,
+    draft.transportOut.departureStationUrl,
+    draft.transportOut.arrivalStationUrl,
+    previousCity?.transportOut.arrivalStationUrl,
+    nextCity?.transportIn.departureStationUrl,
+  ].map((url) => url?.trim()).filter((url): url is string => Boolean(url)))
+  const isManagedPlace = (place: Place) => (place.icon === 'hotel' || place.icon === 'transport') && managedPlaceUrls.has(place.url.trim())
+  const managedPlaceIds = new Set(Object.values(draft.places).flat().filter(isManagedPlace).map((place) => place.id))
   const saveTransport = (value: TransportDetails) => {
     if (!transportDirection) return
     let next = { ...draft, [transportDirection === 'in' ? 'transportIn' : 'transportOut']: value }
@@ -1418,6 +1487,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
             placesByDate={draft.places}
             activeDate={activeDate}
             readOnly={readOnly}
+            lockedPlaceIds={managedPlaceIds}
             formatDate={formatDate}
             onActivateDate={setActiveDate}
             onFocusPlace={setFocusRequest}
@@ -1438,7 +1508,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
               <PlacesMap
                 query={mapPoint}
                 centerUrl={draft.googleMapsUrl}
-                places={Object.entries(draft.places).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude })))}
+                places={Object.entries(draft.places).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude, dateLocked: isManagedPlace(item) })))}
                 dates={dateRange(draft.arrival, draft.departure)}
                 activeDate={activeDate}
                 readOnly={readOnly}
@@ -1483,7 +1553,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
           </div>
         </div>
       </section>
-      {transportDirection && <TransportDialog readOnly={readOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} — ${draft.name}` : `Дом — ${draft.name}`) : (nextCity ? `${draft.name} — ${nextCity.name}` : `${draft.name} — Дом`)} departureLabel={transportDirection === 'in' ? previousCity?.name || 'Дом' : draft.name} arrivalLabel={transportDirection === 'in' ? draft.name : nextCity?.name || 'Дом'} defaultTimeZone={tripTimeZone} members={members} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
+      {transportDirection && <TransportDialog readOnly={readOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} – ${draft.name}` : `Дом – ${draft.name}`) : (nextCity ? `${draft.name} – ${nextCity.name}` : `${draft.name} – Дом`)} departureLabel={transportDirection === 'in' ? previousCity?.name || 'Дом' : draft.name} arrivalLabel={transportDirection === 'in' ? draft.name : nextCity?.name || 'Дом'} defaultTimeZone={tripTimeZone} members={members} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
       {hotelOpen && <HotelDialog readOnly={readOnly} cityName={draft.name} members={members} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes, payerIds: draft.hotelPayerIds, totalAmountRubles: draft.hotelTotalAmountRubles }} booking={hotelDocument} onBooking={() => hotelFileRef.current?.click()} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={saveHotel} />}
     </>
   )

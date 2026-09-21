@@ -8,24 +8,24 @@ export type ListPlace = { id: string; name: string; icon: PlaceIconKey }
 
 const handleUrl = `${import.meta.env.BASE_URL}assets/icons/drag-handle.svg`
 
-function RowBody({ place, number }: { place: ListPlace; number?: number }) {
+function RowBody({ place, draggable = false }: { place: ListPlace; draggable?: boolean }) {
   return (
     <>
       <img className="ui-icon" src={placeIconUrl(place.icon)} width={16} height={16} alt="" aria-hidden="true" />
-      <span>{number === undefined ? place.name : `${number}. ${place.name}`}</span>
+      <span>{place.name}</span>
       {/* Подсказка, что строку можно перетащить. Тащится вся строка, поэтому
           иконка декоративная и своих обработчиков не имеет. */}
-      <img className="ui-icon place-row-handle" src={handleUrl} width={16} height={16} alt="" aria-hidden="true" />
+      {draggable && <img className="ui-icon place-row-handle" src={handleUrl} width={16} height={16} alt="" aria-hidden="true" />}
     </>
   )
 }
 
-function PlaceRow({ place, number, onFocus }: { place: ListPlace; number: number; onFocus: (id: string) => void }) {
+function PlaceRow({ place, locked, onFocus }: { place: ListPlace; locked: boolean; onFocus: (id: string) => void }) {
   // transform намеренно не применяется. Иначе перетаскиваемая строка отрывается
   // от списка и висит под курсором, а соседи разъезжаются собственными
   // трансформациями. Порядок целиком ведёт раскладка предпросмотра: строка
   // всегда стоит в слоте, просто переставляется между слотами.
-  const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: place.id })
+  const { attributes, listeners, setNodeRef, isDragging } = useSortable({ id: place.id, disabled: locked })
   return (
     <button
       ref={setNodeRef}
@@ -35,17 +35,18 @@ function PlaceRow({ place, number, onFocus }: { place: ListPlace; number: number
       {...attributes}
       {...listeners}
     >
-      <RowBody place={place} number={number} />
+      <RowBody place={place} draggable={!locked} />
     </button>
   )
 }
 
-function Day({ dayKey, title, places, active, readOnly, onActivate, onFocusPlace }: {
+function Day({ dayKey, title, places, active, readOnly, lockedPlaceIds, onActivate, onFocusPlace }: {
   dayKey: string
   title: string
   places: ListPlace[]
   active: boolean
   readOnly?: boolean
+  lockedPlaceIds: ReadonlySet<string>
   onActivate: () => void
   onFocusPlace: (id: string) => void
 }) {
@@ -54,20 +55,21 @@ function Day({ dayKey, title, places, active, readOnly, onActivate, onFocusPlace
   return (
     <div ref={setNodeRef} className={`city-day${dayKey === UNSCHEDULED_KEY ? ' unscheduled-day' : ''}${active ? ' is-active' : ''}${isOver ? ' is-over' : ''}`}>
       <h3><button type="button" className="city-day-title" aria-pressed={active} onClick={onActivate}>{title}</button></h3>
-      {places.map((place, index) => readOnly
+      {places.map((place) => readOnly || lockedPlaceIds.has(place.id)
         ? <button key={place.id} type="button" className="place-row" onClick={() => onFocusPlace(place.id)}>
-            <RowBody place={place} number={index + 1} />
+            <RowBody place={place} />
           </button>
-        : <PlaceRow key={place.id} place={place} number={index + 1} onFocus={onFocusPlace} />)}
+        : <PlaceRow key={place.id} place={place} locked={false} onFocus={onFocusPlace} />)}
     </div>
   )
 }
 
-export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, formatDate, onActivateDate, onFocusPlace, onMove }: {
+export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, lockedPlaceIds = new Set(), formatDate, onActivateDate, onFocusPlace, onMove }: {
   dates: string[]
   placesByDate: Record<string, ListPlace[]>
   activeDate: string | null
   readOnly?: boolean
+  lockedPlaceIds?: ReadonlySet<string>
   formatDate: (value: string) => string
   onActivateDate: (date: string | null) => void
   onFocusPlace: (id: string) => void
@@ -99,6 +101,7 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
     const { active, over } = event
     if (!over) return
     const movedId = String(active.id)
+    if (lockedPlaceIds.has(movedId)) return
     const overId = String(over.id)
     if (overId === movedId) return
     const base = preview ?? placesByDate
@@ -137,6 +140,7 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
 
   const handleDragEnd = (event: DragEndEvent) => {
     const movedId = String(event.active.id)
+    if (lockedPlaceIds.has(movedId)) { setPreview(null); return }
     const base = preview ?? placesByDate
     setPreview(null)
     const day = dayOfIn(base, movedId)
@@ -158,6 +162,7 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, format
       // «Без даты» не может быть активным днём: activeDate === null и означает «активного дня нет».
       active={dayKey !== UNSCHEDULED_KEY && activeDate === dayKey}
       readOnly={readOnly}
+      lockedPlaceIds={lockedPlaceIds}
       onActivate={() => onActivateDate(dayKey === UNSCHEDULED_KEY || activeDate === dayKey ? null : dayKey)}
       onFocusPlace={onFocusPlace}
     />

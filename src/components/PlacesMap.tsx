@@ -15,6 +15,7 @@ export type MapPlace = {
   date: string
   latitude?: number
   longitude?: number
+  dateLocked?: boolean
 }
 
 let mapsPromise: Promise<any> | null = null
@@ -320,6 +321,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
             dates={dates}
             formatDate={formatDate}
             readOnly={readOnly}
+            dateLocked={selected?.dateLocked}
             mapsUrl={selected ? placeMapsHref(selected) || undefined : undefined}
             onEdit={() => { setDraft(popupDraft); setEditing(true) }}
             onChange={setDraft}
