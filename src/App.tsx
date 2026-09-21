@@ -15,6 +15,7 @@ import { SecondaryText } from './components/SecondaryText'
 import { CityRow } from './components/CityRow'
 import { CacheIndicator } from './components/CacheIndicator'
 import { IconText } from './components/IconText'
+import { ItemList } from './components/ItemList'
 import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
@@ -928,17 +929,19 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
       </section>
       {access.canBrowse && <section className="glass sidebar-card links-card">
         <TypographyGroup className="readiness-heading" title="Готовность к поездке" text={`${countdownText} · Готовность ${readinessPercent}%`} />
-        {hotelCities.length > 0 && <><h3>Отели</h3>{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withAssignees(city.name, city.hotelAssigneeIds, members)}</DocumentStatus>)}</>}
+        {hotelCities.length > 0 && <><h3>Отели</h3><ItemList>{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withAssignees(city.name, city.hotelAssigneeIds, members)}</DocumentStatus>)}</ItemList></>}
         <h3 className={hotelCities.length > 0 ? 'readiness-transport-heading' : undefined}>Транспорт</h3>
-        {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}><TransportLabel label={withTicketDetails(`Дом – ${trip.cities[0].name}`, trip.cities[0].transportIn?.ticketOnSite, trip.cities[0].ticketAssigneeIds, members)} type={trip.cities[0].transportIn?.type} /></DocumentStatus>}
-        {trip.cities.slice(0, -1).map((city, index) => {
-          const nextCity = trip.cities[index + 1]
-          const checked = isTransportComplete(city.transportOut, city.trainOut) || isTransportComplete(nextCity.transportIn, nextCity.trainIn)
-          const type = city.transportOut?.type ?? nextCity.transportIn?.type
-          const ticketOnSite = city.transportOut?.ticketOnSite || nextCity.transportIn?.ticketOnSite
-          return <DocumentStatus key={`${city.id}:${nextCity.id}`} checked={checked} onClick={() => onTransport(city, 'out')}><TransportLabel label={withTicketDetails(`${city.name} – ${nextCity.name}`, ticketOnSite, nextCity.ticketAssigneeIds, members)} type={type} /></DocumentStatus>
-        })}
-        {trip.cities.at(-1) && <DocumentStatus checked={isTransportComplete(trip.cities.at(-1)!.transportOut, trip.cities.at(-1)!.trainOut)} onClick={() => onTransport(trip.cities.at(-1)!, 'out')}><TransportLabel label={withTicketDetails(`${trip.cities.at(-1)!.name} – Дом`, trip.cities.at(-1)!.transportOut?.ticketOnSite, trip.cities.at(-1)!.ticketAssigneeIds, members)} type={trip.cities.at(-1)!.transportOut?.type} /></DocumentStatus>}
+        <ItemList>
+          {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}><TransportLabel label={withTicketDetails(`Дом – ${trip.cities[0].name}`, trip.cities[0].transportIn?.ticketOnSite, trip.cities[0].ticketAssigneeIds, members)} type={trip.cities[0].transportIn?.type} /></DocumentStatus>}
+          {trip.cities.slice(0, -1).map((city, index) => {
+            const nextCity = trip.cities[index + 1]
+            const checked = isTransportComplete(city.transportOut, city.trainOut) || isTransportComplete(nextCity.transportIn, nextCity.trainIn)
+            const type = city.transportOut?.type ?? nextCity.transportIn?.type
+            const ticketOnSite = city.transportOut?.ticketOnSite || nextCity.transportIn?.ticketOnSite
+            return <DocumentStatus key={`${city.id}:${nextCity.id}`} checked={checked} onClick={() => onTransport(city, 'out')}><TransportLabel label={withTicketDetails(`${city.name} – ${nextCity.name}`, ticketOnSite, nextCity.ticketAssigneeIds, members)} type={type} /></DocumentStatus>
+          })}
+          {trip.cities.at(-1) && <DocumentStatus checked={isTransportComplete(trip.cities.at(-1)!.transportOut, trip.cities.at(-1)!.trainOut)} onClick={() => onTransport(trip.cities.at(-1)!, 'out')}><TransportLabel label={withTicketDetails(`${trip.cities.at(-1)!.name} – Дом`, trip.cities.at(-1)!.transportOut?.ticketOnSite, trip.cities.at(-1)!.ticketAssigneeIds, members)} type={trip.cities.at(-1)!.transportOut?.type} /></DocumentStatus>}
+        </ItemList>
         <Button size="m" theme="secondary" onClick={onExpenses}>Посмотреть траты</Button>
       </section>}
       {user && <section className="glass sidebar-card profile-card">
@@ -1148,15 +1151,17 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
             <h3>События и локации</h3>
             <div className="day-events">
               {cities.length === 0 ? <p className="day-empty-city">Добавьте город для посещения</p> : <>
-                {timeline.length > 0 && <ol className="day-timeline">{timeline.map((item) => {
+                {timeline.length > 0 && <ItemList as="ol" className="day-timeline">{timeline.map((item) => {
                   if (item.type === 'arrow') return <li key={item.key} className="day-timeline-arrow" aria-hidden="true" />
                   if (item.type === 'event') {
                     const event = item.event
                     const eventText = `${event.title}${event.subtitle ? `${event.subtitle.startsWith('(') ? ' ' : ' · '}${event.subtitle}` : ''}`
-                    return <li key={item.key}>{!access.canBrowse ? <span className="day-event-line read-only">{event.icon && <Icon name={event.icon} size={20} />}<span>{eventText}</span></span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{event.icon && <Icon name={event.icon} size={20} />}<span>{eventText}</span></button>}</li>
+                    const content = event.icon ? <IconText icon={<Icon name={event.icon} />}>{eventText}</IconText> : <span>{eventText}</span>
+                    return <li key={item.key}>{!access.canBrowse ? <span className="day-event-line read-only">{content}</span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{content}</button>}</li>
                   }
-                  return <li key={item.key} className="day-location-line"><img className="ui-icon" src={placeIconUrl(item.icon)} width={20} height={20} alt="" aria-hidden="true" />{!access.canBrowse ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>) : <button type="button" onClick={() => onCity(item.city)}>{item.name}</button>}</li>
-                })}</ol>}
+                  const label = !access.canBrowse ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>) : <button type="button" onClick={() => onCity(item.city)}>{item.name}</button>
+                  return <li key={item.key} className="day-location-line"><IconText icon={<img className="ui-icon" src={placeIconUrl(item.icon)} width={24} height={24} alt="" />}>{label}</IconText></li>
+                })}</ItemList>}
                 {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
               </>}
             </div>
