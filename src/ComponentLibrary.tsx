@@ -46,8 +46,8 @@ export default function ComponentLibrary() {
   const [inputLabel, setInputLabel] = useState(true)
   const [inputLeftIcon, setInputLeftIcon] = useState(false)
   const [inputRightIcon, setInputRightIcon] = useState(false)
-  const [infoRowFirstAction, setInfoRowFirstAction] = useState(true)
-  const [infoRowSecondAction, setInfoRowSecondAction] = useState(false)
+  const [infoRowRightContent, setInfoRowRightContent] = useState<'none' | 'text' | 'actions'>('actions')
+  const [infoRowActionCount, setInfoRowActionCount] = useState<1 | 2>(1)
   const [infoRowImage, setInfoRowImage] = useState(false)
   const [infoRowImageShape, setInfoRowImageShape] = useState<'square' | 'circle'>('square')
   const [infoRowActionTheme, setInfoRowActionTheme] = useState<'transparent' | 'secondary'>('transparent')
@@ -112,14 +112,18 @@ export default function ComponentLibrary() {
           <Specimen name="City row"><div className="kit-city-row-controls"><label className="kit-toggle"><span>Картинка</span><input type="checkbox" checked={cityRowImage} onChange={(event) => setCityRowImage(event.target.checked)} /><i aria-hidden="true" /></label></div><Variant label="Default" wide><CityRow city="Осака" dates="4–6 окт" duration="1,5 дня" image={cityRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" /></Variant><Variant label="Selected" wide><CityRow className="kit-selected" city="📌 Киото" dates="7–10 окт" duration="2,5 дня" image={cityRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" /></Variant></Specimen>
           <Specimen name="Info row">
             <div className="kit-info-row-controls">
-              <label className="kit-toggle"><span>Кнопка 1</span><input type="checkbox" checked={infoRowFirstAction} onChange={(event) => setInfoRowFirstAction(event.target.checked)} /><i aria-hidden="true" /></label>
-              <label className="kit-toggle"><span>Кнопка 2</span><input type="checkbox" checked={infoRowSecondAction} onChange={(event) => setInfoRowSecondAction(event.target.checked)} /><i aria-hidden="true" /></label>
+              <label className="kit-property-select"><span>Справа</span><select value={infoRowRightContent} onChange={(event) => setInfoRowRightContent(event.target.value as 'none' | 'text' | 'actions')}><option value="none">Ничего</option><option value="text">Текст</option><option value="actions">Кнопки</option></select></label>
+              {infoRowRightContent === 'actions' && <>
+                <label className="kit-property-select"><span>Количество</span><select value={infoRowActionCount} onChange={(event) => setInfoRowActionCount(Number(event.target.value) as 1 | 2)}><option value={1}>1 кнопка</option><option value={2}>2 кнопки</option></select></label>
+                <label className="kit-property-select"><span>Тип кнопок</span><select value={infoRowActionTheme} onChange={(event) => setInfoRowActionTheme(event.target.value as 'transparent' | 'secondary')}><option value="transparent">Transparent</option><option value="secondary">Secondary</option></select></label>
+              </>}
               <label className="kit-toggle"><span>Картинка</span><input type="checkbox" checked={infoRowImage} onChange={(event) => setInfoRowImage(event.target.checked)} /><i aria-hidden="true" /></label>
-              <label className="kit-property-select"><span>Тип картинки</span><select value={infoRowImageShape} onChange={(event) => setInfoRowImageShape(event.target.value as 'square' | 'circle')}><option value="square">Квадратная</option><option value="circle">Круглая</option></select></label>
-              <label className="kit-property-select"><span>Тип кнопок</span><select value={infoRowActionTheme} onChange={(event) => setInfoRowActionTheme(event.target.value as 'transparent' | 'secondary')}><option value="transparent">Transparent</option><option value="secondary">Secondary</option></select></label>
+              {infoRowImage && <label className="kit-property-select"><span>Тип картинки</span><select value={infoRowImageShape} onChange={(event) => setInfoRowImageShape(event.target.value as 'square' | 'circle')}><option value="square">Квадратная</option><option value="circle">Круглая</option></select></label>}
             </div>
-            <Variant label={`${Number(infoRowFirstAction) + Number(infoRowSecondAction)} ${Number(infoRowFirstAction) + Number(infoRowSecondAction) === 1 ? 'кнопка' : 'кнопок'} · ${infoRowActionTheme === 'transparent' ? 'Transparent' : 'Secondary'}`} wide>
-              <InfoRow image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title="Аниме Тур" subtitle="Владелец · 4–15 октября" actionTheme={infoRowActionTheme} actions={[...(infoRowFirstAction ? [{ icon: <Icon name="download" />, label: 'Экспортировать' }] : []), ...(infoRowSecondAction ? [{ icon: <Icon name="delete-forever" />, label: 'Удалить' }] : [])]} />
+            <Variant label={infoRowRightContent === 'none' ? 'Справа ничего' : infoRowRightContent === 'text' ? 'Справа текст' : `${infoRowActionCount} ${infoRowActionCount === 1 ? 'кнопка' : 'кнопки'} · ${infoRowActionTheme === 'transparent' ? 'Transparent' : 'Secondary'}`} wide>
+              {infoRowRightContent === 'text'
+                ? <InfoRow image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title="Аниме Тур" subtitle="Владелец · 4–15 октября" trailing="54 000 ₽" />
+                : <InfoRow image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title="Аниме Тур" subtitle="Владелец · 4–15 октября" actionTheme={infoRowActionTheme} actions={infoRowRightContent === 'actions' ? [{ icon: <Icon name="download" />, label: 'Экспортировать' }, ...(infoRowActionCount === 2 ? [{ icon: <Icon name="delete-forever" />, label: 'Удалить' }] : [])] : []} />}
             </Variant>
           </Specimen>
         </Section>

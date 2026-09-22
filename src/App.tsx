@@ -963,7 +963,7 @@ const formatRubles = (value: number) => `${value.toLocaleString('ru-RU', { maxim
 function tripExpenses(trip: Trip): { hotels: TripExpense[]; transport: TripExpense[] } {
   const hotels = trip.cities
     .filter((city) => city.hotelTotalAmountRubles > 0)
-    .map((city) => ({ id: `hotel:${city.id}`, title: `🏨 ${city.hotel.trim() || `Отель · ${city.name}`}`, payerIds: city.hotelPayerIds, totalAmountRubles: city.hotelTotalAmountRubles }))
+    .map((city) => ({ id: `hotel:${city.id}`, title: `🏨 ${city.name} — ${city.hotel.trim() || 'Жильё'}`, payerIds: city.hotelPayerIds, totalAmountRubles: city.hotelTotalAmountRubles }))
   const transport: TripExpense[] = []
   const firstCity = trip.cities[0]
   if (firstCity && hasExpense(firstCity.transportIn)) transport.push({ id: `transport-in:${firstCity.id}`, title: `Дом – ${firstCity.name}`, payerIds: firstCity.transportIn.payerIds, totalAmountRubles: firstCity.transportIn.totalAmountRubles, transportType: firstCity.transportIn.type })
@@ -982,14 +982,15 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
   const expenses = tripExpenses(trip)
   const members = trip.members ?? []
   const allExpenses = [...expenses.hotels, ...expenses.transport]
+  const categoryTotal = (items: TripExpense[]) => items.reduce((sum, expense) => sum + expense.totalAmountRubles, 0)
   const expenseRow = (expense: TripExpense) => {
     const payers = assigneeNames(expense.payerIds, members) || 'Плательщик не указан'
     const paymentText = expense.payerIds.length === 1
       ? `${payers} · ${formatRubles(expense.totalAmountRubles)}`
       : expense.payerIds.length > 1
-        ? `Заплатили ${payers} · По ${formatRubles(expense.totalAmountRubles / expense.payerIds.length)}`
+        ? `${payers} · По ${formatRubles(expense.totalAmountRubles / expense.payerIds.length)}`
         : payers
-    return <InfoRow key={expense.id} className="expense-row" title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} subtitle={paymentText} metadata={`Общая сумма ${formatRubles(expense.totalAmountRubles)}`} />
+    return <InfoRow key={expense.id} className="expense-row" title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} subtitle={paymentText} trailing={formatRubles(expense.totalAmountRubles)} />
   }
   return (
     <main className="transport-editor-screen trip-background setup-transition" style={tripBackgroundStyle(trip)}>
@@ -998,8 +999,8 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
         <section className="glass transport-editor-card expenses-card">
           <TypographyGroup title="Траты" text={`Всего ${formatRubles(allExpenses.reduce((sum, expense) => sum + expense.totalAmountRubles, 0))}`} />
           {allExpenses.length === 0 && <p className="expenses-empty">Трат пока нет</p>}
-          {expenses.hotels.length > 0 && <section className="expenses-group"><h2>Отели</h2><div className="expenses-list">{expenses.hotels.map(expenseRow)}</div></section>}
-          {expenses.transport.length > 0 && <section className="expenses-group"><h2>Транспорт</h2><div className="expenses-list">{expenses.transport.map(expenseRow)}</div></section>}
+          {expenses.hotels.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Жильё" text={`Всего ${formatRubles(categoryTotal(expenses.hotels))}`} /><div className="expenses-list">{expenses.hotels.map(expenseRow)}</div></section>}
+          {expenses.transport.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Транспорт" text={`Всего ${formatRubles(categoryTotal(expenses.transport))}`} /><div className="expenses-list">{expenses.transport.map(expenseRow)}</div></section>}
         </section>
       </div>
     </main>
@@ -1336,6 +1337,9 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
 
 function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, initialFocusPlace, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; readOnly?: boolean; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
+  useEffect(() => {
+    setDraft({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() })
+  }, [city])
   const [contentTransition, setContentTransition] = useState<'idle' | 'out' | 'in'>('idle')
   const [transportDirection, setTransportDirection] = useState<'in' | 'out' | null>(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
   const [hotelOpen, setHotelOpen] = useState(initialPanel === 'hotel')

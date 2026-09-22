@@ -137,11 +137,13 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .info-row-image { width: 54px; height: 54px; flex: 0 0 54px; border-radius: 8px; object-fit: cover; }
 .info-row-image-circle { border-radius: 50%; }
 .info-row-with-image { padding: 12px 16px 12px 12px; }
+.info-row-with-trailing { padding-right: 20px; }
 .info-row-copy { min-width: 0; flex: 1; padding: 0; border: 0; color: #fff; background: transparent; display: flex; flex-direction: column; gap: 4px; text-align: left; }
 .info-row-without-image .info-row-content { padding-left: 8px; }
 .info-row-copy strong { overflow: hidden; text-overflow: ellipsis; font-size: var(--type-head-m-size); line-height: var(--type-head-m-line-height); font-weight: var(--type-head-m-weight); letter-spacing: var(--type-head-m-letter-spacing); }
 .info-row-copy > span { min-width: 0; display: block; color: var(--color-text-secondary); font-size: var(--type-text-size); line-height: var(--type-text-line-height); font-weight: var(--type-text-weight); letter-spacing: var(--type-text-letter-spacing); }
 .info-row-metadata { min-width: 0; display: block; overflow: hidden; color: var(--color-text-secondary); text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 18px; font-weight: var(--type-text-weight); }
+.info-row-trailing { flex: 0 0 auto; color: var(--color-text-primary); white-space: nowrap; font-size: var(--type-head-m-size); line-height: var(--type-head-m-line-height); font-weight: var(--type-head-m-weight); letter-spacing: var(--type-head-m-letter-spacing); }
 .info-row-trigger { cursor: pointer; }
 .info-row-disabled { opacity: .42; }
 .info-row-disabled .info-row-trigger, .info-row-disabled .info-row-actions button { cursor: not-allowed; }
@@ -541,7 +543,6 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .expenses-card { display: flex; flex-direction: column; gap: 28px; }
 .expenses-card > .typography-group { text-align: center; }
 .expenses-group { display: flex; flex-direction: column; gap: 12px; }
-.expenses-group h2 { margin: 0; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
 .expenses-list { display: flex; flex-direction: column; gap: 8px; }
 .expense-row { min-height: 92px; }
 .expenses-empty { margin: auto 0; color: var(--color-text-secondary); font-size: var(--type-text-size); text-align: center; }
@@ -709,8 +710,8 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .place-popup-hotel-details .place-popup-link { color: inherit; }
 .place-popup-icons { display: grid; grid-template-columns: repeat(8, minmax(0, 40px)); justify-content: space-between; gap: 8px; }
 .place-popup-edit .place-popup-icons { margin-bottom: 16px; }
-.place-icon-choice { width: 40px; height: 40px; padding: 8px; border: 1px solid transparent; border-radius: 50%; background: var(--glass-soft); display: grid; place-items: center; line-height: 0; cursor: pointer; transition: background .12s, border-color .12s; }
-.place-icon-choice .ui-icon { width: 24px; height: 24px; margin: auto; }
+.place-icon-choice { position: relative; width: 40px; height: 40px; padding: 0; border: 1px solid transparent; border-radius: 50%; background: var(--glass-soft); line-height: 0; cursor: pointer; transition: background .12s, border-color .12s; }
+.place-icon-choice .ui-icon { position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; margin: 0; transform: translate(-50%, -50%); }
 .place-icon-choice:hover { background: rgba(255,255,255,.22); }
 .place-icon-choice.is-selected { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.26); }
 .place-popup-edit > .form-control:nth-of-type(1) { margin-bottom: 8px; }
@@ -721,6 +722,8 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 /* Оффлайн Google Maps не загружается, а место всё равно нужно посмотреть:
    заглушка объясняет пустую область, попап встаёт по её центру. */
 .places-map-fallback { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-items: center; text-align: center; color: var(--color-text-secondary); }
+.places-map-centered-popup { position: absolute; z-index: 3; inset: 0; padding: 16px; display: grid; place-items: center; pointer-events: none; }
+.places-map-centered-popup > .place-popup { pointer-events: auto; }
 .places-map-detached-popup { position: absolute; inset: 0; padding: 16px; display: grid; place-items: center; }
 
 .map-search { position: absolute; top: 12px; left: 12px; width: min(320px, calc(100% - 24px)); z-index: 2; }

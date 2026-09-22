@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { MapOverlay } from './MapOverlay'
 import { MapSearch, type SearchResult } from './MapSearch'
 import { PlacePopup } from './PlacePopup'
 import { iconForGoogleTypes, placeIconUrl, type PlaceIconKey } from '../placeIcons'
@@ -318,7 +317,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
       {!mapsReady && <p className="places-map-fallback">Карта недоступна без интернета</p>}
       {!readOnly && mapsReady && <MapSearch maps={mapsRef.current} map={mapRef.current} onPick={pickSearchResult} />}
       {mapsReady && popupPosition && popupDraft && (
-        <MapOverlay maps={mapsRef.current} map={mapRef.current} position={popupPosition}>
+        <div className="places-map-centered-popup">
           <PlacePopup
             mode={editing ? 'edit' : 'view'}
             draft={popupDraft}
@@ -343,7 +342,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
             onDelete={selected && !readOnly ? () => { callbacks.current.onDelete(selected.id); closePopup() } : undefined}
             onClose={closePopup}
           />
-        </MapOverlay>
+        </div>
       )}
       {/* Без карты попап некуда якорить, поэтому он показывается по центру
           области. Правки оффлайн закрыты через readOnly, так что достаточно
