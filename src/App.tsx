@@ -929,7 +929,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
       </section>
       {access.canBrowse && <section className="glass sidebar-card links-card">
         <TypographyGroup className="readiness-heading" title="Готовность к поездке" text={`${countdownText} · Готовность ${readinessPercent}%`} />
-        {hotelCities.length > 0 && <><h3>Отели</h3><ItemList>{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withAssignees(city.name, city.hotelAssigneeIds, members)}</DocumentStatus>)}</ItemList></>}
+        {hotelCities.length > 0 && <><h3>Жильё</h3><ItemList>{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withAssignees(city.name, city.hotelAssigneeIds, members)}</DocumentStatus>)}</ItemList></>}
         <h3 className={hotelCities.length > 0 ? 'readiness-transport-heading' : undefined}>Транспорт</h3>
         <ItemList>
           {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}><TransportLabel label={withTicketDetails(`Дом – ${trip.cities[0].name}`, trip.cities[0].transportIn?.ticketOnSite, trip.cities[0].ticketAssigneeIds, members)} type={trip.cities[0].transportIn?.type} /></DocumentStatus>}
@@ -1304,7 +1304,7 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
               <Input label="Время выселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkOutTime} onChange={(event) => setDraft({ ...draft, checkOutTime: manualTime(event.target.value) })} />
             </div>
             <div className="hotel-location-fields">
-              <Input showLabel={false} icon={<Icon name="attractions" />} aria-label="Название отеля" placeholder="Название отеля" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoFocus />
+              <Input showLabel={false} icon={<Icon name="hotel" />} aria-label="Название места" placeholder="Название места" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoFocus />
               <Input showLabel={false} icon={<Icon name="pin-home" />} trailingIcon={draft.url.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.url.trim() ? () => void navigator.clipboard.writeText(draft.url.trim()) : undefined} controlClassName="transport-link-input" aria-label="Ссылка на отель в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} />
             </div>
           </fieldset>
@@ -1331,7 +1331,7 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
   )
 }
 
-function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; readOnly?: boolean; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onPanelClose: () => void; onClose: () => void }) {
+function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; readOnly?: boolean; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
   const [contentTransition, setContentTransition] = useState<'idle' | 'out' | 'in'>('idle')
   const [transportDirection, setTransportDirection] = useState<'in' | 'out' | null>(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
@@ -1404,6 +1404,23 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     nextCity?.transportIn.departureStationUrl,
   ].map((url) => url?.trim()).filter((url): url is string => Boolean(url)))
   const isManagedPlace = (place: Place) => (place.icon === 'hotel' || place.icon === 'transport') && managedPlaceUrls.has(place.url.trim())
+  const managedPlaceTarget = (place: Place) => {
+    const url = place.url.trim()
+    if (place.icon === 'hotel' && url && url === draft.hotelUrl.trim()) return { cityId: draft.id, panel: 'hotel' as const }
+    if (place.icon !== 'transport' || !url) return undefined
+    if ([draft.transportIn.departureStationUrl, draft.transportIn.arrivalStationUrl].some((value) => value.trim() === url)) return { cityId: draft.id, panel: 'in' as const }
+    if ([draft.transportOut.departureStationUrl, draft.transportOut.arrivalStationUrl].some((value) => value.trim() === url)) return { cityId: draft.id, panel: 'out' as const }
+    if (previousCity && previousCity.transportOut.arrivalStationUrl.trim() === url) return { cityId: previousCity.id, panel: 'out' as const }
+    if (nextCity && nextCity.transportIn.departureStationUrl.trim() === url) return { cityId: nextCity.id, panel: 'in' as const }
+    return undefined
+  }
+  const managedHotelDetails = (place: Place) => managedPlaceTarget(place)?.panel === 'hotel' ? {
+    cityName: draft.name,
+    dateLabel: formatShortRange(draft.arrival, draft.departure),
+    checkInTime: draft.hotelCheckInTime,
+    checkOutTime: draft.hotelCheckOutTime,
+    hasBooking: Boolean(hotelDocument),
+  } : undefined
   const managedPlaceIds = new Set(Object.values(draft.places).flat().filter(isManagedPlace).map((place) => place.id))
   const saveTransport = (value: TransportDetails) => {
     if (!transportDirection) return
@@ -1520,13 +1537,15 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
               <PlacesMap
                 query={mapPoint}
                 centerUrl={draft.googleMapsUrl}
-                places={Object.entries(draft.places).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude, dateLocked: isManagedPlace(item) })))}
+                places={Object.entries(draft.places).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude, dateLocked: isManagedPlace(item), editTarget: managedPlaceTarget(item), hotelDetails: managedHotelDetails(item) })))}
                 dates={dateRange(draft.arrival, draft.departure)}
                 activeDate={activeDate}
                 readOnly={readOnly}
                 formatDate={formatDate}
                 focusRequest={focusRequest}
                 onFocusHandled={() => setFocusRequest(null)}
+                onEditTarget={({ cityId, panel }) => onOpenManagedPanel(cityId, panel)}
+                onOpenBooking={() => { if (hotelDocument) onOpenDocument(hotelDocument) }}
                 onAdd={({ name, icon, date, position }) => {
                   const place = { id: uid(), name, url: `https://www.google.com/maps?q=${position.lat.toFixed(6)},${position.lng.toFixed(6)}`, icon, latitude: position.lat, longitude: position.lng }
                   const next = { ...draft, places: { ...draft.places, [date]: [...(draft.places[date] ?? []), place] } }
@@ -1600,6 +1619,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
             initialDate={selectedCityDate}
             previousCity={trip.cities[selectedCityIndex - 1]}
             nextCity={trip.cities[selectedCityIndex + 1]}
+            onOpenManagedPanel={(cityId, panel) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(cityId); setSelectedPanel(panel) }}
             onPanelClose={() => { setSelectedCityId(panelReturnCityId); setSelectedPanel(null) }}
             onClose={() => { setSelectedCityId(null); setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedPanel(null) }}
             onChange={(nextCity) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onCityChange(nextCity) }}

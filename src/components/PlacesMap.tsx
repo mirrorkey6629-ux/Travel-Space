@@ -16,6 +16,8 @@ export type MapPlace = {
   latitude?: number
   longitude?: number
   dateLocked?: boolean
+  editTarget?: { cityId: string; panel: 'hotel' | 'in' | 'out' }
+  hotelDetails?: { cityName: string; dateLabel: string; checkInTime: string; checkOutTime: string; hasBooking: boolean }
 }
 
 let mapsPromise: Promise<any> | null = null
@@ -86,7 +88,7 @@ function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false) {
   return element
 }
 
-export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, readOnly, formatDate, onAdd, onUpdate, onDelete, onResolvePlace, focusRequest, onFocusHandled }: {
+export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, readOnly, formatDate, onAdd, onUpdate, onDelete, onResolvePlace, onEditTarget, onOpenBooking, focusRequest, onFocusHandled }: {
   query: string
   centerUrl?: string
   places: MapPlace[]
@@ -98,6 +100,8 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
   onUpdate: (id: string, value: { name: string; icon: PlaceIconKey; date: string }) => void
   onDelete: (id: string) => void
   onResolvePlace?: (id: string, coordinates: Coordinates) => void
+  onEditTarget?: (target: NonNullable<MapPlace['editTarget']>) => void
+  onOpenBooking?: (cityId: string) => void
   focusRequest?: string | null
   onFocusHandled?: () => void
 }) {
@@ -121,8 +125,8 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
     [places],
   )
 
-  const callbacks = useRef({ onAdd, onUpdate, onDelete, onResolvePlace, onFocusHandled })
-  useEffect(() => { callbacks.current = { onAdd, onUpdate, onDelete, onResolvePlace, onFocusHandled } })
+  const callbacks = useRef({ onAdd, onUpdate, onDelete, onResolvePlace, onEditTarget, onOpenBooking, onFocusHandled })
+  useEffect(() => { callbacks.current = { onAdd, onUpdate, onDelete, onResolvePlace, onEditTarget, onOpenBooking, onFocusHandled } })
 
   const closePopup = () => { setDraftPosition(null); setSelectedId(null); setDraft(null); setEditing(false) }
 
@@ -323,7 +327,17 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
             readOnly={readOnly}
             dateLocked={selected?.dateLocked}
             mapsUrl={selected ? placeMapsHref(selected) || undefined : undefined}
-            onEdit={() => { setDraft(popupDraft); setEditing(true) }}
+            hotelDetails={selected?.hotelDetails}
+            onOpenBooking={selected?.hotelDetails?.hasBooking ? () => callbacks.current.onOpenBooking?.(selected.editTarget?.cityId ?? '') : undefined}
+            onEdit={() => {
+              if (selected?.editTarget) {
+                callbacks.current.onEditTarget?.(selected.editTarget)
+                closePopup()
+                return
+              }
+              setDraft(popupDraft)
+              setEditing(true)
+            }}
             onChange={setDraft}
             onSave={saveDraft}
             onDelete={selected && !readOnly ? () => { callbacks.current.onDelete(selected.id); closePopup() } : undefined}

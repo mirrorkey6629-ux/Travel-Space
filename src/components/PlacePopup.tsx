@@ -1,10 +1,13 @@
 import { Button, IconButton } from './Button'
 import { Input, Select } from './FormControls'
 import { Icon } from './Icon'
+import { IconText } from './IconText'
 import { PLACE_ICON_OPTIONS, placeIconUrl } from '../placeIcons'
 import { UNSCHEDULED_KEY, type PlaceDraft } from '../places'
 
-export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocked, mapsUrl, onEdit, onChange, onSave, onDelete, onClose }: {
+type HotelPointDetails = { cityName: string; dateLabel: string; checkInTime: string; checkOutTime: string; hasBooking: boolean }
+
+export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocked, mapsUrl, hotelDetails, onOpenBooking, onEdit, onChange, onSave, onDelete, onClose }: {
   mode: 'view' | 'edit'
   draft: PlaceDraft
   dates: string[]
@@ -12,6 +15,8 @@ export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocke
   readOnly?: boolean
   dateLocked?: boolean
   mapsUrl?: string
+  hotelDetails?: HotelPointDetails
+  onOpenBooking?: () => void
   onEdit: () => void
   onChange: (draft: PlaceDraft) => void
   onSave: () => void
@@ -19,6 +24,26 @@ export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocke
   onClose: () => void
 }) {
   if (mode === 'view') {
+    if (hotelDetails) {
+      const stayTimes = [hotelDetails.checkInTime ? `Заселение в ${hotelDetails.checkInTime}` : '', hotelDetails.checkOutTime ? `Выселение до ${hotelDetails.checkOutTime}` : ''].filter(Boolean).join(' * ')
+      return (
+        <div className="place-popup place-popup-hotel-view">
+          <div className="place-popup-hotel-head">
+            <div className="place-popup-hotel-title"><strong>{draft.name}</strong><span>Жильё, {hotelDetails.cityName}</span></div>
+            <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
+          </div>
+          <div className="place-popup-hotel-details">
+            <IconText icon={<Icon name="calendar-month" />}>{hotelDetails.dateLabel}</IconText>
+            {stayTimes && <IconText icon={<Icon name="time" />}>{stayTimes}</IconText>}
+            {mapsUrl && <IconText icon={<Icon name="pin-home" />}><a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">Адрес с гугл карт</a></IconText>}
+          </div>
+          <div className="place-popup-actions">
+            {hotelDetails.hasBooking && onOpenBooking && <Button type="button" size="m" theme="secondary" onClick={onOpenBooking}>Открыть бронь</Button>}
+            {!readOnly && <Button type="button" size="m" onClick={onEdit}>Редактировать</Button>}
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="place-popup">
         <div className="place-popup-head">

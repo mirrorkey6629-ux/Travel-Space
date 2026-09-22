@@ -690,17 +690,31 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 /* Оформление стеклянных карточек проекта (.glass), но радиус и отступы меньше:
    попап висит над картой рядом с маркером, а не занимает собственную колонку. */
 .place-popup { width: 260px; padding: 14px; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-over-map); backdrop-filter: blur(50px) saturate(115%); -webkit-backdrop-filter: blur(50px) saturate(115%); box-shadow: inset 0 1px rgba(255,255,255,.08), 0 24px 70px rgba(0,0,0,.2); transform: translateZ(0); display: flex; flex-direction: column; gap: 10px; color: var(--color-text-primary); }
-.place-popup-edit { width: min(360px, calc(100vw - 32px)); padding: 16px; gap: 16px; }
+.place-popup-edit { width: min(408px, calc(100vw - 32px)); padding: 20px 16px; gap: 0; }
+.place-popup-hotel-view { width: min(420px, calc(100vw - 32px)); padding: 24px 16px 20px; gap: 0; }
 .place-popup-head { display: flex; align-items: center; gap: 8px; }
 .place-popup-head strong { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: var(--type-text-size); line-height: var(--type-text-line-height); }
+.place-popup-edit .place-popup-head { margin-bottom: 20px; }
 .place-popup-edit .place-popup-head strong { font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); letter-spacing: var(--type-head-m-letter-spacing); }
 .place-popup p { margin: 0; }
 .place-popup-link { color: var(--color-text-secondary); text-decoration: none; }
 .place-popup-link:hover { color: #fff; }
-.place-popup-icons { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
-.place-icon-choice { aspect-ratio: 1; min-width: 0; border: 1px solid transparent; border-radius: 50%; background: var(--glass-soft); display: grid; place-items: center; cursor: pointer; transition: background .12s, border-color .12s; }
+.place-popup-hotel-head { position: relative; min-height: 72px; padding: 0 48px 20px; border-bottom: 1px solid rgba(255,255,255,.28); display: flex; justify-content: center; text-align: center; }
+.place-popup-hotel-head > .icon-button { position: absolute; top: -8px; right: -4px; }
+.place-popup-hotel-title { min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.place-popup-hotel-title strong { overflow-wrap: anywhere; color: var(--color-text-primary); font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
+.place-popup-hotel-title span { color: var(--color-text-secondary); }
+.place-popup-hotel-details { padding: 20px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.place-popup-hotel-details .icon-text { width: 100%; }
+.place-popup-hotel-details .place-popup-link { color: inherit; }
+.place-popup-icons { display: grid; grid-template-columns: repeat(8, minmax(0, 40px)); justify-content: space-between; gap: 8px; }
+.place-popup-edit .place-popup-icons { margin-bottom: 16px; }
+.place-icon-choice { width: 40px; height: 40px; padding: 8px; border: 1px solid transparent; border-radius: 50%; background: var(--glass-soft); display: grid; place-items: center; line-height: 0; cursor: pointer; transition: background .12s, border-color .12s; }
+.place-icon-choice .ui-icon { width: 24px; height: 24px; margin: auto; }
 .place-icon-choice:hover { background: rgba(255,255,255,.22); }
 .place-icon-choice.is-selected { border-color: rgba(255,255,255,.6); background: rgba(255,255,255,.26); }
+.place-popup-edit > .form-control:nth-of-type(1) { margin-bottom: 8px; }
+.place-popup-edit > .form-control:nth-of-type(2) { margin-bottom: 16px; }
 .place-popup-actions { display: flex; gap: 8px; }
 .place-popup-actions .ui-button { flex: 1; }
 
