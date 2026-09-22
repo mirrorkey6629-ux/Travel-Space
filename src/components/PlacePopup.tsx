@@ -36,7 +36,7 @@ export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocke
           <div className="place-popup-hotel-details">
             <IconText icon={<Icon name="calendar-month" />}>{hotelDetails.dateLabel}</IconText>
             {stayTimes && <IconText icon={<Icon name="time" />}>{stayTimes}</IconText>}
-            {mapsUrl && mapsAddress && <IconText icon={<Icon name="pin-home" />}><a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">{mapsAddress}</a></IconText>}
+            {mapsUrl && <IconText icon={<Icon name="pin-home" />}><a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">{mapsAddress || 'Открыть в Google Maps'}</a></IconText>}
           </div>
           <div className="place-popup-actions">
             {hotelDetails.hasBooking && onOpenBooking && <Button type="button" size="m" theme="secondary" onClick={onOpenBooking}>Открыть бронь</Button>}

@@ -76,9 +76,9 @@ function addressFromMapsUrl(value: string): string {
   }
 }
 
-function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false) {
+function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false, interactive = true) {
   const element = document.createElement('div')
-  element.className = `place-marker${draft ? ' place-marker-draft' : ''}${dimmed ? ' is-dimmed' : ''}`
+  element.className = `place-marker${draft ? ' place-marker-draft' : ''}${dimmed ? ' is-dimmed' : ''}${interactive ? '' : ' is-static'}`
   const image = document.createElement('img')
   image.className = 'ui-icon'
   image.width = 24
@@ -211,16 +211,17 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
     const render = (place: MapPlace, coordinates: Coordinates) => {
       if (!active) return
       const dimmed = activeDate !== null && place.date !== activeDate
+      const interactive = Boolean(place.url.trim())
       const marker = new maps.marker.AdvancedMarkerElement({
         map,
         position: coordinates,
         // title не задаём: браузер рисует по нему свой чёрный системный тултип,
         // который дублирует попап и перекрывает соседние точки.
-        content: markerContent(place.icon, dimmed),
+        content: markerContent(place.icon, dimmed, false, interactive),
         // Без gmpClickable маркер с собственным content не генерирует событий клика.
-        gmpClickable: true,
+        gmpClickable: interactive,
       })
-      marker.addListener('gmp-click', () => {
+      if (interactive) marker.addListener('gmp-click', () => {
         setDraftPosition(null)
         setEditing(false)
         setDraft(null)

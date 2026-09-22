@@ -1127,7 +1127,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
   }
   events.forEach((event) => {
     if (event.kind === 'hotel-out') {
-      pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city, 'hotel', Boolean(event.interactive))
+      pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city, 'hotel', Boolean(event.city.hotelUrl.trim()))
       timeline.push({ type: 'event', key: event.key, event })
       pushArrow(`${event.key}:arrow`)
       return
@@ -1142,14 +1142,14 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     if (event.kind === 'city') {
       const cityPlaces = ordinaryPlaces.filter((place) => place.city.id === event.city.id)
       if (cityPlaces.length > 0) {
-        cityPlaces.forEach((place) => timeline.push({ type: 'location', key: `${event.key}:${place.id}`, name: place.name, url: place.url, icon: place.icon, city: place.city, placeId: place.id, interactive: true }))
+        cityPlaces.forEach((place) => timeline.push({ type: 'location', key: `${event.key}:${place.id}`, name: place.name, url: place.url, icon: place.icon, city: place.city, placeId: place.id, interactive: Boolean(place.url.trim()) }))
       } else {
         timeline.push({ type: 'event', key: event.key, event })
       }
       pushArrow(`${event.key}:arrow`)
       return
     }
-    pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city, 'hotel', Boolean(event.interactive))
+    pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city, 'hotel', Boolean(event.city.hotelUrl.trim()))
     timeline.push({ type: 'event', key: event.key, event })
   })
   while (timeline.at(-1)?.type === 'arrow') timeline.pop()
@@ -1172,13 +1172,15 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
                     const event = item.event
                     const eventText = `${event.title}${event.subtitle ? `${event.subtitle.startsWith('(') ? ' ' : ' · '}${event.subtitle}` : ''}`
                     const content = event.icon ? <IconText icon={<Icon name={event.icon} />}>{eventText}</IconText> : <span>{eventText}</span>
-                    return <li key={item.key}>{!access.canBrowse || event.interactive === false ? <span className="day-event-line read-only">{content}</span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{content}</button>}</li>
+                    return <li key={item.key}>{!access.canBrowse ? <span className="day-event-line read-only">{content}</span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{content}</button>}</li>
                   }
                   const label = !item.interactive
                     ? <span>{item.name}</span>
-                    : !access.canBrowse
-                      ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>)
-                      : <button type="button" onClick={() => item.panel ? onEvent(item.city, item.panel) : item.placeId ? onPlace(item.city, item.placeId) : onCity(item.city)}>{item.name}</button>
+                    : item.url
+                      ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a>
+                      : !access.canBrowse
+                        ? <span>{item.name}</span>
+                        : <button type="button" onClick={() => item.panel ? onEvent(item.city, item.panel) : item.placeId ? onPlace(item.city, item.placeId) : onCity(item.city)}>{item.name}</button>
                   return <li key={item.key} className="day-location-line"><IconText icon={<img className="ui-icon" src={placeIconUrl(item.icon)} width={24} height={24} alt="" />}>{label}</IconText></li>
                 })}</ItemList>}
                 {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
@@ -1426,10 +1428,10 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     nextCity?.transportIn.departureStationUrl,
   ].map((url) => url?.trim()).filter((url): url is string => Boolean(url)))
   const isManagedPlace = (place: Place) => (place.icon === 'hotel' || place.icon === 'transport') && managedPlaceUrls.has(place.url.trim())
-  const ordinaryPlacesByDate = Object.fromEntries(Object.entries(draft.places).map(([date, places]) => [date, places.filter((place) => !isManagedPlace(place))]))
+  const ordinaryPlacesByDate = Object.fromEntries(Object.entries(draft.places).map(([date, places]) => [date, places.filter((place) => !isManagedPlace(place) && Boolean(place.url.trim()))]))
   type ManagedMapPlace = Place & { date: string; dateLocked: true; editTarget: { cityId: string; panel: 'hotel' | 'in' | 'out' }; hotelDetails?: { cityName: string; dateLabel: string; checkInTime: string; checkOutTime: string; hasBooking: boolean } }
   const managedMapPlaces: ManagedMapPlace[] = []
-  if (!draft.hotelNotNeeded && (draft.hotel.trim() || draft.hotelUrl.trim())) managedMapPlaces.push({
+  if (!draft.hotelNotNeeded && draft.hotelUrl.trim()) managedMapPlaces.push({
     id: `managed:hotel:${draft.id}`,
     name: draft.hotel.trim() || `Жильё · ${draft.name}`,
     url: draft.hotelUrl.trim(),
@@ -1445,15 +1447,15 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     hasBooking: Boolean(hotelDocument),
     },
   })
-  const incoming = draft.transportIn.arrivalStation.trim() || draft.transportIn.arrivalStationUrl.trim()
+  const incoming = draft.transportIn.arrivalStationUrl.trim()
     ? { details: draft.transportIn, owner: draft, panel: 'in' as const }
-    : previousCity && (previousCity.transportOut.arrivalStation.trim() || previousCity.transportOut.arrivalStationUrl.trim())
+    : previousCity?.transportOut.arrivalStationUrl.trim()
       ? { details: previousCity.transportOut, owner: previousCity, panel: 'out' as const }
       : undefined
   if (incoming) managedMapPlaces.push({ id: `managed:transport-in:${draft.id}`, name: incoming.details.arrivalStation.trim() || draft.name, url: incoming.details.arrivalStationUrl.trim(), icon: 'transport', date: incoming.details.arrivalDate || draft.arrival || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: incoming.owner.id, panel: incoming.panel } })
-  const outgoing = draft.transportOut.departureStation.trim() || draft.transportOut.departureStationUrl.trim()
+  const outgoing = draft.transportOut.departureStationUrl.trim()
     ? { details: draft.transportOut, owner: draft, panel: 'out' as const }
-    : nextCity && (nextCity.transportIn.departureStation.trim() || nextCity.transportIn.departureStationUrl.trim())
+    : nextCity?.transportIn.departureStationUrl.trim()
       ? { details: nextCity.transportIn, owner: nextCity, panel: 'in' as const }
       : undefined
   if (outgoing) managedMapPlaces.push({ id: `managed:transport-out:${draft.id}`, name: outgoing.details.departureStation.trim() || draft.name, url: outgoing.details.departureStationUrl.trim(), icon: 'transport', date: outgoing.details.departureDate || draft.departure || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: outgoing.owner.id, panel: outgoing.panel } })

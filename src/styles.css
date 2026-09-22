@@ -610,8 +610,11 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .city-day h3 { margin: 0 0 10px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
 .city-day a, .city-day .place-row { display: flex; width: 100%; align-items: flex-start; gap: 6px; margin: 0; padding: 0; overflow-wrap: anywhere; color: var(--color-text-secondary); background: transparent; text-align: left; text-decoration: none; font: inherit; }
 .city-day .place-row:hover { color: #fff; }
+.city-day .place-row-static { cursor: default; }
+.city-day .place-row-static:hover { color: var(--color-text-secondary); }
 .city-day .place-row .icon-text { flex: 1; }
 .city-day .place-row:hover .icon-text { opacity: 1; }
+.city-day .place-row-static:hover .icon-text { opacity: .7; }
 /* Ручка переноса прижата вправо и совпадает по цвету с иконкой места. */
 .city-day .place-row .place-row-handle { width: 16px; height: 16px; flex: 0 0 16px; margin-top: 4px; margin-left: auto; opacity: .7; transition: opacity .12s; cursor: grab; }
 .city-day .place-row:hover .place-row-handle, .city-day .place-row:focus-visible .place-row-handle { opacity: 1; }
@@ -680,9 +683,12 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 /* Маркер — обычный DOM-элемент AdvancedMarkerElement, поэтому стилизуется CSS. */
 .place-marker { width: 32px; height: 32px; border-radius: 50%; border: 2px solid rgba(255,255,255,.75); background: rgba(24,24,32,.88); display: grid; place-items: center; cursor: pointer; transition: transform .12s, opacity .12s; }
 .place-marker:hover { transform: scale(1.12); }
+.place-marker.is-static { cursor: default; }
+.place-marker.is-static:hover { transform: none; }
 .place-marker .ui-icon { width: 18px; height: 18px; }
 .place-marker.is-dimmed { opacity: .38; }
 .place-marker.is-dimmed:hover { opacity: .8; }
+.place-marker.is-dimmed.is-static:hover { opacity: .38; }
 .place-marker-draft { border-style: dashed; background: rgba(24,24,32,.7); }
 
 /* Якорь тултипа: сдвиг вверх, чтобы плашка не накрывала сам маркер. */

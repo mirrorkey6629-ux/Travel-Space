@@ -6,7 +6,7 @@ import { UNSCHEDULED_KEY } from '../places'
 import { IconText } from './IconText'
 import { ItemList } from './ItemList'
 
-export type ListPlace = { id: string; name: string; icon: PlaceIconKey }
+export type ListPlace = { id: string; name: string; icon: PlaceIconKey; url?: string }
 
 const handleUrl = `${import.meta.env.BASE_URL}assets/icons/drag.svg?v=20260921-3`
 
@@ -57,7 +57,9 @@ function Day({ dayKey, title, places, active, readOnly, lockedPlaceIds, onActiva
     <div ref={setNodeRef} className={`city-day${dayKey === UNSCHEDULED_KEY ? ' unscheduled-day' : ''}${active ? ' is-active' : ''}${isOver ? ' is-over' : ''}`}>
       <h3><button type="button" className="city-day-title" aria-pressed={active} onClick={onActivate}>{title}</button></h3>
       <ItemList>
-        {places.map((place) => readOnly || lockedPlaceIds.has(place.id)
+        {places.map((place) => !place.url?.trim()
+          ? <div key={place.id} className="place-row place-row-static"><RowBody place={place} /></div>
+          : readOnly || lockedPlaceIds.has(place.id)
           ? <button key={place.id} type="button" className="place-row" onClick={() => onFocusPlace(place.id)}>
               <RowBody place={place} />
             </button>
