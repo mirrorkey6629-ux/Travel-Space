@@ -116,6 +116,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draft, setDraft] = useState<PlaceDraft | null>(null)
   const [editing, setEditing] = useState(false)
+  const [resolvedCoordinates, setResolvedCoordinates] = useState<Record<string, Coordinates>>({})
   const [resolvedAddresses, setResolvedAddresses] = useState<Record<string, string>>({})
   const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
   const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string | undefined
@@ -239,6 +240,10 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
       void geocodeOnce(geocoder, place.name).then((coordinates) => {
         if (!coordinates) return
         render(place, coordinates)
+        setResolvedCoordinates((current) => {
+          const existing = current[place.id]
+          return existing?.lat === coordinates.lat && existing.lng === coordinates.lng ? current : { ...current, [place.id]: coordinates }
+        })
         const address = geocodeAddressCache.get(place.name.trim().toLocaleLowerCase())
         if (address) setResolvedAddresses((current) => current[place.id] === address ? current : { ...current, [place.id]: address })
         callbacks.current.onResolvePlace?.(place.id, coordinates)
@@ -276,8 +281,11 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
     const place = places.find((item) => item.id === focusRequest)
     if (place) {
       const map = mapRef.current
-      if (map && Number.isFinite(place.latitude) && Number.isFinite(place.longitude)) {
-        map.panTo({ lat: place.latitude!, lng: place.longitude! })
+      const coordinates = Number.isFinite(place.latitude) && Number.isFinite(place.longitude)
+        ? { lat: place.latitude!, lng: place.longitude! }
+        : resolvedCoordinates[place.id]
+      if (map && coordinates) {
+        map.panTo(coordinates)
         map.setZoom(Math.max(map.getZoom() ?? 15, 15))
       }
       setDraftPosition(null)
@@ -286,25 +294,29 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
       setSelectedId(place.id)
     }
     callbacks.current.onFocusHandled?.()
-  }, [focusRequest, placesSignature, mapsReady])
+  }, [focusRequest, placesSignature, mapsReady, resolvedCoordinates])
 
   // Попап живёт по центру карты, а выбранную точку сдвигаем под его нижний край.
   // Отступ вычисляется по реальной высоте плашки, поэтому работает и для
   // компактного просмотра, и для более высокой формы редактирования.
   useEffect(() => {
-    if (!mapsReady || !selected || !Number.isFinite(selected.latitude) || !Number.isFinite(selected.longitude)) return
+    if (!mapsReady || !selected) return
     const map = mapRef.current
     const container = containerRef.current
     const popup = centeredPopupRef.current?.querySelector<HTMLElement>('.place-popup')
     if (!map || !container || !popup) return
+    const coordinates = Number.isFinite(selected.latitude) && Number.isFinite(selected.longitude)
+      ? { lat: selected.latitude!, lng: selected.longitude! }
+      : resolvedCoordinates[selected.id]
+    if (!coordinates) return
     const frame = requestAnimationFrame(() => {
       const availableOffset = Math.max(0, container.clientHeight / 2 - 32)
       const markerOffset = Math.min(popup.offsetHeight / 2 + 28, availableOffset)
-      map.setCenter({ lat: selected.latitude!, lng: selected.longitude! })
+      map.setCenter(coordinates)
       map.panBy(0, -markerOffset)
     })
     return () => cancelAnimationFrame(frame)
-  }, [mapsReady, selectedId, selected?.latitude, selected?.longitude, editing])
+  }, [mapsReady, selectedId, selected?.latitude, selected?.longitude, editing, resolvedCoordinates])
 
   const pickSearchResult = (result: SearchResult) => {
     const map = mapRef.current
@@ -325,8 +337,10 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
 
   if (!key) return <iframe title={`Карта: ${query}`} src={`https://www.google.com/maps?q=${encodeURIComponent(addressFromMapsUrl(centerUrl) || query)}&z=12&output=embed`} loading="lazy" allowFullScreen referrerPolicy="no-referrer-when-downgrade" />
 
-  const popupPosition = selected && Number.isFinite(selected.latitude) && Number.isFinite(selected.longitude)
-    ? { lat: selected.latitude!, lng: selected.longitude! }
+  const popupPosition = selected
+    ? Number.isFinite(selected.latitude) && Number.isFinite(selected.longitude)
+      ? { lat: selected.latitude!, lng: selected.longitude! }
+      : resolvedCoordinates[selected.id] ?? null
     : draftPosition
   const popupDraft = editing
     ? draft
