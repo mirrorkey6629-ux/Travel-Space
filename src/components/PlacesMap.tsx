@@ -21,6 +21,7 @@ export type MapPlace = {
 
 let mapsPromise: Promise<any> | null = null
 const geocodeCache = new Map<string, Coordinates | null>()
+const geocodeAddressCache = new Map<string, string>()
 
 function loadMaps(key: string) {
   const existing = (window as any).google?.maps
@@ -47,6 +48,7 @@ function geocodeOnce(geocoder: any, address: string): Promise<Coordinates | null
       const location = status === 'OK' ? results?.[0]?.geometry?.location : null
       const coordinates = location ? { lat: location.lat(), lng: location.lng() } : null
       geocodeCache.set(normalized, coordinates)
+      if (status === 'OK' && results?.[0]?.formatted_address) geocodeAddressCache.set(normalized, results[0].formatted_address)
       resolve(coordinates)
     })
   })
@@ -114,6 +116,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [draft, setDraft] = useState<PlaceDraft | null>(null)
   const [editing, setEditing] = useState(false)
+  const [resolvedAddresses, setResolvedAddresses] = useState<Record<string, string>>({})
   const key = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
   const mapId = import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string | undefined
 
@@ -235,6 +238,8 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
       void geocodeOnce(geocoder, place.name).then((coordinates) => {
         if (!coordinates) return
         render(place, coordinates)
+        const address = geocodeAddressCache.get(place.name.trim().toLocaleLowerCase())
+        if (address) setResolvedAddresses((current) => current[place.id] === address ? current : { ...current, [place.id]: address })
         callbacks.current.onResolvePlace?.(place.id, coordinates)
       })
     })
@@ -345,6 +350,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
             readOnly={readOnly}
             dateLocked={selected?.dateLocked}
             mapsUrl={selected ? placeMapsHref(selected) || undefined : undefined}
+            mapsAddress={selected ? resolvedAddresses[selected.id] : undefined}
             hotelDetails={selected?.hotelDetails}
             onOpenBooking={selected?.hotelDetails?.hasBooking ? () => callbacks.current.onOpenBooking?.(selected.editTarget?.cityId ?? '') : undefined}
             onEdit={() => {
