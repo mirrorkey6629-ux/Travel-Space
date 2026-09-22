@@ -11,11 +11,11 @@ export const PLACE_ICON_OPTIONS: PlaceIconOption[] = [
   { key: 'hotel', label: 'Отель', file: 'pin-home' },
   { key: 'shopping', label: 'Шопинг', file: 'shopping-bag' },
   { key: 'nature', label: 'Природа', file: 'park' },
-  { key: 'transport', label: 'Транспорт', file: 'train' },
+  { key: 'transport', label: 'Транспорт', file: 'pin-transport' },
 ]
 
 const iconFiles = new Map(PLACE_ICON_OPTIONS.map((option) => [option.key, option.file]))
-const PLACE_ICON_ASSET_VERSION = '20260921-6'
+const PLACE_ICON_ASSET_VERSION = '20260922-3'
 
 export const placeIconFile = (key: PlaceIconKey) => iconFiles.get(key) ?? 'pin'
 

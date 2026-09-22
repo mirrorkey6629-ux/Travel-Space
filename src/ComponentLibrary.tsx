@@ -13,7 +13,7 @@ import { IconText } from './components/IconText'
 import { ItemList } from './components/ItemList'
 import './component-library.css'
 
-const icons: IconName[] = ['add-plus', 'arrow-back', 'attractions', 'barefoot', 'calendar-month', 'casino', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit', 'email', 'encrypted', 'face', 'footprint', 'hotel', 'link', 'money-bag', 'pin', 'pin-add', 'pin-home', 'plane', 'planet', 'refresh', 'sailing', 'ticket', 'time', 'train']
+const icons: IconName[] = ['add-plus', 'arrow-back', 'attractions', 'barefoot', 'calendar-month', 'casino', 'check-small', 'close', 'content-copy', 'delete-forever', 'docs', 'download', 'edit', 'email', 'encrypted', 'face', 'footprint', 'hotel', 'link', 'money-bag', 'pin', 'pin-add', 'pin-home', 'pin-transport', 'plane', 'planet', 'refresh', 'sailing', 'ticket', 'time', 'train']
 
 const navigation = [
   { id: 'colors', label: 'Цвета' },
