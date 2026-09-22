@@ -877,10 +877,10 @@ const withAssignees = (label: string, ids: string[], members: TripMember[]) => {
 }
 const TICKET_ON_SITE_PAGE_TEXT = 'Билет купить на месте'
 const TICKET_ON_SITE_SUMMARY_TEXT = '(купить на месте)'
-const withTicketOnSiteSummary = (parts: Array<string | undefined>, ticketOnSite: boolean | undefined) => {
+const withTicketOnSiteSummary = (travelTimes: string, durationLabel: string | undefined, ticketOnSite: boolean | undefined) => {
   if (ticketOnSite) return TICKET_ON_SITE_SUMMARY_TEXT
-  const details = parts.filter(Boolean).join(' · ')
-  return details
+  const duration = durationLabel ? `(${durationLabel.charAt(0).toLocaleLowerCase('ru-RU')}${durationLabel.slice(1)})` : ''
+  return [travelTimes, duration].filter(Boolean).join(' ')
 }
 const withTicketDetails = (label: string, ticketOnSite: boolean | undefined, ids: string[], members: TripMember[]) => ticketOnSite ? `${label} ${TICKET_ON_SITE_SUMMARY_TEXT}` : withAssignees(label, ids, members)
 
@@ -1040,7 +1040,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     const departurePlace = outgoing.departureStation.trim() || incoming.departureStation.trim() || departureCity.name
     const arrivalPlace = outgoing.arrivalStation.trim() || incoming.arrivalStation.trim() || arrivalCity.name
     const ticketOnSite = outgoing.ticketOnSite || incoming.ticketOnSite
-    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} – ${arrivalCity.name}`, subtitle: withTicketOnSiteSummary([travelTimes, durationLabel], ticketOnSite), icon: transportEventIcon(outgoing.type || incoming.type), city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in', kind: 'transfer', departureName: departurePlace, departureUrl: outgoing.departureStationUrl || incoming.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: outgoing.arrivalStationUrl || incoming.arrivalStationUrl })
+    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} – ${arrivalCity.name}`, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, ticketOnSite), icon: transportEventIcon(outgoing.type || incoming.type), city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in', kind: 'transfer', departureName: departurePlace, departureUrl: outgoing.departureStationUrl || incoming.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: outgoing.arrivalStationUrl || incoming.arrivalStationUrl })
     if (!arrivalCity.hotelNotNeeded) {
       const checkInTime = arrivalCity.hotelCheckInTime.trim()
       events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel', kind: 'hotel-in' })
@@ -1067,7 +1067,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const travelTimes = formatTravelTimes(departureTime, arrivalTime)
       const ticketOnSite = city.transportIn.ticketOnSite || previousTransport?.ticketOnSite
       const routeTitle = `${previousCity?.name || 'Дом'} – ${city.name}`
-      result.push({ key: `${city.id}:arrival`, title: routeTitle, subtitle: withTicketOnSiteSummary([travelTimes, durationLabel], ticketOnSite), icon: transportEventIcon(city.transportIn.type || previousTransport?.type), city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportIn.departureStationUrl || previousTransport?.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportIn.arrivalStationUrl || previousTransport?.arrivalStationUrl })
+      result.push({ key: `${city.id}:arrival`, title: routeTitle, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, ticketOnSite), icon: transportEventIcon(city.transportIn.type || previousTransport?.type), city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportIn.departureStationUrl || previousTransport?.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportIn.arrivalStationUrl || previousTransport?.arrivalStationUrl })
       if (!city.hotelNotNeeded) {
         const checkInTime = city.hotelCheckInTime.trim()
         result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel', kind: 'hotel-in' })
@@ -1086,7 +1086,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const durationLabel = formatTravelDuration(departureTime, arrivalTime, city.transportOut.departureDate || city.departure, city.transportOut.arrivalDate || city.departure, city.transportOut.departureTimeZone || tripTimeZone, city.transportOut.arrivalTimeZone || tripTimeZone)
       const travelTimes = formatTravelTimes(departureTime, arrivalTime)
       const routeTitle = `${city.name} – ${allCities[cityIndex + 1]?.name || 'Дом'}`
-      result.push({ key: `${city.id}:departure`, title: routeTitle, subtitle: withTicketOnSiteSummary([travelTimes, durationLabel], city.transportOut.ticketOnSite), icon: transportEventIcon(city.transportOut.type), city, panel: 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportOut.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportOut.arrivalStationUrl })
+      result.push({ key: `${city.id}:departure`, title: routeTitle, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, city.transportOut.ticketOnSite), icon: transportEventIcon(city.transportOut.type), city, panel: 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportOut.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportOut.arrivalStationUrl })
     }
     if (result.length === 0) result.push({ key: `${city.id}:city-day`, title: `День в ${cityInLocative(city.name)}`, icon: 'footprint', city, kind: 'city' })
     events.push(...result)

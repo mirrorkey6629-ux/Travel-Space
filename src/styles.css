@@ -553,7 +553,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .past-toggle { align-self: flex-end; padding: 10px 16px; border-radius: 20px; color: #fff; background: rgba(0,0,0,.28); backdrop-filter: blur(20px); }
 .day-card { min-height: 362px; border-radius: 24px; padding: 20px; }
 .day-card.past { opacity: .58; }
-.day-content { min-width: 0; display: grid; grid-template-columns: 116px minmax(0, 1fr); align-items: stretch; gap: 40px; }
+.day-content { min-width: 0; display: grid; grid-template-columns: 116px minmax(0, 1fr); align-items: stretch; gap: 32px; }
 .day-date-column { width: 116px; padding-top: 12px; }
 .day-date-column h2 { margin: 0; white-space: nowrap; color: var(--color-text-primary); font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
 .day-date-column p { margin: 4px 0 0; color: var(--color-text-secondary); font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
