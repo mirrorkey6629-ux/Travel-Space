@@ -959,6 +959,7 @@ type TripExpense = { id: string; title: string; payerIds: string[]; totalAmountR
 
 const hasExpense = (details: TransportDetails | undefined) => Boolean(details && details.totalAmountRubles > 0)
 const formatRubles = (value: number) => `${value.toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽`
+const formatExpenseRecords = (count: number) => `${count} ${count % 10 === 1 && count % 100 !== 11 ? 'запись' : [2, 3, 4].includes(count % 10) && ![12, 13, 14].includes(count % 100) ? 'записи' : 'записей'}`
 
 function tripExpenses(trip: Trip): { hotels: TripExpense[]; transport: TripExpense[] } {
   const hotels = trip.cities
@@ -982,6 +983,14 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
   const expenses = tripExpenses(trip)
   const members = trip.members ?? []
   const allExpenses = [...expenses.hotels, ...expenses.transport]
+  const memberExpenses = members.map((member) => {
+    const records = allExpenses.filter((expense) => expense.payerIds.includes(member.id))
+    return {
+      member,
+      records: records.length,
+      totalAmountRubles: records.reduce((sum, expense) => sum + expense.totalAmountRubles / expense.payerIds.length, 0),
+    }
+  }).filter((summary) => summary.records > 0)
   const categoryTotal = (items: TripExpense[]) => items.reduce((sum, expense) => sum + expense.totalAmountRubles, 0)
   const expenseRow = (expense: TripExpense) => {
     const payers = assigneeNames(expense.payerIds, members) || 'Плательщик не указан'
@@ -1001,6 +1010,7 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
           {allExpenses.length === 0 && <p className="expenses-empty">Трат пока нет</p>}
           {expenses.hotels.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Жильё" text={`Всего ${formatRubles(categoryTotal(expenses.hotels))}`} /><div className="expenses-list">{expenses.hotels.map(expenseRow)}</div></section>}
           {expenses.transport.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Транспорт" text={`Всего ${formatRubles(categoryTotal(expenses.transport))}`} /><div className="expenses-list">{expenses.transport.map(expenseRow)}</div></section>}
+          {memberExpenses.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Итого по людям" /><div className="expenses-list">{memberExpenses.map(({ member, records, totalAmountRubles }) => <InfoRow key={member.id} className="expense-row" image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={formatExpenseRecords(records)} trailing={formatRubles(totalAmountRubles)} />)}</div></section>}
         </section>
       </div>
     </main>
@@ -1019,7 +1029,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     textarea.style.height = '0'
     textarea.style.height = `${textarea.scrollHeight}px`
   }, [descriptionDraft])
-  type DayEvent = { key: string; title: string; subtitle?: string; icon?: IconName; city: City; panel?: 'hotel' | 'in' | 'out'; kind: 'hotel-out' | 'transfer' | 'hotel-in' | 'city'; departureName?: string; departureUrl?: string; arrivalName?: string; arrivalUrl?: string }
+  type DayEvent = { key: string; title: string; subtitle?: string; icon?: IconName; city: City; panel?: 'hotel' | 'in' | 'out'; interactive?: boolean; kind: 'hotel-out' | 'transfer' | 'hotel-in' | 'city'; departureName?: string; departureUrl?: string; arrivalName?: string; arrivalUrl?: string }
   const events: DayEvent[] = []
   const transferCityIds = new Set<string>()
   allCities.slice(0, -1).forEach((departureCity, index) => {
@@ -1029,7 +1039,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     transferCityIds.add(arrivalCity.id)
     if (!departureCity.hotelNotNeeded) {
       const checkOutTime = departureCity.hotelCheckOutTime.trim()
-      events.push({ key: `${departureCity.id}:check-out`, title: departureCity.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до ${checkOutTime}` : 'Выселение', icon: 'hotel', city: departureCity, panel: 'hotel', kind: 'hotel-out' })
+      events.push({ key: `${departureCity.id}:check-out`, title: departureCity.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до ${checkOutTime}` : 'Выселение', icon: 'hotel', city: departureCity, panel: 'hotel', interactive: Boolean(departureCity.hotel.trim() || departureCity.hotelUrl.trim()), kind: 'hotel-out' })
     }
     const outgoing = departureCity.transportOut
     const incoming = arrivalCity.transportIn
@@ -1038,13 +1048,14 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     const durationLabel = formatTravelDuration(departureTime, arrivalTime, outgoing.departureDate || incoming.departureDate || departureCity.departure, outgoing.arrivalDate || incoming.arrivalDate || arrivalCity.arrival, outgoing.departureTimeZone || incoming.departureTimeZone || tripTimeZone, outgoing.arrivalTimeZone || incoming.arrivalTimeZone || tripTimeZone)
     const travelTimes = formatTravelTimes(departureTime, arrivalTime)
     const hasOutgoingDetails = Boolean(departureCity.trainOut || outgoing.type || outgoing.departureTime.trim() || outgoing.arrivalTime.trim() || outgoing.departureStation.trim() || outgoing.arrivalStation.trim())
+    const hasIncomingDetails = Boolean(arrivalCity.trainIn || incoming.type || incoming.departureTime.trim() || incoming.arrivalTime.trim() || incoming.departureStation.trim() || incoming.arrivalStation.trim())
     const departurePlace = outgoing.departureStation.trim() || incoming.departureStation.trim() || departureCity.name
     const arrivalPlace = outgoing.arrivalStation.trim() || incoming.arrivalStation.trim() || arrivalCity.name
     const ticketOnSite = outgoing.ticketOnSite || incoming.ticketOnSite
-    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} – ${arrivalCity.name}`, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, ticketOnSite), icon: transportEventIcon(outgoing.type || incoming.type), city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in', kind: 'transfer', departureName: departurePlace, departureUrl: outgoing.departureStationUrl || incoming.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: outgoing.arrivalStationUrl || incoming.arrivalStationUrl })
+    events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} – ${arrivalCity.name}`, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, ticketOnSite), icon: transportEventIcon(outgoing.type || incoming.type), city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in', interactive: hasOutgoingDetails || hasIncomingDetails, kind: 'transfer', departureName: departurePlace, departureUrl: outgoing.departureStationUrl || incoming.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: outgoing.arrivalStationUrl || incoming.arrivalStationUrl })
     if (!arrivalCity.hotelNotNeeded) {
       const checkInTime = arrivalCity.hotelCheckInTime.trim()
-      events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel', kind: 'hotel-in' })
+      events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel', interactive: Boolean(arrivalCity.hotel.trim() || arrivalCity.hotelUrl.trim()), kind: 'hotel-in' })
     }
     const arrivalPeriod = arrivalCity.arrivalPeriod ?? 'morning'
     const departurePeriod = arrivalCity.departurePeriod ?? 'evening'
@@ -1068,16 +1079,16 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const travelTimes = formatTravelTimes(departureTime, arrivalTime)
       const ticketOnSite = city.transportIn.ticketOnSite || previousTransport?.ticketOnSite
       const routeTitle = `${previousCity?.name || 'Дом'} – ${city.name}`
-      result.push({ key: `${city.id}:arrival`, title: routeTitle, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, ticketOnSite), icon: transportEventIcon(city.transportIn.type || previousTransport?.type), city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportIn.departureStationUrl || previousTransport?.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportIn.arrivalStationUrl || previousTransport?.arrivalStationUrl })
+      result.push({ key: `${city.id}:arrival`, title: routeTitle, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, ticketOnSite), icon: transportEventIcon(city.transportIn.type || previousTransport?.type), city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out', interactive: hasIncomingDetails || Boolean(previousTransport && (previousCity?.trainOut || previousTransport.type || previousTransport.departureTime.trim() || previousTransport.arrivalTime.trim() || previousTransport.departureStation.trim() || previousTransport.arrivalStation.trim())), kind: 'transfer', departureName: departurePlace, departureUrl: city.transportIn.departureStationUrl || previousTransport?.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportIn.arrivalStationUrl || previousTransport?.arrivalStationUrl })
       if (!city.hotelNotNeeded) {
         const checkInTime = city.hotelCheckInTime.trim()
-        result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel', kind: 'hotel-in' })
+        result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel', interactive: Boolean(city.hotel.trim() || city.hotelUrl.trim()), kind: 'hotel-in' })
       }
     }
     if (date === city.departure) {
       if (!city.hotelNotNeeded) {
         const checkOutTime = city.hotelCheckOutTime.trim()
-        result.push({ key: `${city.id}:check-out`, title: city.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до ${checkOutTime}` : 'Выселение', icon: 'hotel', city, panel: 'hotel', kind: 'hotel-out' })
+        result.push({ key: `${city.id}:check-out`, title: city.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до ${checkOutTime}` : 'Выселение', icon: 'hotel', city, panel: 'hotel', interactive: Boolean(city.hotel.trim() || city.hotelUrl.trim()), kind: 'hotel-out' })
       }
       const departureTime = city.transportOut.departureTime.trim()
       const arrivalTime = city.transportOut.arrivalTime.trim()
@@ -1087,7 +1098,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       const durationLabel = formatTravelDuration(departureTime, arrivalTime, city.transportOut.departureDate || city.departure, city.transportOut.arrivalDate || city.departure, city.transportOut.departureTimeZone || tripTimeZone, city.transportOut.arrivalTimeZone || tripTimeZone)
       const travelTimes = formatTravelTimes(departureTime, arrivalTime)
       const routeTitle = `${city.name} – ${allCities[cityIndex + 1]?.name || 'Дом'}`
-      result.push({ key: `${city.id}:departure`, title: routeTitle, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, city.transportOut.ticketOnSite), icon: transportEventIcon(city.transportOut.type), city, panel: 'out', kind: 'transfer', departureName: departurePlace, departureUrl: city.transportOut.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportOut.arrivalStationUrl })
+      result.push({ key: `${city.id}:departure`, title: routeTitle, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, city.transportOut.ticketOnSite), icon: transportEventIcon(city.transportOut.type), city, panel: 'out', interactive: Boolean(city.trainOut || city.transportOut.type || city.transportOut.departureTime.trim() || city.transportOut.arrivalTime.trim() || city.transportOut.departureStation.trim() || city.transportOut.arrivalStation.trim()), kind: 'transfer', departureName: departurePlace, departureUrl: city.transportOut.departureStationUrl, arrivalName: arrivalPlace, arrivalUrl: city.transportOut.arrivalStationUrl })
     }
     if (result.length === 0) result.push({ key: `${city.id}:city-day`, title: `День в ${cityInLocative(city.name)}`, icon: 'footprint', city, kind: 'city' })
     events.push(...result)
@@ -1095,7 +1106,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
   const places = cities.flatMap((city) => (city.places[date] ?? []).map((place) => ({ ...place, city })))
   type TimelineItem =
     | { type: 'event'; key: string; event: DayEvent }
-    | { type: 'location'; key: string; name: string; url: string; icon: PlaceIconKey; city: City; placeId?: string }
+    | { type: 'location'; key: string; name: string; url: string; icon: PlaceIconKey; city: City; placeId?: string; panel?: 'hotel' | 'in' | 'out'; interactive: boolean }
     | { type: 'arrow'; key: string }
   const managedUrls = new Set(allCities.flatMap((city) => [
     city.hotelUrl,
@@ -1107,38 +1118,38 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
   const ordinaryPlaces = places.filter((place) => !managedUrls.has(place.url.trim()))
   const timeline: TimelineItem[] = []
   const pushArrow = (key: string) => timeline.push({ type: 'arrow', key })
-  const pushLocation = (key: string, name: string | undefined, url: string | undefined, icon: PlaceIconKey, city: City) => {
+  const pushLocation = (key: string, name: string | undefined, url: string | undefined, icon: PlaceIconKey, city: City, panel: 'hotel' | 'in' | 'out' | undefined, interactive: boolean) => {
     if (!name?.trim() && !url?.trim()) return
     const cleanUrl = url?.trim() || ''
     const cleanName = name?.trim() || city.name
     const linkedPlace = places.find((place) => place.icon === icon && (cleanUrl ? place.url.trim() === cleanUrl : place.name.trim() === cleanName))
-    timeline.push({ type: 'location', key, name: cleanName, url: cleanUrl, icon, city: linkedPlace?.city ?? city, placeId: linkedPlace?.id })
+    timeline.push({ type: 'location', key, name: cleanName, url: cleanUrl, icon, city: linkedPlace?.city ?? city, placeId: linkedPlace?.id, panel, interactive })
   }
   events.forEach((event) => {
     if (event.kind === 'hotel-out') {
-      pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city)
+      pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city, 'hotel', Boolean(event.interactive))
       timeline.push({ type: 'event', key: event.key, event })
       pushArrow(`${event.key}:arrow`)
       return
     }
     if (event.kind === 'transfer') {
-      pushLocation(`${event.key}:departure`, event.departureName, event.departureUrl, 'transport', event.city)
+      pushLocation(`${event.key}:departure`, event.departureName, event.departureUrl, 'transport', event.city, event.panel, Boolean(event.interactive && event.departureUrl?.trim()))
       timeline.push({ type: 'event', key: event.key, event })
-      pushLocation(`${event.key}:arrival`, event.arrivalName, event.arrivalUrl, 'transport', event.city)
+      pushLocation(`${event.key}:arrival`, event.arrivalName, event.arrivalUrl, 'transport', event.city, event.panel, Boolean(event.interactive && event.arrivalUrl?.trim()))
       pushArrow(`${event.key}:arrow`)
       return
     }
     if (event.kind === 'city') {
       const cityPlaces = ordinaryPlaces.filter((place) => place.city.id === event.city.id)
       if (cityPlaces.length > 0) {
-        cityPlaces.forEach((place) => timeline.push({ type: 'location', key: `${event.key}:${place.id}`, name: place.name, url: place.url, icon: place.icon, city: place.city, placeId: place.id }))
+        cityPlaces.forEach((place) => timeline.push({ type: 'location', key: `${event.key}:${place.id}`, name: place.name, url: place.url, icon: place.icon, city: place.city, placeId: place.id, interactive: true }))
       } else {
         timeline.push({ type: 'event', key: event.key, event })
       }
       pushArrow(`${event.key}:arrow`)
       return
     }
-    pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city)
+    pushLocation(`${event.key}:hotel`, event.city.hotel || 'Отель', event.city.hotelUrl, 'hotel', event.city, 'hotel', Boolean(event.interactive))
     timeline.push({ type: 'event', key: event.key, event })
   })
   while (timeline.at(-1)?.type === 'arrow') timeline.pop()
@@ -1161,9 +1172,13 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
                     const event = item.event
                     const eventText = `${event.title}${event.subtitle ? `${event.subtitle.startsWith('(') ? ' ' : ' · '}${event.subtitle}` : ''}`
                     const content = event.icon ? <IconText icon={<Icon name={event.icon} />}>{eventText}</IconText> : <span>{eventText}</span>
-                    return <li key={item.key}>{!access.canBrowse ? <span className="day-event-line read-only">{content}</span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{content}</button>}</li>
+                    return <li key={item.key}>{!access.canBrowse || event.interactive === false ? <span className="day-event-line read-only">{content}</span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{content}</button>}</li>
                   }
-                  const label = !access.canBrowse ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>) : <button type="button" onClick={() => item.placeId ? onPlace(item.city, item.placeId) : onCity(item.city)}>{item.name}</button>
+                  const label = !item.interactive
+                    ? <span>{item.name}</span>
+                    : !access.canBrowse
+                      ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>)
+                      : <button type="button" onClick={() => item.panel ? onEvent(item.city, item.panel) : item.placeId ? onPlace(item.city, item.placeId) : onCity(item.city)}>{item.name}</button>
                   return <li key={item.key} className="day-location-line"><IconText icon={<img className="ui-icon" src={placeIconUrl(item.icon)} width={24} height={24} alt="" />}>{label}</IconText></li>
                 })}</ItemList>}
                 {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
@@ -1401,7 +1416,6 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
   const mapPoint = draft.transportIn.arrivalStation || draft.transportOut.departureStation || draft.name
   const transportDocuments = (direction: 'in' | 'out') => draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).slice(0, 1)
   const hotelDocument = draft.files.find((file) => file.category === 'hotel-booking')
-  const pointsCount = Object.values(draft.places).reduce((total, places) => total + places.length, 0)
   const managedPlaceUrls = new Set([
     draft.hotelUrl,
     draft.transportIn.departureStationUrl,
@@ -1412,97 +1426,50 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     nextCity?.transportIn.departureStationUrl,
   ].map((url) => url?.trim()).filter((url): url is string => Boolean(url)))
   const isManagedPlace = (place: Place) => (place.icon === 'hotel' || place.icon === 'transport') && managedPlaceUrls.has(place.url.trim())
-  const managedPlaceTarget = (place: Place) => {
-    const url = place.url.trim()
-    if (place.icon === 'hotel' && url && url === draft.hotelUrl.trim()) return { cityId: draft.id, panel: 'hotel' as const }
-    if (place.icon !== 'transport' || !url) return undefined
-    if ([draft.transportIn.departureStationUrl, draft.transportIn.arrivalStationUrl].some((value) => value.trim() === url)) return { cityId: draft.id, panel: 'in' as const }
-    if ([draft.transportOut.departureStationUrl, draft.transportOut.arrivalStationUrl].some((value) => value.trim() === url)) return { cityId: draft.id, panel: 'out' as const }
-    if (previousCity && previousCity.transportOut.arrivalStationUrl.trim() === url) return { cityId: previousCity.id, panel: 'out' as const }
-    if (nextCity && nextCity.transportIn.departureStationUrl.trim() === url) return { cityId: nextCity.id, panel: 'in' as const }
-    return undefined
-  }
-  const managedHotelDetails = (place: Place) => managedPlaceTarget(place)?.panel === 'hotel' ? {
+  const ordinaryPlacesByDate = Object.fromEntries(Object.entries(draft.places).map(([date, places]) => [date, places.filter((place) => !isManagedPlace(place))]))
+  type ManagedMapPlace = Place & { date: string; dateLocked: true; editTarget: { cityId: string; panel: 'hotel' | 'in' | 'out' }; hotelDetails?: { cityName: string; dateLabel: string; checkInTime: string; checkOutTime: string; hasBooking: boolean } }
+  const managedMapPlaces: ManagedMapPlace[] = []
+  if (!draft.hotelNotNeeded && (draft.hotel.trim() || draft.hotelUrl.trim())) managedMapPlaces.push({
+    id: `managed:hotel:${draft.id}`,
+    name: draft.hotel.trim() || `Жильё · ${draft.name}`,
+    url: draft.hotelUrl.trim(),
+    icon: 'hotel',
+    date: draft.arrival || UNSCHEDULED_KEY,
+    dateLocked: true,
+    editTarget: { cityId: draft.id, panel: 'hotel' },
+    hotelDetails: {
     cityName: draft.name,
     dateLabel: formatShortRange(draft.arrival, draft.departure),
     checkInTime: draft.hotelCheckInTime,
     checkOutTime: draft.hotelCheckOutTime,
     hasBooking: Boolean(hotelDocument),
-  } : undefined
-  const managedPlaceIds = new Set(Object.values(draft.places).flat().filter(isManagedPlace).map((place) => place.id))
+    },
+  })
+  const incoming = draft.transportIn.arrivalStation.trim() || draft.transportIn.arrivalStationUrl.trim()
+    ? { details: draft.transportIn, owner: draft, panel: 'in' as const }
+    : previousCity && (previousCity.transportOut.arrivalStation.trim() || previousCity.transportOut.arrivalStationUrl.trim())
+      ? { details: previousCity.transportOut, owner: previousCity, panel: 'out' as const }
+      : undefined
+  if (incoming) managedMapPlaces.push({ id: `managed:transport-in:${draft.id}`, name: incoming.details.arrivalStation.trim() || draft.name, url: incoming.details.arrivalStationUrl.trim(), icon: 'transport', date: incoming.details.arrivalDate || draft.arrival || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: incoming.owner.id, panel: incoming.panel } })
+  const outgoing = draft.transportOut.departureStation.trim() || draft.transportOut.departureStationUrl.trim()
+    ? { details: draft.transportOut, owner: draft, panel: 'out' as const }
+    : nextCity && (nextCity.transportIn.departureStation.trim() || nextCity.transportIn.departureStationUrl.trim())
+      ? { details: nextCity.transportIn, owner: nextCity, panel: 'in' as const }
+      : undefined
+  if (outgoing) managedMapPlaces.push({ id: `managed:transport-out:${draft.id}`, name: outgoing.details.departureStation.trim() || draft.name, url: outgoing.details.departureStationUrl.trim(), icon: 'transport', date: outgoing.details.departureDate || draft.departure || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: outgoing.owner.id, panel: outgoing.panel } })
+  const placesByDate = managedMapPlaces.reduce<Record<string, Place[]>>((result, place) => ({ ...result, [place.date]: [...(result[place.date] ?? []), place] }), ordinaryPlacesByDate)
+  const managedPlaceIds = new Set(managedMapPlaces.map((place) => place.id))
+  const pointsCount = Object.values(placesByDate).reduce((total, places) => total + places.length, 0)
   const saveTransport = (value: TransportDetails) => {
     if (!transportDirection) return
-    let next = { ...draft, [transportDirection === 'in' ? 'transportIn' : 'transportOut']: value }
-    const oldValue = transportDirection === 'in' ? draft.transportIn : draft.transportOut
-    const syncPoint = (target: City | undefined, date: string, oldUrl: string, url: string, name: string, fallbackName: string) => {
-      if (!target) return
-      const currentTarget = target.id === draft.id ? next : target
-      const cleanUrl = url.trim()
-      const cleanOldUrl = oldUrl.trim()
-      const matchesPoint = (item: Place) => item.icon === 'transport' && (item.url.trim() === cleanUrl || Boolean(cleanOldUrl && item.url.trim() === cleanOldUrl))
-      const existingEntry = Object.entries(currentTarget.places).find(([, items]) => items.some(matchesPoint))
-      const existing = existingEntry?.[1].find(matchesPoint)
-      if (!cleanUrl) {
-        if (!existing || !existingEntry) return
-        const updatedTarget = { ...currentTarget, places: { ...currentTarget.places, [existingEntry[0]]: existingEntry[1].filter((item) => item.id !== existing.id) } }
-        if (target.id === draft.id) next = { ...next, places: updatedTarget.places }
-        onDeletePlace(existing.id)
-        return
-      }
-      if (!date || date < target.arrival || date > target.departure) return
-      const cleanName = name.trim() || fallbackName
-      if (existing) {
-        const place = { ...existing, name: cleanName, url: cleanUrl, icon: 'transport' as const }
-        const places = Object.fromEntries(Object.entries(currentTarget.places).map(([key, items]) => [key, items.filter((item) => item.id !== existing.id)]))
-        const updatedTarget = { ...currentTarget, places: { ...places, [date]: [...(places[date] ?? []), place] } }
-        if (target.id === draft.id) next = { ...next, places: updatedTarget.places }
-        onUpdatePlace(updatedTarget, date, place)
-      } else {
-        const place = { id: uid(), name: cleanName, url: cleanUrl, icon: 'transport' as const }
-        const updatedTarget = { ...currentTarget, places: { ...currentTarget.places, [date]: [...(currentTarget.places[date] ?? []), place] } }
-        if (target.id === draft.id) next = { ...next, places: updatedTarget.places }
-        onAddPlace(updatedTarget, date, place)
-      }
-    }
-    if (transportDirection === 'in') {
-      syncPoint(previousCity ?? draft, value.departureDate, oldValue.departureStationUrl, value.departureStationUrl, value.departureStation, previousCity?.name || 'Место отъезда')
-      syncPoint(draft, value.arrivalDate, oldValue.arrivalStationUrl, value.arrivalStationUrl, value.arrivalStation, draft.name)
-    } else {
-      syncPoint(draft, value.departureDate, oldValue.departureStationUrl, value.departureStationUrl, value.departureStation, draft.name)
-      syncPoint(nextCity ?? draft, value.arrivalDate, oldValue.arrivalStationUrl, value.arrivalStationUrl, value.arrivalStation, nextCity?.name || 'Место приезда')
-    }
+    const next = { ...draft, [transportDirection === 'in' ? 'transportIn' : 'transportOut']: value }
     setDraft(next)
     onChange(next)
     setTransportDirection(null)
     onPanelClose()
   }
   const saveHotel = (hotel: HotelDetails) => {
-    const cleanUrl = hotel.url.trim()
-    const oldUrl = draft.hotelUrl.trim()
-    const date = draft.arrival || UNSCHEDULED_KEY
-    const matchesHotelPoint = (item: Place) => item.icon === 'hotel' && (item.url.trim() === cleanUrl || Boolean(oldUrl && item.url.trim() === oldUrl))
-    const existingEntry = Object.entries(draft.places).find(([, items]) => items.some(matchesHotelPoint))
-    const existing = existingEntry?.[1].find(matchesHotelPoint)
-    let places = draft.places
-
-    if (!cleanUrl && existing && existingEntry) {
-      places = { ...places, [existingEntry[0]]: existingEntry[1].filter((item) => item.id !== existing.id) }
-      onDeletePlace(existing.id)
-    } else if (cleanUrl) {
-      const name = hotel.name.trim() || `Отель · ${draft.name}`
-      if (existing) {
-        const place = { ...existing, name, url: cleanUrl, icon: 'hotel' as const }
-        places = Object.fromEntries(Object.entries(places).map(([key, items]) => [key, items.filter((item) => item.id !== existing.id)]))
-        places = { ...places, [date]: [...(places[date] ?? []), place] }
-        onUpdatePlace({ ...draft, places }, date, place)
-      } else {
-        const place = { id: uid(), name, url: cleanUrl, icon: 'hotel' as const }
-        places = { ...places, [date]: [...(places[date] ?? []), place] }
-        onAddPlace({ ...draft, places }, date, place)
-      }
-    }
-
-    const next = { ...draft, places, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes, hotelPayerIds: hotel.payerIds, hotelTotalAmountRubles: hotel.totalAmountRubles }
+    const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes, hotelPayerIds: hotel.payerIds, hotelTotalAmountRubles: hotel.totalAmountRubles }
     setDraft(next)
     onChange(next)
     setHotelOpen(false)
@@ -1521,7 +1488,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
         <div className={`city-main city-panel-content city-panel-content-${contentTransition}`}>
           <PlaceDayList
             dates={dateRange(draft.arrival, draft.departure)}
-            placesByDate={draft.places}
+            placesByDate={placesByDate}
             activeDate={activeDate}
             readOnly={readOnly}
             lockedPlaceIds={managedPlaceIds}
@@ -1545,7 +1512,10 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
               <PlacesMap
                 query={mapPoint}
                 centerUrl={draft.googleMapsUrl}
-                places={Object.entries(draft.places).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude, dateLocked: isManagedPlace(item), editTarget: managedPlaceTarget(item), hotelDetails: managedHotelDetails(item) })))}
+                places={[
+                  ...Object.entries(ordinaryPlacesByDate).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude }))),
+                  ...managedMapPlaces,
+                ]}
                 dates={dateRange(draft.arrival, draft.departure)}
                 activeDate={activeDate}
                 readOnly={readOnly}

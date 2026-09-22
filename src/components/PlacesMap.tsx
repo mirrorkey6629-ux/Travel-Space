@@ -105,6 +105,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
   onFocusHandled?: () => void
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const centeredPopupRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<any>(null)
   const mapsRef = useRef<any>(null)
   const markersRef = useRef<any[]>([])
@@ -281,6 +282,24 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
     callbacks.current.onFocusHandled?.()
   }, [focusRequest, placesSignature, mapsReady])
 
+  // Попап живёт по центру карты, а выбранную точку сдвигаем под его нижний край.
+  // Отступ вычисляется по реальной высоте плашки, поэтому работает и для
+  // компактного просмотра, и для более высокой формы редактирования.
+  useEffect(() => {
+    if (!mapsReady || !selected || !Number.isFinite(selected.latitude) || !Number.isFinite(selected.longitude)) return
+    const map = mapRef.current
+    const container = containerRef.current
+    const popup = centeredPopupRef.current?.querySelector<HTMLElement>('.place-popup')
+    if (!map || !container || !popup) return
+    const frame = requestAnimationFrame(() => {
+      const availableOffset = Math.max(0, container.clientHeight / 2 - 32)
+      const markerOffset = Math.min(popup.offsetHeight / 2 + 28, availableOffset)
+      map.setCenter({ lat: selected.latitude!, lng: selected.longitude! })
+      map.panBy(0, -markerOffset)
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [mapsReady, selectedId, selected?.latitude, selected?.longitude, editing])
+
   const pickSearchResult = (result: SearchResult) => {
     const map = mapRef.current
     map?.panTo(result.position)
@@ -317,7 +336,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
       {!mapsReady && <p className="places-map-fallback">Карта недоступна без интернета</p>}
       {!readOnly && mapsReady && <MapSearch maps={mapsRef.current} map={mapRef.current} onPick={pickSearchResult} />}
       {mapsReady && popupPosition && popupDraft && (
-        <div className="places-map-centered-popup">
+        <div ref={centeredPopupRef} className="places-map-centered-popup">
           <PlacePopup
             mode={editing ? 'edit' : 'view'}
             draft={popupDraft}
