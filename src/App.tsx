@@ -1006,7 +1006,7 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
   )
 }
 
-function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, onEvent, onCity, onDescriptionChange }: { date: string; cities: City[]; allCities: City[]; tripTimeZone: string; description: string; hidden: boolean; onEvent: (city: City, panel: 'hotel' | 'in' | 'out') => void; onCity: (city: City) => void; onDescriptionChange: (description: string) => void }) {
+function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, onEvent, onCity, onPlace, onDescriptionChange }: { date: string; cities: City[]; allCities: City[]; tripTimeZone: string; description: string; hidden: boolean; onEvent: (city: City, panel: 'hotel' | 'in' | 'out') => void; onCity: (city: City) => void; onPlace: (city: City, placeId: string) => void; onDescriptionChange: (description: string) => void }) {
   const day = parseDate(date)
   const [descriptionDraft, setDescriptionDraft] = useState(description)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
@@ -1094,7 +1094,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
   const places = cities.flatMap((city) => (city.places[date] ?? []).map((place) => ({ ...place, city })))
   type TimelineItem =
     | { type: 'event'; key: string; event: DayEvent }
-    | { type: 'location'; key: string; name: string; url: string; icon: PlaceIconKey; city: City }
+    | { type: 'location'; key: string; name: string; url: string; icon: PlaceIconKey; city: City; placeId?: string }
     | { type: 'arrow'; key: string }
   const managedUrls = new Set(allCities.flatMap((city) => [
     city.hotelUrl,
@@ -1108,7 +1108,10 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
   const pushArrow = (key: string) => timeline.push({ type: 'arrow', key })
   const pushLocation = (key: string, name: string | undefined, url: string | undefined, icon: PlaceIconKey, city: City) => {
     if (!name?.trim() && !url?.trim()) return
-    timeline.push({ type: 'location', key, name: name?.trim() || city.name, url: url?.trim() || '', icon, city })
+    const cleanUrl = url?.trim() || ''
+    const cleanName = name?.trim() || city.name
+    const linkedPlace = places.find((place) => place.icon === icon && (cleanUrl ? place.url.trim() === cleanUrl : place.name.trim() === cleanName))
+    timeline.push({ type: 'location', key, name: cleanName, url: cleanUrl, icon, city: linkedPlace?.city ?? city, placeId: linkedPlace?.id })
   }
   events.forEach((event) => {
     if (event.kind === 'hotel-out') {
@@ -1127,7 +1130,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     if (event.kind === 'city') {
       const cityPlaces = ordinaryPlaces.filter((place) => place.city.id === event.city.id)
       if (cityPlaces.length > 0) {
-        cityPlaces.forEach((place) => timeline.push({ type: 'location', key: `${event.key}:${place.id}`, name: place.name, url: place.url, icon: place.icon, city: place.city }))
+        cityPlaces.forEach((place) => timeline.push({ type: 'location', key: `${event.key}:${place.id}`, name: place.name, url: place.url, icon: place.icon, city: place.city, placeId: place.id }))
       } else {
         timeline.push({ type: 'event', key: event.key, event })
       }
@@ -1159,7 +1162,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
                     const content = event.icon ? <IconText icon={<Icon name={event.icon} />}>{eventText}</IconText> : <span>{eventText}</span>
                     return <li key={item.key}>{!access.canBrowse ? <span className="day-event-line read-only">{content}</span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{content}</button>}</li>
                   }
-                  const label = !access.canBrowse ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>) : <button type="button" onClick={() => onCity(item.city)}>{item.name}</button>
+                  const label = !access.canBrowse ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>) : <button type="button" onClick={() => item.placeId ? onPlace(item.city, item.placeId) : onCity(item.city)}>{item.name}</button>
                   return <li key={item.key} className="day-location-line"><IconText icon={<img className="ui-icon" src={placeIconUrl(item.icon)} width={24} height={24} alt="" />}>{label}</IconText></li>
                 })}</ItemList>}
                 {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
@@ -1331,13 +1334,13 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
   )
 }
 
-function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; readOnly?: boolean; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
+function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, initialFocusPlace, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; readOnly?: boolean; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
   const [contentTransition, setContentTransition] = useState<'idle' | 'out' | 'in'>('idle')
   const [transportDirection, setTransportDirection] = useState<'in' | 'out' | null>(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
   const [hotelOpen, setHotelOpen] = useState(initialPanel === 'hotel')
   const [activeDate, setActiveDate] = useState<string | null>(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : null)
-  const [focusRequest, setFocusRequest] = useState<string | null>(null)
+  const [focusRequest, setFocusRequest] = useState<string | null>(initialFocusPlace ?? null)
   const hotelFileRef = useRef<HTMLInputElement>(null)
   const trainInFileRef = useRef<HTMLInputElement>(null)
   const trainOutFileRef = useRef<HTMLInputElement>(null)
@@ -1351,7 +1354,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
       setTransportDirection(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
       setHotelOpen(initialPanel === 'hotel')
       setActiveDate(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : null)
-      setFocusRequest(null)
+      setFocusRequest(initialFocusPlace ?? null)
       setContentTransition('in')
     }, 150)
     const finishTimer = window.setTimeout(() => setContentTransition('idle'), 350)
@@ -1359,13 +1362,14 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
       window.clearTimeout(swapTimer)
       window.clearTimeout(finishTimer)
     }
-  }, [city.id, initialDate, initialPanel])
+  }, [city.id, initialDate, initialPanel, initialFocusPlace])
   useLayoutEffect(() => {
     if (displayedCityIdRef.current !== city.id) return
     setTransportDirection(initialPanel === 'in' || initialPanel === 'out' ? initialPanel : null)
     setHotelOpen(initialPanel === 'hotel')
     setActiveDate(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : null)
-  }, [city.id, initialDate, initialPanel])
+    setFocusRequest(initialFocusPlace ?? null)
+  }, [city.id, initialDate, initialPanel, initialFocusPlace])
   const addTrainFiles = (files: FileList | null, direction: 'in' | 'out') => {
     const existingCount = draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).length
     const selected = Array.from(files ?? []).slice(0, Math.max(0, 1 - existingCount))
@@ -1595,6 +1599,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
   const [expensesOpen, setExpensesOpen] = useState(false)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
   const [selectedPanel, setSelectedPanel] = useState<'hotel' | 'in' | 'out' | null>(null)
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
   const [panelReturnCityId, setPanelReturnCityId] = useState<string | null>(null)
   const access = useAccess()
   const [selectedCityDate, setSelectedCityDate] = useState<string | null>(null)
@@ -1606,7 +1611,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
   if (expensesOpen) return <ExpensesScreen trip={trip} onBack={() => setExpensesOpen(false)} />
   return (
     <main className="screen trip-background dashboard" style={tripBackgroundStyle(trip)}>
-      <TripSidebar trip={trip} user={user} tripCount={tripCount} cacheState={cacheState} online={online} selectedCityId={selectedCityId} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onHotel={(city) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(direction) }} onExpenses={() => setExpensesOpen(true)} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
+      <TripSidebar trip={trip} user={user} tripCount={tripCount} cacheState={cacheState} online={online} selectedCityId={selectedCityId} onCity={(city) => { setSelectedPlaceId(null); setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onHotel={(city) => { setSelectedPlaceId(null); setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setSelectedPlaceId(null); setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(direction) }} onExpenses={() => setExpensesOpen(true)} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
       <section className={`calendar-column${selectedCity ? ' city-active' : ''}`}>
         {selectedCity ? (
           <CityPanel
@@ -1617,11 +1622,12 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
             tripTimeZone={trip.timeZone}
             initialPanel={selectedPanel}
             initialDate={selectedCityDate}
+            initialFocusPlace={selectedPlaceId}
             previousCity={trip.cities[selectedCityIndex - 1]}
             nextCity={trip.cities[selectedCityIndex + 1]}
-            onOpenManagedPanel={(cityId, panel) => { setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(cityId); setSelectedPanel(panel) }}
+            onOpenManagedPanel={(cityId, panel) => { setSelectedPlaceId(null); setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(cityId); setSelectedPanel(panel) }}
             onPanelClose={() => { setSelectedCityId(panelReturnCityId); setSelectedPanel(null) }}
-            onClose={() => { setSelectedCityId(null); setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedPanel(null) }}
+            onClose={() => { setSelectedPlaceId(null); setSelectedCityId(null); setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedPanel(null) }}
             onChange={(nextCity) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onCityChange(nextCity) }}
             readOnly={!access.canEdit}
             onAddPlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onAddPlace(nextCity, date, place) }}
@@ -1677,7 +1683,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
         ) : (
           <div className="calendar-content setup-transition">
             {allDays.some((date) => date < today) && <button className="past-toggle" onClick={() => setShowPast(!showPast)}>{showPast ? 'Скрыть прошедшие дни' : 'Показать прошедшие дни'}</button>}
-            {visibleDays.map((date) => <DayCard key={date} date={date} cities={trip.cities.filter((city) => date >= city.arrival && date <= city.departure)} allCities={trip.cities} tripTimeZone={trip.timeZone} description={trip.dayDescriptions[date] ?? ''} hidden={date < today} onDescriptionChange={(description) => onDayDescriptionChange(date, description)} onEvent={(city, panel) => { setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(panel) }} onCity={(city) => { setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} />)}
+            {visibleDays.map((date) => <DayCard key={date} date={date} cities={trip.cities.filter((city) => date >= city.arrival && date <= city.departure)} allCities={trip.cities} tripTimeZone={trip.timeZone} description={trip.dayDescriptions[date] ?? ''} hidden={date < today} onDescriptionChange={(description) => onDayDescriptionChange(date, description)} onEvent={(city, panel) => { setSelectedPlaceId(null); setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(panel) }} onCity={(city) => { setSelectedPlaceId(null); setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onPlace={(city, placeId) => { setSelectedPlaceId(placeId); setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} />)}
             {visibleDays.length === 0 && <article className="glass empty-calendar"><h2>Все дни уже прошли</h2><Button onClick={() => setShowPast(true)}>Показать поездку</Button></article>}
           </div>
         )}
