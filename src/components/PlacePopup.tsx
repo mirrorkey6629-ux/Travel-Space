@@ -33,13 +33,11 @@ export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocke
     )
   }
   return (
-    <form className="place-popup" onSubmit={(event) => { event.preventDefault(); if (draft.name.trim()) onSave() }}>
+    <form className="place-popup place-popup-edit" onSubmit={(event) => { event.preventDefault(); if (draft.name.trim()) onSave() }}>
       <div className="place-popup-head">
-        <strong>{onDelete ? 'Редактирование точки' : 'Новая точка'}</strong>
+        <strong>{onDelete ? 'Редактирование' : 'Новая точка'}</strong>
         <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
       </div>
-      <Input icon={<Icon name="attractions" />} aria-label="Название места" value={draft.name} placeholder="Название места" autoFocus
-        onChange={(event) => onChange({ ...draft, name: event.target.value })} />
       <div className="place-popup-icons" role="radiogroup" aria-label="Иконка места">
         {PLACE_ICON_OPTIONS.map((option) => (
           <button key={option.key} type="button" role="radio" aria-checked={draft.icon === option.key} title={option.label}
@@ -54,9 +52,11 @@ export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocke
         <option value={UNSCHEDULED_KEY}>Без даты</option>
         {dates.map((date) => <option key={date} value={date}>{formatDate(date)}</option>)}
       </Select>
+      <Input icon={<img className="ui-icon" src={placeIconUrl(draft.icon)} width={24} height={24} alt="" aria-hidden="true" />} aria-label="Название места" value={draft.name} placeholder="Название места" autoFocus
+        onChange={(event) => onChange({ ...draft, name: event.target.value })} />
       <div className="place-popup-actions">
-        <Button size="m" disabled={!draft.name.trim()}>Сохранить</Button>
         {onDelete && <Button type="button" size="m" theme="secondary" onClick={onDelete}>Удалить</Button>}
+        <Button size="m" disabled={!draft.name.trim()}>{onDelete ? 'Сохранить' : 'Добавить точку'}</Button>
       </div>
     </form>
   )
