@@ -1,8 +1,7 @@
-import { Button, IconButton } from './Button'
 import { Input, Select } from './FormControls'
-import { FormControlList, FormControlRow } from './FormControlList'
+import { FormControlRow } from './FormControlList'
 import { Icon } from './Icon'
-import { TextRow } from './TextRow'
+import { PointCard } from './PointCard'
 import { PLACE_ICON_OPTIONS, placeIconUrl } from '../placeIcons'
 import { UNSCHEDULED_KEY, type PlaceDraft } from '../places'
 
@@ -30,64 +29,53 @@ export function PlacePopup({ mode, draft, dates, formatDate, formatDateOption, r
     if (hotelDetails) {
       const stayTimes = [hotelDetails.checkInTime ? `Заселение в ${hotelDetails.checkInTime}` : '', hotelDetails.checkOutTime ? `Выселение до ${hotelDetails.checkOutTime}` : ''].filter(Boolean).join(' · ')
       return (
-        <div className="place-popup place-popup-hotel-view">
-          <div className="place-popup-hotel-head">
-            <div className="place-popup-hotel-title"><strong>{draft.name}</strong><span>Жильё, {hotelDetails.cityName}</span></div>
-            <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
-          </div>
-          <div className="place-popup-hotel-details">
-            <TextRow iconType="icon" icon={<Icon name="calendar-month" />}>{hotelDetails.dateLabel}</TextRow>
-            {stayTimes && <TextRow iconType="icon" icon={<Icon name="time" />}>{stayTimes}</TextRow>}
-            {mapsUrl && <TextRow iconType="icon" icon={<Icon name="pin-home" />}><a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">{mapsAddress || 'Открыть в Google Maps'}</a></TextRow>}
-          </div>
-          <div className="place-popup-actions">
-            {hotelDetails.hasBooking && onOpenBooking && <Button type="button" size="m" theme="secondary" onClick={onOpenBooking}>Открыть бронь</Button>}
-            {!readOnly && <Button type="button" size="m" onClick={onEdit}>Редактировать</Button>}
-          </div>
-        </div>
+        <PointCard
+          variant="view"
+          pointType="accommodation"
+          actionCount={hotelDetails.hasBooking ? 2 : 1}
+          title={draft.name}
+          subtitle={<>Жильё · {hotelDetails.cityName}</>}
+          rows={[
+            { icon: <Icon name="calendar-month" />, content: hotelDetails.dateLabel },
+            ...(stayTimes ? [{ icon: <Icon name="time" />, content: stayTimes }] : []),
+            ...(mapsUrl ? [{ icon: <Icon name="pin-home" />, content: <a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">{mapsAddress || 'Открыть в Google Maps'}</a> }] : []),
+          ]}
+          secondaryAction={hotelDetails.hasBooking && onOpenBooking ? { label: 'Бронь отеля', onClick: onOpenBooking } : undefined}
+          primaryAction={!readOnly ? { label: 'Редактировать', onClick: onEdit } : undefined}
+          onClose={onClose}
+        />
       )
     }
+    const pointType = PLACE_ICON_OPTIONS.find((option) => option.key === draft.icon)?.label ?? 'Точка на карте'
     return (
-      <div className="place-popup">
-        <div className="place-popup-head">
-          <img className="ui-icon" src={placeIconUrl(draft.icon)} width={24} height={24} alt="" aria-hidden="true" />
-          <strong>{draft.name}</strong>
-          <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
-        </div>
-        <p><TextRow showIcon={false}>{draft.date === UNSCHEDULED_KEY ? 'Без даты' : formatDate(draft.date)}</TextRow></p>
-        {mapsUrl && <a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">Открыть в Google Maps</a>}
-        {!readOnly && <Button type="button" theme="secondary" onClick={onEdit}>Редактировать</Button>}
-      </div>
+      <PointCard
+        variant="view"
+        pointType="place"
+        title={draft.name}
+        subtitle={pointType}
+        rows={[
+          { icon: <Icon name="calendar-month" />, content: draft.date === UNSCHEDULED_KEY ? 'Без даты' : formatDate(draft.date) },
+          ...(mapsUrl ? [{ icon: <Icon name={dateLocked && draft.icon === 'transport' ? 'pin-transport' : 'pin'} />, content: <a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">{mapsAddress || 'Открыть в Google Maps'}</a> }] : []),
+        ]}
+        secondaryAction={!readOnly && onDelete ? { label: 'Удалить', onClick: onDelete } : undefined}
+        primaryAction={!readOnly ? { label: 'Редактировать', onClick: onEdit } : undefined}
+        onClose={onClose}
+      />
     )
   }
   return (
-    <form className="place-popup place-popup-edit" onSubmit={(event) => { event.preventDefault(); if (draft.name.trim()) onSave() }}>
-      <div className="place-popup-head">
-        <strong>{onDelete ? 'Редактирование' : 'Новая точка'}</strong>
-        <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
-      </div>
-      <div className="place-popup-icons" role="radiogroup" aria-label="Иконка места">
-        {PLACE_ICON_OPTIONS.map((option) => (
-          <button key={option.key} type="button" role="radio" aria-checked={draft.icon === option.key} title={option.label}
-            className={`place-icon-choice${draft.icon === option.key ? ' is-selected' : ''}`}
-            onClick={() => onChange({ ...draft, icon: option.key })}>
-            <img className="ui-icon" src={placeIconUrl(option.key)} width={24} height={24} alt={option.label} />
-          </button>
-        ))}
-      </div>
-      <FormControlList>
-        <FormControlRow><Select type="date" icon={<Icon name="calendar-month" />} aria-label="Дата посещения" value={draft.date} disabled={dateLocked}
+    <PointCard variant={onDelete ? 'edit' : 'create'} canSubmit={Boolean(draft.name.trim())} onSubmit={onSave} onDelete={onDelete} onClose={onClose}>
+        <FormControlRow><Select type="default" label="Тип локации" icon={<img className="ui-icon" src={placeIconUrl(draft.icon)} width={24} height={24} alt="" aria-hidden="true" />} optionIcons={Object.fromEntries(PLACE_ICON_OPTIONS.map((option) => [option.key, <img className="ui-icon" src={placeIconUrl(option.key)} width={24} height={24} alt="" />]))} aria-label="Тип локации" value={draft.icon}
+          onChange={(event) => onChange({ ...draft, icon: event.target.value as PlaceDraft['icon'] })}>
+          {PLACE_ICON_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}
+        </Select></FormControlRow>
+        <FormControlRow><Select type="date" label="Когда посещаем" icon={<Icon name="calendar-month" />} aria-label="Когда посещаем" value={draft.date} disabled={dateLocked}
           onChange={(event) => onChange({ ...draft, date: event.target.value })}>
           <option value={UNSCHEDULED_KEY}>Без даты</option>
           {dates.map((date) => <option key={date} value={date}>{formatDateOption(date)}</option>)}
         </Select></FormControlRow>
-        <FormControlRow><Input icon={<img className="ui-icon" src={placeIconUrl(draft.icon)} width={24} height={24} alt="" aria-hidden="true" />} aria-label="Название места" value={draft.name} placeholder="Название места" autoFocus
+        <FormControlRow><Input label="Название локации" icon={<Icon name="book" />} aria-label="Название локации" value={draft.name} autoFocus
           onChange={(event) => onChange({ ...draft, name: event.target.value })} /></FormControlRow>
-      </FormControlList>
-      <div className="place-popup-actions">
-        {onDelete && <Button type="button" size="m" theme="secondary" onClick={onDelete}>Удалить</Button>}
-        <Button size="m" disabled={!draft.name.trim()}>{onDelete ? 'Сохранить' : 'Добавить точку'}</Button>
-      </div>
-    </form>
+    </PointCard>
   )
 }

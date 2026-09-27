@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { GalaxyBackground } from './App'
 import { Icon, type IconName } from './components/Icon'
 import { Button, IconButton } from './components/Button'
@@ -14,9 +14,11 @@ import { Avatar } from './components/Avatar'
 import { TextareaList } from './components/TextareaList'
 import { FormPanel, FormPanelGroup, FormPanelHeader, FormPanelNote } from './components/FormPanel'
 import { ComponentContentPreview } from './ComponentContentPreview'
+import { PointCard } from './components/PointCard'
+import { PLACE_ICON_OPTIONS, placeIconUrl } from './placeIcons'
 import './component-library.css'
 
-const icons: IconName[] = ['add-plus', 'arrow-back', 'arrow-down', 'attractions', 'barefoot', 'calendar-month', 'casino', 'checkbox-empty', 'checkbox-filled', 'close', 'content-copy', 'delete-forever', 'docs', 'done-indicator', 'download', 'edit', 'email', 'encrypted', 'face', 'footprint', 'hotel', 'link', 'money-bag', 'pin', 'pin-add', 'pin-home', 'pin-transport', 'plane', 'planet', 'public', 'refresh', 'sailing', 'ticket', 'time', 'train']
+const icons: IconName[] = ['add-plus', 'arrow-back', 'arrow-down', 'attractions', 'barefoot', 'calendar-month', 'cannabis', 'casino', 'checkbox-empty', 'checkbox-filled', 'close', 'content-copy', 'delete-forever', 'docs', 'done-indicator', 'download', 'edit', 'email', 'encrypted', 'face', 'footprint', 'foundation', 'hotel', 'link', 'money-bag', 'pin', 'pin-add', 'pin-home', 'pin-transport', 'plane', 'planet', 'public', 'refresh', 'sailing', 'soup-kitchen', 'ticket', 'time', 'train']
 
 const colorTokens = [
   { title: 'Основной текст', token: '--color-text-primary', value: '#FFFFFF', swatch: 'kit-color-swatch-primary' },
@@ -28,6 +30,8 @@ const colorTokens = [
   { title: 'Основной фон', token: '--color-background-primary', value: '#FFFFFF', swatch: 'kit-background-swatch-primary' },
   { title: 'Второстепенный фон', token: '--color-background-secondary', value: 'White 12%', swatch: 'kit-background-swatch-secondary' },
   { title: 'Стеклянный фон', token: '--color-background-glass', value: 'White 16%', swatch: 'kit-background-swatch-glass' },
+  { title: 'Затемнённое стекло', token: '--glass-point-card', value: 'Glass + Black 30%', swatch: 'kit-background-swatch-point-card' },
+  { title: 'Фон при наведении', token: '--color-background-hover', value: 'White 20%', swatch: 'kit-background-swatch-hover' },
 ]
 
 const navigation = [
@@ -38,6 +42,7 @@ const navigation = [
   { id: 'buttons', label: 'Кнопки' },
   { id: 'fields', label: 'Контролы формы' },
   { id: 'visual-elements', label: 'Аватары' },
+  { id: 'point-details', label: 'Точки на карте' },
   { id: 'rows', label: 'Плашки' },
   { id: 'lists', label: 'Списки' },
   { id: 'states', label: 'Чекбоксы и состояния' },
@@ -100,6 +105,8 @@ export default function ComponentLibrary() {
   const [infoRowActionTheme, setInfoRowActionTheme] = useState<'primary' | 'secondary' | 'transparent'>('transparent')
   const [infoRowHoverEffect, setInfoRowHoverEffect] = useState(false)
   const [infoRowActionIndicators, setInfoRowActionIndicators] = useState(false)
+  const [avatarHoverEffect, setAvatarHoverEffect] = useState(false)
+  const [pointDetailsActionCount, setPointDetailsActionCount] = useState<1 | 2>(2)
   const [textRowIcon, setTextRowIcon] = useState(true)
   const [textRowIconType, setTextRowIconType] = useState<'icon' | 'checkbox'>('icon')
   const [textRowCheckboxState, setTextRowCheckboxState] = useState<'on' | 'off'>('off')
@@ -137,7 +144,7 @@ export default function ComponentLibrary() {
         <aside className="kit-sidebar glass">
           <TypographyGroup className="kit-sidebar-heading" title={<span className="kit-sidebar-brand"><Icon name="planet" size={40} />Travel Space</span>} text={view === 'content' ? 'Наполнение компонентов' : undefined} />
           {view === 'components' && <nav className="kit-navigation" aria-label="Группы компонентов">
-            {navigation.map((item) => <Fragment key={item.id}><a href={`#${item.id}`}>{item.label}</a>{item.id === 'icons' && <span className="kit-navigation-divider" aria-hidden="true" />}</Fragment>)}
+            {navigation.map((item) => <a key={item.id} href={`#${item.id}`}>{item.label}</a>)}
           </nav>}
           {view === 'content' && <nav className="kit-navigation" aria-label="Наполнение компонентов">
             <a href="#content-inputs">Input</a>
@@ -206,7 +213,83 @@ export default function ComponentLibrary() {
         </Section>
 
         <Section id="visual-elements" title="Аватары" description="Изображения квадратной и круглой формы">
-          <Specimen name="Avatar"><Variant label="Square"><Avatar src={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} alt="Осенний сад" /></Variant><Variant label="Circle"><Avatar src={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} alt="Осенний сад" shape="circle" /></Variant></Specimen>
+          <Specimen name="Avatar" className="kit-input-specimen kit-avatar-specimen">
+            <div className="kit-info-row-layout">
+              <div className="kit-info-row-controls"><PropertyToggle label="Hover Effect" checked={avatarHoverEffect} onChange={setAvatarHoverEffect} /></div>
+              <div className="kit-avatar-variants"><Variant label="Square"><Avatar src={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} alt="Осенний сад" hoverEffect={avatarHoverEffect} /></Variant><Variant label="Circle"><Avatar src={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} alt="Осенний сад" shape="circle" hoverEffect={avatarHoverEffect} /></Variant></div>
+            </div>
+          </Specimen>
+        </Section>
+
+        <Section id="point-details" title="Точки на карте" description="Компоненты просмотра, создания и редактирования точек" className="kit-point-details-section">
+          <div className="kit-point-details-layout">
+            <div className="kit-point-details-examples">
+              <div className="kit-point-details-row">
+                <div className="kit-point-details-example">
+                <span className="kit-variant-label">Просмотр / Жильё</span>
+                <PointCard
+                  variant="view"
+                  pointType="accommodation"
+                  actionCount={pointDetailsActionCount}
+                  title="Название точки"
+                  subtitle="Жильё · Название города"
+                  rows={[
+                    { icon: <Icon name="calendar-month" />, content: '3–5 октября · 2 дня' },
+                    { icon: <Icon name="time" />, content: 'Заселение в 15:00 · Выселение до 10:00' },
+                    { icon: <Icon name="pin-home" />, content: 'Адрес в Google Maps' },
+                  ]}
+                  secondaryAction={{ label: 'Бронь отеля' }}
+                  primaryAction={{ label: 'Редактировать' }}
+                  onClose={() => undefined}
+                />
+                </div>
+                <div className="kit-point-details-example">
+                  <span className="kit-variant-label">Просмотр / Транспорт</span>
+                  <PointCard
+                    variant="view"
+                    pointType="transport"
+                    actionCount={pointDetailsActionCount}
+                    title="Название точки"
+                    subtitle="Транспорт"
+                    rows={[
+                      { icon: <Icon name="calendar-month" />, content: '3 октября' },
+                      { icon: <Icon name="pin-transport" />, content: 'Адрес в Google Maps' },
+                    ]}
+                    secondaryAction={{ label: 'Билет' }}
+                    primaryAction={{ label: 'Редактировать' }}
+                    onClose={() => undefined}
+                  />
+                </div>
+              </div>
+              <div className="kit-point-details-row kit-point-details-row-single">
+                <div className="kit-point-details-example">
+                  <span className="kit-variant-label">Просмотр / Точка на карте</span>
+                  <PointCard variant="view" pointType="place" title="Замок Осака" subtitle="Достопримечательность" rows={[{ icon: <Icon name="calendar-month" />, content: '5 октября' }, { icon: <Icon name="pin" />, content: 'Адрес в Google Maps' }]} secondaryAction={{ label: 'Удалить' }} primaryAction={{ label: 'Редактировать' }} onClose={() => undefined} />
+                </div>
+              </div>
+              <div className="kit-point-details-row">
+                <div className="kit-point-details-example">
+                  <span className="kit-variant-label">Точка с карты / Редактирование</span>
+                  <PointCard variant="edit" onSubmit={() => undefined} onDelete={() => undefined} onClose={() => undefined}>
+                    <FormControlRow><Select type="default" label="Тип локации" icon={<img className="ui-icon" src={placeIconUrl('sightseeing')} width={24} height={24} alt="" />} optionIcons={Object.fromEntries(PLACE_ICON_OPTIONS.map((option) => [option.key, <img className="ui-icon" src={placeIconUrl(option.key)} width={24} height={24} alt="" />]))} aria-label="Тип локации" value="sightseeing" onChange={() => undefined}>{PLACE_ICON_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</Select></FormControlRow>
+                    <FormControlRow><Select type="date" label="Когда посещаем" icon={<Icon name="calendar-month" />} aria-label="Когда посещаем" value="2026-10-03" displayValue="3 октября" onChange={() => undefined}><option value="2026-10-03">3 октября</option></Select></FormControlRow>
+                    <FormControlRow><Input label="Название локации" icon={<Icon name="book" />} aria-label="Название локации" value="Замок Осака" onChange={() => undefined} /></FormControlRow>
+                  </PointCard>
+                </div>
+                <div className="kit-point-details-example">
+                  <span className="kit-variant-label">Точка с карты / Создание</span>
+                  <PointCard variant="create" onSubmit={() => undefined} onClose={() => undefined}>
+                    <FormControlRow><Select type="default" label="Тип локации" icon={<img className="ui-icon" src={placeIconUrl('sightseeing')} width={24} height={24} alt="" />} optionIcons={Object.fromEntries(PLACE_ICON_OPTIONS.map((option) => [option.key, <img className="ui-icon" src={placeIconUrl(option.key)} width={24} height={24} alt="" />]))} aria-label="Тип локации" value="sightseeing" onChange={() => undefined}>{PLACE_ICON_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</Select></FormControlRow>
+                    <FormControlRow><Select type="date" label="Когда посещаем" icon={<Icon name="calendar-month" />} aria-label="Когда посещаем" value="unscheduled" onChange={() => undefined}><option value="unscheduled">Без даты</option><option value="2026-10-03">3 октября</option></Select></FormControlRow>
+                    <FormControlRow><Input label="Название локации" icon={<Icon name="book" />} aria-label="Название локации" /></FormControlRow>
+                  </PointCard>
+                </div>
+              </div>
+            </div>
+            <div className="kit-point-details-controls">
+              <PropertySelect label="Buttons" value={String(pointDetailsActionCount)} options={[{ value: '1', label: '1' }, { value: '2', label: '2' }]} onChange={(value) => setPointDetailsActionCount(Number(value) as 1 | 2)} />
+            </div>
+          </div>
         </Section>
 
         <Section id="lists" title="Списки" description="Группы однотипных элементов" className="kit-lists-section">

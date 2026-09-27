@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MapSearch, type SearchResult } from './MapSearch'
 import { PlacePopup } from './PlacePopup'
-import { iconForGoogleTypes, placeIconUrl, type PlaceIconKey } from '../placeIcons'
+import { iconForGoogleTypes, managedPlaceIconUrl, placeIconUrl, type PlaceIconKey } from '../placeIcons'
 import { UNSCHEDULED_KEY, placeMapsHref, type PlaceDraft } from '../places'
 
 type Coordinates = { lat: number; lng: number }
@@ -31,7 +31,7 @@ function loadMaps(key: string) {
     ;(window as any)[callback] = () => { resolve((window as any).google.maps); delete (window as any)[callback] }
     const script = document.createElement('script')
     // libraries обязателен: без marker не будет AdvancedMarkerElement, без places — поиска.
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,marker&callback=${callback}&v=weekly`
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places,marker&callback=${callback}&v=weekly&loading=async`
     script.async = true
     script.onerror = () => reject(new Error('Не удалось загрузить Google Maps'))
     document.head.appendChild(script)
@@ -76,15 +76,19 @@ function addressFromMapsUrl(value: string): string {
   }
 }
 
-function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false, interactive = true) {
+function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false, interactive = true, managed = false) {
   const element = document.createElement('div')
-  element.className = `place-marker${draft ? ' place-marker-draft' : ''}${dimmed ? ' is-dimmed' : ''}${interactive ? '' : ' is-static'}`
+  element.className = `place-marker${managed ? ' place-marker-managed' : ''}${draft ? ' place-marker-draft' : ''}${dimmed ? ' is-dimmed' : ''}${interactive ? '' : ' is-static'}`
   const image = document.createElement('img')
   image.className = 'ui-icon'
   image.width = 24
   image.height = 24
   image.alt = ''
-  image.src = draft ? `${import.meta.env.BASE_URL}assets/icons/pin-add.svg` : placeIconUrl(icon)
+  image.src = draft
+    ? `${import.meta.env.BASE_URL}assets/icons/pin-add.svg`
+    : managed && (icon === 'hotel' || icon === 'transport')
+      ? managedPlaceIconUrl(icon)
+      : placeIconUrl(icon)
   element.appendChild(image)
   return element
 }
@@ -190,7 +194,9 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
       setDraft(null)
       setDraftPosition({ lat: event.latLng.lat(), lng: event.latLng.lng() })
     })
-    return () => listener.remove()
+    // При неудачной или прерванной инициализации Maps addListener может не
+    // вернуть дескриптор. Cleanup обязан оставаться безопасным в Strict Mode.
+    return () => listener?.remove?.()
   }, [mapsReady, readOnly])
 
   useEffect(() => {
@@ -219,11 +225,11 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
         position: coordinates,
         // title не задаём: браузер рисует по нему свой чёрный системный тултип,
         // который дублирует попап и перекрывает соседние точки.
-        content: markerContent(place.icon, dimmed, false, interactive),
+        content: markerContent(place.icon, dimmed, false, interactive, Boolean(place.editTarget)),
         // Без gmpClickable маркер с собственным content не генерирует событий клика.
         gmpClickable: interactive,
       })
-      if (interactive) marker.addListener('gmp-click', () => {
+      if (interactive) marker.addEventListener('gmp-click', () => {
         setDraftPosition(null)
         setEditing(false)
         setDraft(null)
@@ -264,7 +270,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
       content: markerContent('default', false, true),
       gmpClickable: true,
     })
-    marker.addListener('gmp-click', () => {
+    marker.addEventListener('gmp-click', () => {
       setDraft((current) => current ?? { name: '', icon: 'default', date: activeDate ?? UNSCHEDULED_KEY })
       setEditing(true)
     })
@@ -304,7 +310,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
     if (!mapsReady || !selected) return
     const map = mapRef.current
     const container = containerRef.current
-    const popup = centeredPopupRef.current?.querySelector<HTMLElement>('.place-popup')
+    const popup = centeredPopupRef.current?.querySelector<HTMLElement>('.point-card')
     if (!map || !container || !popup) return
     const coordinates = Number.isFinite(selected.latitude) && Number.isFinite(selected.longitude)
       ? { lat: selected.latitude!, lng: selected.longitude! }

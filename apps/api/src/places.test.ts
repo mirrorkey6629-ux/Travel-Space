@@ -3,7 +3,7 @@ import { PLACE_ICONS, normalizePlaceIcon, reorderPlaces } from './places.js'
 
 describe('normalizePlaceIcon', () => {
   it('содержит ровно восемь ключей', () => {
-    expect(PLACE_ICONS).toEqual(['default', 'sightseeing', 'food', 'cafe', 'hotel', 'shopping', 'nature', 'transport'])
+    expect(PLACE_ICONS).toEqual(['default', 'sightseeing', 'entertainment', 'food', 'cafe', 'hotel', 'shopping', 'nature', 'transport'])
   })
 
   it('пропускает известный ключ', () => {

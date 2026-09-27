@@ -10,6 +10,7 @@ type FormPanelLayoutProps = {
   children: ReactNode
   action?: ReactNode
   className?: string
+  contentHeight?: boolean
 }
 
 type FormPanelGroupProps = {
@@ -20,6 +21,7 @@ type FormPanelGroupProps = {
   disabled?: boolean
   flatten?: boolean
   order?: 'first' | 'normal' | 'last'
+  align?: 'stretch' | 'center'
 }
 
 type FormPanelHeaderProps = {
@@ -34,12 +36,12 @@ export function FormPanel({ children, className = '', scrollable = false, ...pro
   return <section className={`glass editor form-panel${scrollable ? ' form-panel-scrollable' : ''}${className ? ` ${className}` : ''}`} {...props}>{children}</section>
 }
 
-export function FormPanelLayout({ children, action, className = '' }: FormPanelLayoutProps) {
-  return <div className={`form-panel-layout${className ? ` ${className}` : ''}`}><FormPanel scrollable>{children}</FormPanel>{action}</div>
+export function FormPanelLayout({ children, action, className = '', contentHeight = false }: FormPanelLayoutProps) {
+  return <div className={`form-panel-layout${contentHeight ? ' form-panel-layout-content-height' : ''}${className ? ` ${className}` : ''}`}><FormPanel scrollable>{children}</FormPanel>{action}</div>
 }
 
-export function FormPanelGroup({ children, className = '', gap = 32, as = 'div', disabled, flatten = false, order = 'normal' }: FormPanelGroupProps) {
-  const classes = `form-panel-group form-panel-group-gap-${gap}${flatten ? ' form-panel-group-flatten' : ''}${order !== 'normal' ? ` form-panel-group-order-${order}` : ''}${className ? ` ${className}` : ''}`
+export function FormPanelGroup({ children, className = '', gap = 32, as = 'div', disabled, flatten = false, order = 'normal', align = 'stretch' }: FormPanelGroupProps) {
+  const classes = `form-panel-group form-panel-group-gap-${gap} form-panel-group-align-${align}${flatten ? ' form-panel-group-flatten' : ''}${order !== 'normal' ? ` form-panel-group-order-${order}` : ''}${className ? ` ${className}` : ''}`
   if (as === 'fieldset') return <fieldset className={classes} disabled={disabled}>{children}</fieldset>
   return <div className={classes}>{children}</div>
 }

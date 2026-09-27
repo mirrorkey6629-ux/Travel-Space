@@ -10,14 +10,15 @@ import { Icon, type IconName } from './components/Icon'
 import { UNSCHEDULED_KEY } from './places'
 import { PlacesMap } from './components/PlacesMap'
 import { PlaceDayList } from './components/PlaceDayList'
-import { placeIconUrl, type PlaceIconKey } from './placeIcons'
+import { managedPlaceIconUrl, placeIconUrl, type PlaceIconKey } from './placeIcons'
 import { CacheIndicator } from './components/CacheIndicator'
 import { CheckboxTextRow, TextRow } from './components/TextRow'
 import { ItemList } from './components/ItemList'
 import { FormControlList, FormControlRow } from './components/FormControlList'
 import { TextareaList } from './components/TextareaList'
 import { FormPanelGroup, FormPanelHeader, FormPanelLayout, FormPanelNote } from './components/FormPanel'
-import { ImageFilePicker } from './components/ImageFilePicker'
+import { FilePicker, ImageFilePicker } from './components/ImageFilePicker'
+import { Avatar } from './components/Avatar'
 import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
@@ -267,104 +268,76 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
 // сам, Vite префиксом не дополняет, в отличие от путей в HTML и CSS.
 export function GalaxyBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const workerRef = useRef<Worker | null>(null)
+  const terminateTimerRef = useRef<number | null>(null)
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const context = canvas.getContext('2d')
-    if (!context) return
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    let frame = 0
-    let width = 0
-    let height = 0
-    let time = 0
+    if (terminateTimerRef.current !== null) {
+      window.clearTimeout(terminateTimerRef.current)
+      terminateTimerRef.current = null
+    }
+
+    if (!workerRef.current && 'transferControlToOffscreen' in canvas) {
+      const worker = new Worker(new URL('./galaxy.worker.ts', import.meta.url), { type: 'module' })
+      const offscreen = canvas.transferControlToOffscreen()
+      worker.postMessage({ type: 'init', canvas: offscreen, reduced }, [offscreen])
+      workerRef.current = worker
+    }
+    const worker = workerRef.current
+    if (!worker) return
+
+    let inputFrame = 0
+    let resizePending = true
+    let pointerPending = false
     let pointerX = 0
     let pointerY = 0
-    let targetPointerX = 0
-    let targetPointerY = 0
-    let stars: Array<{ x: number; y: number; z: number; size: number; speed: number; alpha: number; hue: number; twinkle: number }> = []
-    const reset = () => {
-      const ratio = Math.min(window.devicePixelRatio || 1, 2)
-      width = window.innerWidth
-      height = window.innerHeight
-      canvas.width = width * ratio
-      canvas.height = height * ratio
-      canvas.style.width = `${width}px`
-      canvas.style.height = `${height}px`
-      context.setTransform(ratio, 0, 0, ratio, 0, 0)
-      const count = Math.min(900, Math.max(320, Math.floor((width * height) / 1800)))
-      stars = Array.from({ length: count }, () => ({
-        x: (Math.random() - 0.5) * width * 1.8,
-        y: (Math.random() - 0.5) * height * 1.8,
-        z: 0.14 + Math.random() * 0.86,
-        size: 0.35 + Math.pow(Math.random(), 3) * 2.2,
-        speed: 0.000018 + Math.random() * 0.000026,
-        alpha: 0.22 + Math.random() * 0.78,
-        hue: 190 + Math.random() * 95,
-        twinkle: Math.random() * Math.PI * 2,
-      }))
-    }
-    const draw = (timestamp = 0) => {
-      context.clearRect(0, 0, width, height)
-      const delta = time ? Math.min(timestamp - time, 32) : 16
-      time = timestamp
-      pointerX += (targetPointerX - pointerX) * 0.035
-      pointerY += (targetPointerY - pointerY) * 0.035
-
-      const background = context.createRadialGradient(width * 0.5, height * 0.45, 0, width * 0.5, height * 0.5, Math.max(width, height) * 0.78)
-      background.addColorStop(0, '#17142f')
-      background.addColorStop(0.45, '#080a1c')
-      background.addColorStop(1, '#010208')
-      context.fillStyle = background
-      context.fillRect(0, 0, width, height)
-
-      const nebula = context.createRadialGradient(width * 0.35, height * 0.58, 0, width * 0.35, height * 0.58, Math.max(width, height) * 0.55)
-      nebula.addColorStop(0, 'rgba(88, 72, 190, .22)')
-      nebula.addColorStop(0.38, 'rgba(36, 80, 156, .11)')
-      nebula.addColorStop(1, 'rgba(0, 0, 0, 0)')
-      context.fillStyle = nebula
-      context.fillRect(0, 0, width, height)
-
-      const centerX = width * 0.5 + pointerX * 8
-      const centerY = height * 0.5 + pointerY * 6
-      for (const star of stars) {
-        if (!reduced) {
-          star.z -= star.speed * delta
-          if (star.z <= 0.08) {
-            star.x = (Math.random() - 0.5) * width * 1.8
-            star.y = (Math.random() - 0.5) * height * 1.8
-            star.z = 1
-          }
-        }
-        const depth = 1 / Math.max(star.z, 0.08)
-        const x = centerX + star.x * depth * 0.52
-        const y = centerY + star.y * depth * 0.52
-        if (x < -24 || x > width + 24 || y < -24 || y > height + 24) {
-          if (!reduced) star.z = 1
-          continue
-        }
-        const pulse = reduced ? 1 : 0.72 + Math.sin(timestamp * 0.0018 + star.twinkle) * 0.28
-        const radius = star.size * pulse * Math.min(depth, 3.4)
-        context.beginPath()
-        context.arc(x, y, radius, 0, Math.PI * 2)
-        context.fillStyle = `hsla(${star.hue}, 80%, 90%, ${star.alpha * pulse})`
-        context.fill()
+    const flushInput = () => {
+      inputFrame = 0
+      if (resizePending) {
+        resizePending = false
+        worker.postMessage({ type: 'resize', width: window.innerWidth, height: window.innerHeight, ratio: Math.min(window.devicePixelRatio || 1, 1.5) })
       }
-      context.globalAlpha = 1
-      if (!reduced) frame = requestAnimationFrame(draw)
+      if (pointerPending) {
+        pointerPending = false
+        worker.postMessage({ type: 'pointer', x: pointerX, y: pointerY })
+      }
+    }
+    const scheduleInput = () => {
+      if (!inputFrame) inputFrame = requestAnimationFrame(flushInput)
     }
     const handlePointerMove = (event: PointerEvent) => {
-      targetPointerX = event.clientX / Math.max(window.innerWidth, 1) - 0.5
-      targetPointerY = event.clientY / Math.max(window.innerHeight, 1) - 0.5
+      pointerX = event.clientX
+      pointerY = event.clientY
+      pointerPending = true
+      scheduleInput()
     }
-    reset()
-    draw()
-    window.addEventListener('resize', reset)
+    const handleResize = () => {
+      resizePending = true
+      scheduleInput()
+    }
+    const handleVisibilityChange = () => {
+      worker.postMessage({ type: 'visible', value: !document.hidden })
+    }
+    worker.postMessage({ type: 'visible', value: !document.hidden })
+    scheduleInput()
+    window.addEventListener('resize', handleResize)
     window.addEventListener('pointermove', handlePointerMove)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => {
-      cancelAnimationFrame(frame)
-      window.removeEventListener('resize', reset)
+      cancelAnimationFrame(inputFrame)
+      window.removeEventListener('resize', handleResize)
       window.removeEventListener('pointermove', handlePointerMove)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      worker.postMessage({ type: 'visible', value: false })
+      terminateTimerRef.current = window.setTimeout(() => {
+        if (workerRef.current !== worker) return
+        worker.terminate()
+        workerRef.current = null
+        terminateTimerRef.current = null
+      }, 0)
     }
   }, [])
 
@@ -518,10 +491,7 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
           <FormPanelHeader title="Профиль" />
           <FormPanelGroup className="profile-avatar-group">
             <ImageFilePicker disabled={!access.canEdit} onSelect={(file, previewUrl) => { setAvatarUrl(previewUrl); setAvatarFile(file); setMessage('') }}>
-              {({ open }) => <button className="profile-avatar-button" type="button" disabled={!access.canEdit} onClick={open} aria-label="Загрузить новый аватар">
-                <img className="profile-avatar" src={avatarUrl} alt="Аватар профиля" />
-                <span className="profile-avatar-overlay"><Icon name="edit" size={32} /></span>
-              </button>}
+              {({ open }) => <Avatar src={avatarUrl} alt="Аватар профиля" shape="circle" size={200} hoverEffect onClick={open} disabled={!access.canEdit} actionLabel="Загрузить новый аватар" />}
             </ImageFilePicker>
           </FormPanelGroup>
           <FormPanelGroup>
@@ -540,7 +510,6 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
 
 function TripsScreen({ trips, canCreate, deleteTarget, onOpen, onCreate, onClose, onDelete, onCloseDelete, onConfirmDelete, onExport, onImport }: { trips: ApiTripSummary[]; canCreate: boolean; deleteTarget: ApiTripSummary | null; onOpen: (id: string) => void; onCreate: () => void; onClose: () => void; onDelete: (trip: ApiTripSummary) => void; onCloseDelete: () => void; onConfirmDelete: () => Promise<void>; onExport: (trip: ApiTripSummary) => Promise<void>; onImport: (file: File) => Promise<void> }) {
   const access = useAccess()
-  const importRef = useRef<HTMLInputElement>(null)
   const [backgroundUrls, setBackgroundUrls] = useState<Record<string, string>>({})
   useEffect(() => {
     let active = true
@@ -570,21 +539,22 @@ function TripsScreen({ trips, canCreate, deleteTarget, onOpen, onCreate, onClose
     <main className="screen auth-screen trips-screen">
       <GalaxyBackground />
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" title="Назад" />
-      <section className="glass trips-card">
-        {deleteTarget ? <DeleteTripDialog key={deleteTarget.id} trip={deleteTarget} onClose={onCloseDelete} onConfirm={onConfirmDelete} /> : <div className="trips-default-view setup-transition">
-          <header className="trips-header"><h1>Мои поездки</h1></header>
-          <div className="trips-content">
-            <InfoRowList className="trips-list">
-              {trips.map((item) => <InfoRow key={item.id} image={item.background_removed ? undefined : item.background_document_id ? backgroundUrls[item.id] : defaultTripBackground} imageAlt={item.background_removed ? '' : `Фон поездки ${item.name}`} title={item.name} subtitle={<>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</>} onClick={() => onOpen(item.id)} actionTheme="secondary" actions={item.role === 'owner' && access.canEdit ? [{ icon: <Icon name="download" />, label: `Экспортировать поездку ${item.name}`, title: 'Экспортировать', onClick: () => void onExport(item) }, { icon: <Icon name="delete-forever" />, label: `Удалить поездку ${item.name}`, title: 'Удалить', className: 'trip-delete-trigger', onClick: () => onDelete(item) }] : []} />)}
+      {deleteTarget
+        ? <DeleteTripDialog key={deleteTarget.id} trip={deleteTarget} onClose={onCloseDelete} onConfirm={onConfirmDelete} />
+        : <FormPanelLayout className="setup-transition" contentHeight>
+          <FormPanelHeader title="Мои поездки" />
+          <FormPanelGroup gap={8}>
+            <InfoRowList>
+              {trips.map((item) => <InfoRow key={item.id} image={item.background_removed ? undefined : item.background_document_id ? backgroundUrls[item.id] : defaultTripBackground} imageAlt={item.background_removed ? '' : `Фон поездки ${item.name}`} title={item.name} subtitle={<>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</>} onClick={() => onOpen(item.id)} hoverEffect actionTheme="secondary" actions={item.role === 'owner' && access.canEdit ? [{ icon: <Icon name="download" />, label: `Экспортировать поездку ${item.name}`, title: 'Экспортировать', onClick: () => void onExport(item) }, { icon: <Icon name="delete-forever" />, label: `Удалить поездку ${item.name}`, title: 'Удалить', onClick: () => onDelete(item) }] : []} />)}
+              {canCreate && access.canEdit && <AddRow icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />}
             </InfoRowList>
-            {canCreate && access.canEdit && <>
-              <AddRow icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />
-              <button className="auth-mode-switch trips-import-link" type="button" onClick={() => importRef.current?.click()}>Импортировать поездку из файла</button>
-              <input ref={importRef} className="hidden-file-input" type="file" accept=".travelspace,application/vnd.travel-space+json,application/json" onChange={(event) => { const file = event.target.files?.[0]; if (file) void onImport(file); event.currentTarget.value = '' }} />
-            </>}
-          </div>
-        </div>}
-      </section>
+          </FormPanelGroup>
+          {canCreate && access.canEdit && <FormPanelGroup align="center">
+            <FilePicker accept=".travelspace,application/vnd.travel-space+json,application/json" onSelect={(file) => void onImport(file)}>
+              {({ open }) => <Button size="m" theme="transparent" onClick={open}>Импортировать поездку из файла</Button>}
+            </FilePicker>
+          </FormPanelGroup>}
+        </FormPanelLayout>}
     </main>
   )
 }
@@ -593,12 +563,10 @@ function DeleteTripDialog({ trip, onClose, onConfirm }: { trip: ApiTripSummary; 
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState(false)
   return (
-    <div className="destructive-dialog setup-transition">
-        <IconButton className="destructive-dialog-close" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
-        <TypographyGroup headingLevel="h2" title={`Удалить «${trip.name}»?`} text="Поездка, города, места и документы будут удалены без возможности восстановления. Введите название поездки вручную:" />
-        <Input showLabel={false} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={trip.name} autoFocus />
-        <div className="dialog-actions"><Button disabled={confirmation !== trip.name || busy} onClick={async () => { setBusy(true); try { await onConfirm() } finally { setBusy(false) } }}>{busy ? 'Удаляем…' : 'Удалить поездку'}</Button></div>
-    </div>
+    <FormPanelLayout className="setup-transition" contentHeight action={<Button disabled={confirmation !== trip.name || busy} onClick={async () => { setBusy(true); try { await onConfirm() } finally { setBusy(false) } }}>{busy ? 'Удаляем…' : 'Удалить поездку'}</Button>}>
+      <FormPanelHeader title={`Удалить «${trip.name}»?`} text="Все данные поездки будут удалены без возможности восстановления. Для подтверждения введите её название." action={<IconButton icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />} />
+      <FormPanelGroup><FormControlList><FormControlRow><Input showLabel={false} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={trip.name} autoFocus /></FormControlRow></FormControlList></FormPanelGroup>
+    </FormPanelLayout>
   )
 }
 
@@ -932,7 +900,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
         <Button size="m" theme="secondary" onClick={onExpenses}>Посмотреть траты</Button>
       </section>}
       {user && <section className="glass sidebar-card profile-card">
-        <InfoRow className="profile-info-row" theme="transparent" image={user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`} imageAlt="Аватар профиля" imageShape="circle" title={user.displayName} subtitle={user.email} onClick={onProfile} />
+        <InfoRow className="profile-info-row" theme="transparent" image={user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`} imageAlt="Аватар профиля" imageShape="circle" title={user.displayName} subtitle={user.email} onClick={onProfile} hoverEffect />
         {(showTrips || isAdmin) && <div className="profile-card-actions">
           {showTrips && <Button size="m" onClick={onTrips}>Мои поездки</Button>}
           {isAdmin && <Button size="m" theme="secondary" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}components`)}>Компоненты</Button>}
@@ -1171,7 +1139,8 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
                     : !access.canBrowse
                       ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>)
                       : <button type="button" onClick={() => targetPlaceId ? onPlace(item.city, targetPlaceId) : onCity(item.city)}>{item.name}</button>
-                  return <li key={item.key} className="day-location-line"><TextRow iconType="icon" icon={<img className="ui-icon" src={placeIconUrl(item.icon)} width={24} height={24} alt="" />}>{label}</TextRow></li>
+                  const iconUrl = item.panel && (item.icon === 'hotel' || item.icon === 'transport') ? managedPlaceIconUrl(item.icon) : placeIconUrl(item.icon)
+                  return <li key={item.key} className="day-location-line"><TextRow iconType="icon" icon={<img className="ui-icon" src={iconUrl} width={24} height={24} alt="" />}>{label}</TextRow></li>
                 })}</ItemList>}
                 {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
               </>}
@@ -1515,8 +1484,9 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
                   const to = value.date
                   const source = (draft.places[from] ?? []).filter((item) => item.id !== id)
                   const target = from === to ? (draft.places[from] ?? []).map((item) => item.id === id ? place : item) : [...(draft.places[to] ?? []), place]
-                  setDraft((latest) => ({ ...latest, places: { ...latest.places, [from]: from === to ? target : source, [to]: target } }))
-                  onUpdatePlace(draft, to, place)
+                  const next = { ...draft, places: { ...draft.places, [from]: from === to ? target : source, [to]: target } }
+                  setDraft(next)
+                  onUpdatePlace(next, to, place)
                 }}
                 onDelete={(id) => {
                   const from = Object.keys(draft.places).find((key) => (draft.places[key] ?? []).some((item) => item.id === id))
@@ -1529,8 +1499,9 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
                   const current = entry?.[1].find((item) => item.id === id)
                   if (!entry || !current || current.latitude !== undefined) return
                   const resolved = { ...current, latitude: coordinates.lat, longitude: coordinates.lng }
-                  setDraft((latest) => ({ ...latest, places: { ...latest.places, [entry[0]]: (latest.places[entry[0]] ?? []).map((item) => item.id === id ? resolved : item) } }))
-                  onUpdatePlace(draft, entry[0], resolved)
+                  const next = { ...draft, places: { ...draft.places, [entry[0]]: (draft.places[entry[0]] ?? []).map((item) => item.id === id ? resolved : item) } }
+                  setDraft(next)
+                  onUpdatePlace(next, entry[0], resolved)
                 }}
               />
             </div>

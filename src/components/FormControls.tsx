@@ -20,7 +20,7 @@ type InputProps = InputBaseProps & (
 
 export function Input(props: InputProps) {
   const [moneyFocused, setMoneyFocused] = useState(false)
-  const { icon, trailingIcon, trailingIconLabel, onTrailingIconClick, label, showIcon = true, showLabel = true, controlClassName = '', fieldClassName = '', content = 'text', ...inputProps } = props
+  const { icon, trailingIcon, trailingIconLabel, onTrailingIconClick, label, showIcon = true, showLabel = true, controlClassName = '', fieldClassName = '', content = 'text', onValueChange, ...inputProps } = props
   const money = content === 'money'
   const moneyValue = money ? Number(props.value) : 0
   const resolvedIcon = money ? icon ?? <Icon name="money-bag" /> : icon
@@ -34,7 +34,7 @@ export function Input(props: InputProps) {
         value: moneyValue > 0 ? (moneyFocused ? String(moneyValue) : `${moneyValue.toLocaleString('ru-RU')} ₽`) : '',
         onFocus: (event: React.FocusEvent<HTMLInputElement>) => { setMoneyFocused(true); props.onFocus?.(event) },
         onBlur: (event: React.FocusEvent<HTMLInputElement>) => { setMoneyFocused(false); props.onBlur?.(event) },
-        onChange: (event: React.ChangeEvent<HTMLInputElement>) => props.onValueChange?.(Math.max(0, Number.parseInt(event.target.value.replace(/\D/g, ''), 10) || 0)),
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => onValueChange?.(Math.max(0, Number.parseInt(event.target.value.replace(/\D/g, ''), 10) || 0)),
       }
     : inputProps
   const floatingLabel = showLabel ? label ?? resolvedInputProps.placeholder : undefined
@@ -105,13 +105,14 @@ export function Textarea({ label, controlClassName = '', fieldClassName = '', ..
 }
 
 type NativeSelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
-  type: 'date' | 'time'
+  type: 'default' | 'date' | 'time'
   label?: ReactNode
   showLabel?: boolean
   icon?: ReactNode
   placeholder?: ReactNode
   displayValue?: ReactNode
   secondaryText?: ReactNode
+  optionIcons?: Record<string, ReactNode>
   controlClassName?: string
   children: ReactNode
 }
@@ -186,7 +187,7 @@ function AssigneeSelect({ label, showLabel = true, icon, options, value, emptyLa
 }
 
 function NativeSelect(props: NativeSelectProps) {
-  const { type, label, showLabel = true, icon, placeholder, displayValue, secondaryText, controlClassName = '', children, ...selectProps } = props
+  const { type, label, showLabel = true, icon, placeholder, displayValue, secondaryText, optionIcons, controlClassName = '', children, ...selectProps } = props
   const [open, setOpen] = useState(false)
   const [uncontrolledValue, setUncontrolledValue] = useState(() => String(selectProps.defaultValue ?? ''))
   const containerRef = useRef<HTMLDivElement>(null)
@@ -229,8 +230,8 @@ function NativeSelect(props: NativeSelectProps) {
         </span>
         {type === 'time' && secondaryText !== undefined && <span className="form-select-secondary-text">{secondaryText}</span>}
       </button>
-      {open && <div className="native-select-menu" role="listbox" aria-label={selectProps['aria-label']}>
-        {options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === value} disabled={option.disabled} onClick={() => choose(option.value)}>{option.value === value && <span aria-hidden="true">✓</span>}<span>{option.label}</span></button>)}
+      {open && <div className={`native-select-menu${optionIcons ? ' native-select-menu-with-icons' : ''}`} role="listbox" aria-label={selectProps['aria-label']}>
+        {options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === value} disabled={option.disabled} onClick={() => choose(option.value)}><span aria-hidden="true">{option.value === value ? '✓' : ''}</span>{optionIcons && <span className="native-select-option-icon" aria-hidden="true">{optionIcons[option.value]}</span>}<span>{option.label}</span></button>)}
       </div>}
       {selectProps.name && <input type="hidden" name={selectProps.name} value={value} />}
     </div>

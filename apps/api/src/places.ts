@@ -1,4 +1,4 @@
-export const PLACE_ICONS = ['default', 'sightseeing', 'food', 'cafe', 'hotel', 'shopping', 'nature', 'transport'] as const
+export const PLACE_ICONS = ['default', 'sightseeing', 'entertainment', 'food', 'cafe', 'hotel', 'shopping', 'nature', 'transport'] as const
 
 export type PlaceIcon = (typeof PLACE_ICONS)[number]
 

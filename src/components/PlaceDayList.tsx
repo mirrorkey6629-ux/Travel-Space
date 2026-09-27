@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { DndContext, MeasuringStrategy, PointerSensor, closestCorners, useDroppable, useSensor, useSensors, type DragEndEvent, type DragOverEvent } from '@dnd-kit/core'
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
-import { placeIconUrl, type PlaceIconKey } from '../placeIcons'
+import { managedPlaceIconUrl, placeIconUrl, type PlaceIconKey } from '../placeIcons'
 import { UNSCHEDULED_KEY } from '../places'
 import { TextRow } from './TextRow'
 import { ItemList } from './ItemList'
@@ -10,10 +10,11 @@ export type ListPlace = { id: string; name: string; icon: PlaceIconKey; url?: st
 
 const handleUrl = `${import.meta.env.BASE_URL}assets/icons/drag.svg?v=20260921-3`
 
-function RowBody({ place, draggable = false }: { place: ListPlace; draggable?: boolean }) {
+function RowBody({ place, draggable = false, managed = false }: { place: ListPlace; draggable?: boolean; managed?: boolean }) {
+  const iconUrl = managed && (place.icon === 'hotel' || place.icon === 'transport') ? managedPlaceIconUrl(place.icon) : placeIconUrl(place.icon)
   return (
     <>
-      <TextRow iconType="icon" icon={<img className="ui-icon" src={placeIconUrl(place.icon)} width={24} height={24} alt="" />}>{place.name}</TextRow>
+      <TextRow iconType="icon" icon={<img className="ui-icon" src={iconUrl} width={24} height={24} alt="" />}>{place.name}</TextRow>
       {/* Подсказка, что строку можно перетащить. Тащится вся строка, поэтому
           иконка декоративная и своих обработчиков не имеет. */}
       {draggable && <img className="ui-icon place-row-handle" src={handleUrl} width={16} height={16} alt="" aria-hidden="true" />}
@@ -36,7 +37,7 @@ function PlaceRow({ place, locked, onFocus }: { place: ListPlace; locked: boolea
       {...attributes}
       {...listeners}
     >
-      <RowBody place={place} draggable={!locked} />
+      <RowBody place={place} draggable={!locked} managed={locked} />
     </button>
   )
 }
@@ -58,10 +59,10 @@ function Day({ dayKey, title, places, active, readOnly, lockedPlaceIds, onActiva
       <h3><button type="button" className="city-day-title" aria-pressed={active} onClick={onActivate}>{title}</button></h3>
       <ItemList>
         {places.map((place) => !place.url?.trim()
-          ? <div key={place.id} className="place-row place-row-static"><RowBody place={place} /></div>
+          ? <div key={place.id} className="place-row place-row-static"><RowBody place={place} managed={lockedPlaceIds.has(place.id)} /></div>
           : readOnly || lockedPlaceIds.has(place.id)
           ? <button key={place.id} type="button" className="place-row" onClick={() => onFocusPlace(place.id)}>
-              <RowBody place={place} />
+              <RowBody place={place} managed={lockedPlaceIds.has(place.id)} />
             </button>
           : <PlaceRow key={place.id} place={place} locked={false} onFocus={onFocusPlace} />)}
       </ItemList>
@@ -83,7 +84,7 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, locked
   // Порог 5px обязателен: без него обычный клик по точке съедался бы началом
   // перетаскивания и точка перестала бы открываться на карте.
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }))
-  const dayKeys = [UNSCHEDULED_KEY, ...dates]
+  const dayKeys = [...dates, UNSCHEDULED_KEY]
 
   // Раскладка на время перетаскивания: точка переезжает в целевой день между
   // нужными соседями ещё до отпускания. Без этого видна только подсветка дня,

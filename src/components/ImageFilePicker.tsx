@@ -5,14 +5,47 @@ type ImageFilePickerControls = {
   clearPreview: () => void
 }
 
+type FilePickerControls = {
+  open: () => void
+}
+
+type FilePickerProps = {
+  children: (controls: FilePickerControls) => ReactNode
+  accept?: string
+  disabled?: boolean
+  onSelect: (file: File) => void
+}
+
 type ImageFilePickerProps = {
   children: (controls: ImageFilePickerControls) => ReactNode
   disabled?: boolean
   onSelect: (file: File, previewUrl: string) => void
 }
 
-export function ImageFilePicker({ children, disabled = false, onSelect }: ImageFilePickerProps) {
+export function FilePicker({ children, accept, disabled = false, onSelect }: FilePickerProps) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const open = () => {
+    if (!disabled) inputRef.current?.click()
+  }
+
+  return <>
+    {children({ open })}
+    <input
+      ref={inputRef}
+      className="hidden-file-input"
+      type="file"
+      accept={accept}
+      disabled={disabled}
+      onChange={(event) => {
+        const file = event.target.files?.[0]
+        if (file) onSelect(file)
+        event.currentTarget.value = ''
+      }}
+    />
+  </>
+}
+
+export function ImageFilePicker({ children, disabled = false, onSelect }: ImageFilePickerProps) {
   const previewUrlRef = useRef<string | null>(null)
 
   const clearPreview = useCallback(() => {
@@ -23,28 +56,10 @@ export function ImageFilePicker({ children, disabled = false, onSelect }: ImageF
 
   useEffect(() => clearPreview, [clearPreview])
 
-  const open = () => {
-    if (!disabled) inputRef.current?.click()
-  }
-
-  return <>
-    {children({ open, clearPreview })}
-    <input
-      ref={inputRef}
-      className="hidden-file-input"
-      type="file"
-      accept="image/*"
-      disabled={disabled}
-      onChange={(event) => {
-        const file = event.target.files?.[0]
-        if (file) {
-          clearPreview()
-          const previewUrl = URL.createObjectURL(file)
-          previewUrlRef.current = previewUrl
-          onSelect(file, previewUrl)
-        }
-        event.currentTarget.value = ''
-      }}
-    />
-  </>
+  return <FilePicker accept="image/*" disabled={disabled} onSelect={(file) => {
+    clearPreview()
+    const previewUrl = URL.createObjectURL(file)
+    previewUrlRef.current = previewUrl
+    onSelect(file, previewUrl)
+  }}>{({ open }) => children({ open, clearPreview })}</FilePicker>
 }
