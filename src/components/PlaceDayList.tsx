@@ -3,7 +3,7 @@ import { DndContext, MeasuringStrategy, PointerSensor, closestCorners, useDroppa
 import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { placeIconUrl, type PlaceIconKey } from '../placeIcons'
 import { UNSCHEDULED_KEY } from '../places'
-import { IconText } from './IconText'
+import { TextRow } from './TextRow'
 import { ItemList } from './ItemList'
 
 export type ListPlace = { id: string; name: string; icon: PlaceIconKey; url?: string }
@@ -13,7 +13,7 @@ const handleUrl = `${import.meta.env.BASE_URL}assets/icons/drag.svg?v=20260921-3
 function RowBody({ place, draggable = false }: { place: ListPlace; draggable?: boolean }) {
   return (
     <>
-      <IconText icon={<img className="ui-icon" src={placeIconUrl(place.icon)} width={24} height={24} alt="" />}>{place.name}</IconText>
+      <TextRow iconType="icon" icon={<img className="ui-icon" src={placeIconUrl(place.icon)} width={24} height={24} alt="" />}>{place.name}</TextRow>
       {/* Подсказка, что строку можно перетащить. Тащится вся строка, поэтому
           иконка декоративная и своих обработчиков не имеет. */}
       {draggable && <img className="ui-icon place-row-handle" src={handleUrl} width={16} height={16} alt="" aria-hidden="true" />}

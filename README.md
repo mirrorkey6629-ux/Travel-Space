@@ -5,6 +5,10 @@ React/Vite-клиент и Fastify/PostgreSQL API для совместного 
 Актуальные продуктовые, текстовые и интерфейсные договорённости собраны в
 [`docs/product-decisions.md`](docs/product-decisions.md). Архитектурные правила и
 обязательные ограничения для разработки находятся в [`AGENTS.md`](AGENTS.md).
+Спецификация дизайн-системы, компонентов и их интерактивных вариантов находится
+в [`docs/design-system.md`](docs/design-system.md).
+Каталог продуктовых текстов, иконок, состояний и системных изображений находится
+в [`docs/component-content-catalog.md`](docs/component-content-catalog.md).
 
 Приложение публикуется под базовым путём `/travel`, API — под `/travel/api`.
 Префикс задаётся переменной `BASE_PATH` и вшивается в клиентский бандл на этапе

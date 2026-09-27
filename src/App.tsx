@@ -2,20 +2,21 @@ import { CSSProperties, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, 
 import { api, ApiTripDetails, ApiTripSummary, session, TransportType } from './api'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
-import { Input, Select, Textarea } from './components/FormControls'
+import { DateInput, Input, Select, Textarea, TimeZoneInput } from './components/FormControls'
 import { InfoRow } from './components/InfoRow'
+import { InfoRowList } from './components/InfoRowList'
 import { TypographyGroup } from './components/TypographyGroup'
-import { Tabs } from './components/Tabs'
 import { Icon, type IconName } from './components/Icon'
 import { UNSCHEDULED_KEY } from './places'
 import { PlacesMap } from './components/PlacesMap'
 import { PlaceDayList } from './components/PlaceDayList'
 import { placeIconUrl, type PlaceIconKey } from './placeIcons'
-import { SecondaryText } from './components/SecondaryText'
-import { CityRow } from './components/CityRow'
 import { CacheIndicator } from './components/CacheIndicator'
-import { IconText } from './components/IconText'
+import { CheckboxTextRow, TextRow } from './components/TextRow'
 import { ItemList } from './components/ItemList'
+import { FormControlList, FormControlRow } from './components/FormControlList'
+import { TextareaList } from './components/TextareaList'
+import { FormPanelGroup, FormPanelHeader, FormPanelLayout, FormPanelNote } from './components/FormPanel'
 import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
@@ -138,6 +139,7 @@ const formatDate = (value: string) => {
   const date = parseDate(value)
   return `${date.getDate()} ${ruMonths[date.getMonth()]}`
 }
+const formatDateWithWeekday = (value: string) => `${formatDate(value)} · ${ruWeekdays[parseDate(value).getDay()]}`
 const formatCompactNumericDate = (value: string) => {
   const [, month, day] = value.split('-').map(Number)
   if (!month || !day) return 'Дата'
@@ -433,9 +435,11 @@ function LoginScreen({ onSubmit }: { onSubmit: () => Promise<void> }) {
     <form className="glass auth-modal compact" onSubmit={submit}>
       {mode === 'login' ? <RandomGreetingTitle defaultTitle="И снова здравствуйте" /> : <h1>Регистрация</h1>}
       <div className="form-stack tight">
-        {mode === 'register' && <Input theme="accent" icon={<Icon name="face" size={28} />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" autoFocus />}
-        <Input theme="accent" icon={<Icon name="email" size={28} />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" autoFocus={mode === 'login'} />
-        <Input theme="accent" icon={<Icon name="encrypted" size={28} />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
+        <FormControlList>
+          {mode === 'register' && <FormControlRow><Input icon={<Icon name="face" />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" autoFocus /></FormControlRow>}
+          <FormControlRow><Input icon={<Icon name="email" />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" autoFocus={mode === 'login'} /></FormControlRow>
+          <FormControlRow><Input icon={<Icon name="encrypted" />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></FormControlRow>
+        </FormControlList>
         <Button type="submit" disabled={busy || !email.trim() || password.length < 8 || (mode === 'register' && !name.trim())}>{busy ? 'Подожди…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}</Button>
       </div>
       <button className="auth-mode-switch" type="button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}>
@@ -457,12 +461,12 @@ function JoinScreen({ onSubmit, initialLink = '' }: { onSubmit: (link: string, n
     <form className="glass auth-modal join-modal" onSubmit={async (event) => { event.preventDefault(); if (valid) await onSubmit(link, name, email, password, mode) }}>
       <RandomGreetingTitle defaultTitle="Добро пожаловать" />
       <div className="form-stack">
-        <div className="form-stack tight">
-          <Input theme="accent" icon={<Icon name="link" size={28} />} value={link} onChange={(event) => setLink(event.target.value)} placeholder="Ссылка на поездку" />
-          {mode === 'register' && <Input theme="accent" icon={<Icon name="face" size={28} />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" />}
-          <Input theme="accent" icon={<Icon name="email" size={28} />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" />
-          <Input theme="accent" icon={<Icon name="encrypted" size={28} />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} />
-        </div>
+        <FormControlList>
+          <FormControlRow><Input icon={<Icon name="link" />} value={link} onChange={(event) => setLink(event.target.value)} placeholder="Ссылка на поездку" /></FormControlRow>
+          {mode === 'register' && <FormControlRow><Input icon={<Icon name="face" />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" /></FormControlRow>}
+          <FormControlRow><Input icon={<Icon name="email" />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" /></FormControlRow>
+          <FormControlRow><Input icon={<Icon name="encrypted" />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></FormControlRow>
+        </FormControlList>
         <Button type="submit" disabled={!valid}>Я в деле</Button>
       </div>
       <button className="auth-mode-switch" type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
@@ -519,11 +523,11 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
           <span className="profile-avatar-overlay"><Icon name="edit" size={32} /></span>
         </button>
         <input ref={avatarInputRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current); avatarPreviewRef.current = URL.createObjectURL(file); setAvatarUrl(avatarPreviewRef.current); setAvatarFile(file); setMessage(''); event.currentTarget.value = '' }} />
-        <div className="profile-fields">
-          <Input icon={<Icon name="face" />} aria-label="Имя" placeholder="Имя" value={displayName} onChange={(event) => { setDisplayName(event.target.value); setMessage('') }} autoComplete="name" />
-          <Input icon={<Icon name="email" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" />
-          <Input icon={<Icon name="encrypted" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" />
-        </div>
+        <FormControlList className="profile-fields">
+          <FormControlRow><Input icon={<Icon name="face" />} aria-label="Имя" placeholder="Имя" value={displayName} onChange={(event) => { setDisplayName(event.target.value); setMessage('') }} autoComplete="name" /></FormControlRow>
+          <FormControlRow><Input icon={<Icon name="email" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" /></FormControlRow>
+          <FormControlRow><Input icon={<Icon name="encrypted" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" /></FormControlRow>
+        </FormControlList>
         <Button type="submit" disabled={busy || !changed || !valid || !access.canEdit}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button>
         <button className="auth-mode-switch" type="button" onClick={onLogout}>Выйти из аккаунта</button>
         {message && <p className="form-hint">{message}</p>}
@@ -568,9 +572,9 @@ function TripsScreen({ trips, canCreate, deleteTarget, onOpen, onCreate, onClose
         {deleteTarget ? <DeleteTripDialog key={deleteTarget.id} trip={deleteTarget} onClose={onCloseDelete} onConfirm={onConfirmDelete} /> : <div className="trips-default-view setup-transition">
           <header className="trips-header"><h1>Мои поездки</h1></header>
           <div className="trips-content">
-            <div className="trips-list">
+            <InfoRowList className="trips-list">
               {trips.map((item) => <InfoRow key={item.id} image={item.background_removed ? undefined : item.background_document_id ? backgroundUrls[item.id] : defaultTripBackground} imageAlt={item.background_removed ? '' : `Фон поездки ${item.name}`} title={item.name} subtitle={<>{item.role === 'owner' ? 'Владелец' : 'Гость'} · {formatLongRange(item.start_date.slice(0, 10), item.end_date.slice(0, 10))}</>} onClick={() => onOpen(item.id)} actionTheme="secondary" actions={item.role === 'owner' && access.canEdit ? [{ icon: <Icon name="download" />, label: `Экспортировать поездку ${item.name}`, title: 'Экспортировать', onClick: () => void onExport(item) }, { icon: <Icon name="delete-forever" />, label: `Удалить поездку ${item.name}`, title: 'Удалить', className: 'trip-delete-trigger', onClick: () => onDelete(item) }] : []} />)}
-            </div>
+            </InfoRowList>
             {canCreate && access.canEdit && <>
               <AddRow icon={<Icon name="add-plus" />} onClick={onCreate} aria-label="Создать ещё одну поездку" />
               <button className="auth-mode-switch trips-import-link" type="button" onClick={() => importRef.current?.click()}>Импортировать поездку из файла</button>
@@ -590,7 +594,7 @@ function DeleteTripDialog({ trip, onClose, onConfirm }: { trip: ApiTripSummary; 
     <div className="destructive-dialog setup-transition">
         <IconButton className="destructive-dialog-close" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
         <TypographyGroup headingLevel="h2" title={`Удалить «${trip.name}»?`} text="Поездка, города, места и документы будут удалены без возможности восстановления. Введите название поездки вручную:" />
-        <Input theme="accent" showLabel={false} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={trip.name} autoFocus />
+        <Input showLabel={false} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={trip.name} autoFocus />
         <div className="dialog-actions"><Button disabled={confirmation !== trip.name || busy} onClick={async () => { setBusy(true); try { await onConfirm() } finally { setBusy(false) } }}>{busy ? 'Удаляем…' : 'Удалить поездку'}</Button></div>
     </div>
   )
@@ -614,11 +618,11 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
     <section className="glass setup-card invite-screen-card">
       <h1>Участники «{trip.name}»</h1>
       {members.length > 0
-        ? <div className="member-list">{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={!isOwner || member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</div>
+        ? <InfoRowList className="member-list">{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={!isOwner || member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</InfoRowList>
         : <p>Не удалось загрузить список участников.</p>}
       {isOwner && <>
         <TypographyGroup headingLevel="h2" variant="head-m-text" title="Ссылка-приглашение" text="Ссылка действует 24 часа. Новая ссылка сразу отключит предыдущую. Все вошедшие по ней станут гостями." />
-        {invite && <div className="invite-result"><Input label="Активная ссылка" icon={<Icon name="link" />} readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /><small>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</small></div>}
+        {invite && <div className="invite-result"><Input aria-label="Активная ссылка приглашения" icon={<Icon name="link" />} readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /><small>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</small></div>}
         <Button size="l" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(24)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button>
         <TypographyGroup headingLevel="h2" variant="head-m-text" title="Доступ на просмотр" text={'Постоянная ссылка без присоединения к поездке и\u00a0возможности редактирования'} />
         <div className="invite-result"><Input icon={<Icon name="link" />} readOnly value={viewLink} placeholder="Загружаем ссылку…" trailingIcon={viewLink ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку на просмотр" onTrailingIconClick={viewLink ? () => void navigator.clipboard.writeText(viewLink) : undefined} /></div>
@@ -629,11 +633,6 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
 
 const emptyTransport = (): TransportDetails => ({ name: '', departureDate: '', arrivalDate: '', departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', departureStation: '', departureStationUrl: '', arrivalStation: '', arrivalStationUrl: '', notes: '', ticketOnSite: false, payerIds: [], totalAmountRubles: 0 })
 
-function MoneyInput({ value, onChange, ariaLabel }: { value: number; onChange: (value: number) => void; ariaLabel: string }) {
-  const [focused, setFocused] = useState(false)
-  const displayValue = value > 0 ? (focused ? String(value) : `${value.toLocaleString('ru-RU')} ₽`) : ''
-  return <Input showLabel={false} controlClassName="transport-payment-amount" aria-label={ariaLabel} icon={<Icon name="money-bag" />} type="text" inputMode="numeric" placeholder="Общая сумма, ₽" value={displayValue} onFocus={() => setFocused(true)} onBlur={() => setFocused(false)} onChange={(event) => onChange(Math.max(0, Number.parseInt(event.target.value.replace(/\D/g, ''), 10) || 0))} />
-}
 const transportPayload = (city: City) => ({
   transportInType: city.transportIn?.type,
   transportOutType: city.transportOut?.type,
@@ -673,34 +672,7 @@ const assignmentPayload = (city: City) => ({ ticketAssigneeIds: city.ticketAssig
 const cityLocationPayload = (city: City) => ({ googleMapsUrl: city.googleMapsUrl.trim() })
 const emptyCity = (): City => ({ id: uid(), name: '', googleMapsUrl: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotelNotNeeded: false, hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', hotelPayerIds: [], hotelTotalAmountRubles: 0, trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), ticketAssigneeIds: [], hotelAssigneeIds: [], planAssigneeIds: [], places: {}, tasks: [], files: [] })
 
-function AssigneeSelect({ members, value, icon, disabled, emptyLabel = 'Не назначен', onChange }: { members: TripMember[]; value: string[]; icon: IconName; disabled?: boolean; emptyLabel?: string; onChange: (value: string[]) => void }) {
-  const [open, setOpen] = useState(false)
-  const containerRef = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    if (!open) return
-    const close = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
-    }
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
-  }, [open])
-  const selectedNames = members.filter((member) => value.includes(member.id)).map((member) => member.displayName)
-  return <div className={`member-multi-select${open ? ' open' : ''}`} ref={containerRef}>
-    <button className="form-control member-multi-select-trigger" type="button" disabled={disabled} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
-      <span className="form-control-icon"><Icon name={icon} /></span>
-      <span>{selectedNames.length ? selectedNames.join(', ') : emptyLabel}</span>
-    </button>
-    {open && <div className="member-multi-select-menu" role="listbox" aria-multiselectable="true">
-      {members.map((member) => {
-        const selected = value.includes(member.id)
-        return <button key={member.id} type="button" role="option" aria-selected={selected} onClick={() => onChange(selected ? value.filter((id) => id !== member.id) : [...value, member.id])}>
-          <span className={`document-check${selected ? ' checked' : ''}`} aria-hidden="true" />
-          <span>{member.displayName}</span>
-        </button>
-      })}
-    </div>}
-  </div>
-}
+const assigneeOptions = (members: TripMember[]) => members.map((member) => ({ value: member.id, label: member.displayName }))
 
 function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: City; onSave: (city: City) => void; onClose: () => void }) {
   const [city, setCity] = useState<City>(() => initial ? { ...initial, arrivalPeriod: initial.arrivalPeriod ?? 'morning', departurePeriod: initial.departurePeriod ?? 'evening' } : emptyCity())
@@ -713,11 +685,6 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
   const hasImage = Boolean(city.imageFile || city.image || city.imageUrl)
   const members = trip.members ?? []
   const canAssign = trip.role === 'owner' || !trip.id
-  const routeCities = city.arrival ? sortCitiesByDate([...trip.cities.filter((item) => item.id !== city.id), city]) : [...trip.cities.filter((item) => item.id !== city.id), city]
-  const cityIndex = routeCities.findIndex((item) => item.id === city.id)
-  const previousCity = cityIndex > 0 ? routeCities[cityIndex - 1] : undefined
-  const cityLabel = city.name.trim() || 'Новый город'
-  const ticketRouteLabel = previousCity ? `${previousCity.name} – ${cityLabel}` : 'Приезд'
   return (
     <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
       <section className="glass setup-card">
@@ -728,16 +695,18 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
       </div>
       <InfoRow className="city-image-row" image={hasImage ? city.imageUrl || cityPlaceholder : undefined} imageAlt="Фото города" title={hasImage ? 'Фото города' : 'Прикрепить фото города'} subtitle={hasImage ? city.imageFile?.name || city.image?.name || 'Фото города' : 'Лучше в вертикальном формате'} actionTheme="secondary" actions={hasImage ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фото города', onClick: () => imageFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото города', onClick: () => setCity((current) => ({ ...current, imageDeleteId: current.image?.id, image: undefined, imageFile: undefined, imageUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото города', onClick: () => imageFileRef.current?.click() }]} />
       <input ref={imageFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current); imagePreviewUrlRef.current = URL.createObjectURL(file); setCity((current) => ({ ...current, imageFile: file, imageUrl: imagePreviewUrlRef.current ?? undefined })); event.currentTarget.value = '' }} />
-      <div className="field-grid">
-        <label className="field span-2"><span>Город</span><Input value={city.name} onChange={(e) => setCity({ ...city, name: e.target.value })} placeholder="Например, Осака" autoFocus /></label>
-        <label className="field span-2"><span>Ссылка на город в Google Maps</span><Input icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(e) => setCity({ ...city, googleMapsUrl: e.target.value })} placeholder="Ссылка Google Maps" /></label>
-        <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(e) => { const value = e.target.value; setCity((current) => ({ ...current, arrival: value, departure: current.departure < value ? '' : current.departure })) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(e) => setCity((current) => ({ ...current, arrivalPeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-        <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(e) => setCity((current) => ({ ...current, departure: e.target.value }))}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(e) => setCity((current) => ({ ...current, departurePeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-        <div className="field span-2"><span>Кто покупает билет ({ticketRouteLabel})</span><AssigneeSelect members={members} value={city.ticketAssigneeIds} icon="ticket" disabled={!canAssign} onChange={(ticketAssigneeIds) => setCity((current) => ({ ...current, ticketAssigneeIds }))} /></div>
-        <div className="field span-2"><span>Кто бронит отель ({cityLabel})</span><AssigneeSelect members={members} value={city.hotelAssigneeIds} icon="hotel" disabled={!canAssign || city.hotelNotNeeded} onChange={(hotelAssigneeIds) => setCity((current) => ({ ...current, hotelAssigneeIds }))} /></div>
-        <label className="city-hotel-toggle city-hotel-toggle-after-assignee span-2"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => setCity((current) => ({ ...current, hotelNotNeeded: event.target.checked, hotelAssigneeIds: event.target.checked ? [] : current.hotelAssigneeIds }))} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><SecondaryText>Отель не нужен</SecondaryText></label>
-        <div className="field span-2"><span>Кто составляет план города ({cityLabel})</span><AssigneeSelect members={members} value={city.planAssigneeIds} icon="barefoot" disabled={!canAssign} onChange={(planAssigneeIds) => setCity((current) => ({ ...current, planAssigneeIds }))} /></div>
-      </div>
+      <FormControlList gap={24}>
+        <FormControlRow><Input label="Название города" icon={<Icon name="planet" />} value={city.name} onChange={(e) => setCity({ ...city, name: e.target.value })} placeholder="Например, Осака" autoFocus /></FormControlRow>
+        <FormControlRow><Input label="Ссылка Google Maps" icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(e) => setCity({ ...city, googleMapsUrl: e.target.value })} /></FormControlRow>
+        <FormControlRow columns={2}>
+          <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select type="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(e) => { const value = e.target.value; setCity((current) => ({ ...current, arrival: value, departure: current.departure < value ? '' : current.departure })) }}><option value="">Приедем</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(e) => setCity((current) => ({ ...current, arrivalPeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+          <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select type="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(e) => setCity((current) => ({ ...current, departure: e.target.value }))}><option value="">Уедем</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(e) => setCity((current) => ({ ...current, departurePeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+        </FormControlRow>
+        <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.ticketAssigneeIds} icon={<Icon name="ticket" />} emptyLabel="Кто покупает билет" disabled={!canAssign} onValueChange={(ticketAssigneeIds) => setCity((current) => ({ ...current, ticketAssigneeIds }))} /></FormControlRow>
+        <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.hotelAssigneeIds} icon={<Icon name="hotel" />} emptyLabel="Кто бронит отель" disabled={!canAssign || city.hotelNotNeeded} onValueChange={(hotelAssigneeIds) => setCity((current) => ({ ...current, hotelAssigneeIds }))} /></FormControlRow>
+        <FormControlRow><label className="city-hotel-toggle city-hotel-toggle-after-assignee"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => setCity((current) => ({ ...current, hotelNotNeeded: event.target.checked, hotelAssigneeIds: event.target.checked ? [] : current.hotelAssigneeIds }))} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><TextRow showIcon={false}>Отель не нужен</TextRow></label></FormControlRow>
+        <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.planAssigneeIds} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет план города" disabled={!canAssign} onValueChange={(planAssigneeIds) => setCity((current) => ({ ...current, planAssigneeIds }))} /></FormControlRow>
+      </FormControlList>
       </div>
       </section>
       <Button type="submit" disabled={!valid}>Сохранить город</Button>
@@ -765,22 +734,21 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
       <div className="all-cities-scroll">
         <h2>Все города</h2>
         <div className="all-cities-list">
-          {cities.map((city, cityIndex) => {
+          {cities.map((city) => {
             const departureDates = tripDates.filter((date) => !city.arrival || date >= city.arrival)
-            const cityLabel = city.name.trim() || 'Новый город'
-            const previousCity = cities[cityIndex - 1]
-            const ticketRouteLabel = previousCity ? `${previousCity.name} – ${cityLabel}` : 'Приезд'
             return (
-              <section className="all-city-fields" key={city.id}>
-                <label className="field city-name-field"><span>Город</span><Input value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></label>
-                <label className="field span-2"><span>Ссылка на город в Google Maps</span><Input icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(event) => updateCity(city.id, { googleMapsUrl: event.target.value })} placeholder="Ссылка Google Maps" /></label>
-                <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}><option value="">Выберите дату</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-                <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select content="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}><option value="">Выберите дату</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select content="list" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-                <div className="field span-2"><span>Кто покупает билет ({ticketRouteLabel})</span><AssigneeSelect members={members} value={city.ticketAssigneeIds} icon="ticket" disabled={!canAssign} onChange={(ticketAssigneeIds) => updateCity(city.id, { ticketAssigneeIds })} /></div>
-                <div className="field span-2"><span>Кто бронит отель ({cityLabel})</span><AssigneeSelect members={members} value={city.hotelAssigneeIds} icon="hotel" disabled={!canAssign || city.hotelNotNeeded} onChange={(hotelAssigneeIds) => updateCity(city.id, { hotelAssigneeIds })} /></div>
-                <label className="city-hotel-toggle city-hotel-toggle-after-assignee all-city-hotel-toggle"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => updateCity(city.id, { hotelNotNeeded: event.target.checked, ...(event.target.checked ? { hotelAssigneeIds: [] } : {}) })} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><SecondaryText>Отель не нужен</SecondaryText></label>
-                <div className="field span-2"><span>Кто составляет план города ({cityLabel})</span><AssigneeSelect members={members} value={city.planAssigneeIds} icon="barefoot" disabled={!canAssign} onChange={(planAssigneeIds) => updateCity(city.id, { planAssigneeIds })} /></div>
-              </section>
+              <FormControlList className="all-city-fields" gap={24} key={city.id}>
+                <FormControlRow><Input label="Название города" icon={<Icon name="planet" />} value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></FormControlRow>
+                <FormControlRow><Input label="Ссылка Google Maps" icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(event) => updateCity(city.id, { googleMapsUrl: event.target.value })} /></FormControlRow>
+                <FormControlRow columns={2}>
+                  <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select type="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}><option value="">Приедем</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+                  <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select type="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}><option value="">Уедем</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+                </FormControlRow>
+                <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.ticketAssigneeIds} icon={<Icon name="ticket" />} emptyLabel="Кто покупает билет" disabled={!canAssign} onValueChange={(ticketAssigneeIds) => updateCity(city.id, { ticketAssigneeIds })} /></FormControlRow>
+                <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.hotelAssigneeIds} icon={<Icon name="hotel" />} emptyLabel="Кто бронит отель" disabled={!canAssign || city.hotelNotNeeded} onValueChange={(hotelAssigneeIds) => updateCity(city.id, { hotelAssigneeIds })} /></FormControlRow>
+                <FormControlRow><label className="city-hotel-toggle city-hotel-toggle-after-assignee"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => updateCity(city.id, { hotelNotNeeded: event.target.checked, ...(event.target.checked ? { hotelAssigneeIds: [] } : {}) })} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><TextRow showIcon={false}>Отель не нужен</TextRow></label></FormControlRow>
+                <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.planAssigneeIds} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет план города" disabled={!canAssign} onValueChange={(planAssigneeIds) => updateCity(city.id, { planAssigneeIds })} /></FormControlRow>
+              </FormControlList>
             )
           })}
         </div>
@@ -826,9 +794,9 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
           <div className="setup-editor-content">
           <section className="glass setup-card">
           <div className="setup-content setup-transition">
-            <div className="trip-fields">
-              <input className="title-input" value={trip.name} onChange={(e) => setTrip((current) => ({ ...current, name: e.target.value }))} placeholder="Название поездки" />
-              <div className="date-summary">
+            <FormControlList className="trip-fields" gap={12}>
+              <FormControlRow><div className="trip-title-input"><Icon name="book" /><input className="title-input" value={trip.name} onChange={(e) => setTrip((current) => ({ ...current, name: e.target.value }))} placeholder="Название поездки" /></div></FormControlRow>
+              <FormControlRow><div className="date-summary">
                 <button type="button" onClick={() => openDatePicker(startDateRef)}>{trip.startDate ? formatDate(trip.startDate) : 'Дата начала'}</button>
                 <span>–</span>
                 <button type="button" onClick={() => openDatePicker(endDateRef)}>{trip.endDate ? formatDate(trip.endDate) : 'Дата окончания'}</button>
@@ -836,14 +804,16 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
                 <label className="trip-time-zone-picker"><span>·</span><span className="trip-time-zone-value">{formatTimeZoneOffset(trip.timeZone, trip.startDate)}</span><select aria-label="Основной часовой пояс поездки" value={trip.timeZone} onChange={(event) => setTrip((current) => ({ ...current, timeZone: event.target.value }))}>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, trip.startDate)}</option>)}</select></label>
                 <input ref={startDateRef} className="native-date-input" aria-label="Дата начала поездки" type="date" value={trip.startDate} onInput={(e) => { const value = e.currentTarget.value; setTrip((current) => ({ ...current, startDate: value, endDate: current.endDate < value ? '' : current.endDate, cities: [] })) }} />
                 <input ref={endDateRef} className="native-date-input" aria-label="Дата окончания поездки" type="date" min={trip.startDate} value={trip.endDate} onInput={(e) => { const value = e.currentTarget.value; setTrip((current) => ({ ...current, endDate: value, cities: [] })) }} />
-              </div>
-            </div>
-            <InfoRow className="trip-background-row" image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'Лучше в горизонтальном формате'} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: () => backgroundFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: () => backgroundFileRef.current?.click() }]} />
+              </div></FormControlRow>
+            </FormControlList>
             <input ref={backgroundFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: URL.createObjectURL(file), backgroundRemoved: false })); event.currentTarget.value = '' }} />
-            <div className="city-editor-group">
-              {trip.cities.length > 0 && <div className="city-list setup-list">{trip.cities.map((city) => <InfoRow key={city.id} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} title={city.name} subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}${city.hotelNotNeeded ? ' · Отель не нужен' : ''}`} onClick={() => setEditing(city)} actionTheme="secondary" actions={[{ icon: <Icon name="delete-forever" />, label: `Удалить город ${city.name}`, onClick: () => { if (!window.confirm(`Удалить город «${city.name}» из маршрута?`)) return; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id) })) } }]} />)}</div>}
-              <AddRow icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
-              {trip.cities.length > 0 && <button className="route-overview-link" type="button" onClick={() => setEditingAll(true)}><SecondaryText interactive>Посмотреть весь маршрут</SecondaryText></button>}
+            <div className="trip-route-editor">
+              <InfoRow className="trip-background-row" image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'В хорошем качестве'} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: () => backgroundFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: () => backgroundFileRef.current?.click() }]} />
+              <div className="city-editor-group">
+                {trip.cities.length > 0 && <InfoRowList className="setup-list">{trip.cities.map((city) => <InfoRow key={city.id} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} title={city.name} subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}${city.hotelNotNeeded ? ' · Отель не нужен' : ''}`} onClick={() => setEditing(city)} actionTheme="secondary" hoverEffect actions={[{ icon: <Icon name="delete-forever" />, label: `Удалить город ${city.name}`, onClick: () => { if (!window.confirm(`Удалить город «${city.name}» из маршрута?`)) return; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id) })) } }]} />)}</InfoRowList>}
+                <AddRow icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
+                {trip.cities.length > 0 && <button className="route-overview-link" type="button" onClick={() => setEditingAll(true)}><TextRow showIcon={false} hoverEffect>Посмотреть весь маршрут</TextRow></button>}
+              </div>
             </div>
           </div>
           </section>
@@ -855,7 +825,7 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
 }
 
 function DocumentStatus({ checked, children, onClick }: { checked: boolean; children: React.ReactNode; onClick?: () => void }) {
-  return <button type="button" className="document-row" onClick={onClick}><IconText checked={checked}>{children}</IconText></button>
+  return <button type="button" className="document-row" onClick={onClick}><TextRow iconType="checkbox" checkboxState={checked ? 'on' : 'off'}>{children}</TextRow></button>
 }
 
 const isTransportComplete = (details: TransportDetails | undefined, ticketName: string) => Boolean(
@@ -906,22 +876,33 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
     <aside className="sidebar">
       <section className="glass sidebar-card trip-summary">
         <TypographyGroup title={<><CacheIndicator state={cacheState} online={online} />{trip.name}</>} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {!access.canBrowse ? <span>{formatParticipants(Math.max(1, trip.memberCount ?? 0))}</span> : <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button>}</>} />
-        <div className="city-list">{trip.cities.map((city, index) => {
+        <InfoRowList gap={4}>{trip.cities.map((city, index) => {
           const previousCity = trip.cities[index - 1]
           const ticketComplete = previousCity
             ? isTransportComplete(previousCity.transportOut, previousCity.trainOut) || isTransportComplete(city.transportIn, city.trainIn)
             : isTransportComplete(city.transportIn, city.trainIn)
           const hotelComplete = isHotelComplete(city)
           return (
-            <div className="sidebar-city-entry" key={city.id}>
-              <CityRow city={city.name} dates={formatShortRange(city.arrival, city.departure)} duration={formatDays(cityDays(city))} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} selected={city.id === selectedCityId} aria-current={city.id === selectedCityId ? 'true' : undefined} disabled={!access.canBrowse} onClick={access.canBrowse ? () => onCity(city) : undefined} />
-              {access.canBrowse && <div className="sidebar-city-actions">
-                {!city.hotelNotNeeded && <span className="sidebar-city-action"><IconButton size="m" theme="secondary" icon={<Icon name="hotel" />} aria-label={`Отель в ${city.name}`} title={`Отель в ${city.name}`} onClick={() => onHotel(city)} />{hotelComplete && <span className="city-action-complete" aria-hidden="true"><Icon name="check-small" size={16} /></span>}</span>}
-                <span className="sidebar-city-action"><IconButton size="m" theme="secondary" icon={<Icon name="ticket" />} aria-label={`Билет в ${city.name}`} title={`Билет в ${city.name}`} onClick={() => previousCity ? onTransport(previousCity, 'out') : onTransport(city, 'in')} />{ticketComplete && <span className="city-action-complete" aria-hidden="true"><Icon name="check-small" size={16} /></span>}</span>
-              </div>}
-            </div>
+            <InfoRow
+              key={city.id}
+              className={city.id === selectedCityId ? 'selected' : ''}
+              theme="transparent"
+              image={city.imageUrl || cityPlaceholder}
+              imageAlt="Изображение города"
+              imageFallback={cityPlaceholder}
+              title={city.name}
+              subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}`}
+              onClick={access.canBrowse ? () => onCity(city) : undefined}
+              actionTheme="secondary"
+              hoverEffect
+              showActionIndicators
+              actions={access.canBrowse ? [
+                ...(!city.hotelNotNeeded ? [{ icon: <Icon name="hotel" />, label: `Отель в ${city.name}`, title: `Отель в ${city.name}`, onClick: () => onHotel(city), complete: hotelComplete }] : []),
+                { icon: <Icon name="ticket" />, label: `Билет в ${city.name}`, title: `Билет в ${city.name}`, onClick: () => previousCity ? onTransport(previousCity, 'out') : onTransport(city, 'in'), complete: ticketComplete },
+              ] : []}
+            />
           )
-        })}</div>
+        })}</InfoRowList>
         {access.canManageTrip && <div className="trip-summary-actions">
           <Button size="m" onClick={onEdit}>Редактировать</Button>
           <Button size="m" theme="secondary" onClick={onInvite}>Пригласить</Button>
@@ -929,9 +910,8 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
       </section>
       {access.canBrowse && <section className="glass sidebar-card links-card">
         <TypographyGroup className="readiness-heading" title="Готовность к поездке" text={`${countdownText} · Готовность ${readinessPercent}%`} />
-        {hotelCities.length > 0 && <><h3>Жильё</h3><ItemList>{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withAssignees(city.name, city.hotelAssigneeIds, members)}</DocumentStatus>)}</ItemList></>}
-        <h3 className={hotelCities.length > 0 ? 'readiness-transport-heading' : undefined}>Транспорт</h3>
-        <ItemList>
+        {hotelCities.length > 0 && <ItemList headline="Жильё">{hotelCities.map((city) => <DocumentStatus key={city.id} checked={isHotelComplete(city)} onClick={() => onHotel(city)}>{withAssignees(city.name, city.hotelAssigneeIds, members)}</DocumentStatus>)}</ItemList>}
+        <ItemList headline="Транспорт" className={hotelCities.length > 0 ? 'readiness-transport-list' : undefined}>
           {trip.cities[0] && <DocumentStatus checked={isTransportComplete(trip.cities[0].transportIn, trip.cities[0].trainIn)} onClick={() => onTransport(trip.cities[0], 'in')}><TransportLabel label={withTicketDetails(`Дом – ${trip.cities[0].name}`, trip.cities[0].transportIn?.ticketOnSite, trip.cities[0].ticketAssigneeIds, members)} type={trip.cities[0].transportIn?.type} /></DocumentStatus>}
           {trip.cities.slice(0, -1).map((city, index) => {
             const nextCity = trip.cities[index + 1]
@@ -945,10 +925,11 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
         <Button size="m" theme="secondary" onClick={onExpenses}>Посмотреть траты</Button>
       </section>}
       {user && <section className="glass sidebar-card profile-card">
-        <InfoRow className="profile-info-row" image={user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`} imageAlt="Аватар профиля" imageShape="circle" title={user.displayName} subtitle={user.email} onClick={onProfile} />
+        <InfoRow className="profile-info-row" theme="transparent" image={user.avatarUrl || `${import.meta.env.BASE_URL}assets/person-owner.png`} imageAlt="Аватар профиля" imageShape="circle" title={user.displayName} subtitle={user.email} onClick={onProfile} />
         {(showTrips || isAdmin) && <div className="profile-card-actions">
           {showTrips && <Button size="m" onClick={onTrips}>Мои поездки</Button>}
           {isAdmin && <Button size="m" theme="secondary" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}components`)}>Компоненты</Button>}
+          {isAdmin && <Button size="m" theme="secondary" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}components?view=content`)}>Контент</Button>}
         </div>}
       </section>}
     </aside>
@@ -1008,9 +989,9 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
         <section className="glass transport-editor-card expenses-card">
           <TypographyGroup title="Траты" text={`Всего ${formatRubles(allExpenses.reduce((sum, expense) => sum + expense.totalAmountRubles, 0))}`} />
           {allExpenses.length === 0 && <p className="expenses-empty">Трат пока нет</p>}
-          {expenses.hotels.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Жильё" text={`Всего ${formatRubles(categoryTotal(expenses.hotels))}`} /><div className="expenses-list">{expenses.hotels.map(expenseRow)}</div></section>}
-          {expenses.transport.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Транспорт" text={`Всего ${formatRubles(categoryTotal(expenses.transport))}`} /><div className="expenses-list">{expenses.transport.map(expenseRow)}</div></section>}
-          {memberExpenses.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Итого по людям" /><div className="expenses-list">{memberExpenses.map(({ member, records, totalAmountRubles }) => <InfoRow key={member.id} className="expense-row" image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={formatExpenseRecords(records)} trailing={formatRubles(totalAmountRubles)} />)}</div></section>}
+          {expenses.hotels.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Жильё" text={`Всего ${formatRubles(categoryTotal(expenses.hotels))}`} /><InfoRowList className="expenses-list">{expenses.hotels.map(expenseRow)}</InfoRowList></section>}
+          {expenses.transport.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Транспорт" text={`Всего ${formatRubles(categoryTotal(expenses.transport))}`} /><InfoRowList className="expenses-list">{expenses.transport.map(expenseRow)}</InfoRowList></section>}
+          {memberExpenses.length > 0 && <section className="expenses-group"><InfoRowList className="expenses-list" headline="Итого по людям">{memberExpenses.map(({ member, records, totalAmountRubles }) => <InfoRow key={member.id} className="expense-row" image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={formatExpenseRecords(records)} trailing={formatRubles(totalAmountRubles)} />)}</InfoRowList></section>}
         </section>
       </div>
     </main>
@@ -1171,7 +1152,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
                   if (item.type === 'event') {
                     const event = item.event
                     const eventText = `${event.title}${event.subtitle ? `${event.subtitle.startsWith('(') ? ' ' : ' · '}${event.subtitle}` : ''}`
-                    const content = event.icon ? <IconText icon={<Icon name={event.icon} />}>{eventText}</IconText> : <span>{eventText}</span>
+                    const content = event.icon ? <TextRow iconType="icon" icon={<Icon name={event.icon} />}>{eventText}</TextRow> : <span>{eventText}</span>
                     return <li key={item.key}>{!access.canBrowse ? <span className="day-event-line read-only">{content}</span> : <button type="button" className="day-event-line" onClick={() => event.panel ? onEvent(event.city, event.panel) : onCity(event.city)}>{content}</button>}</li>
                   }
                   const managedPlaceId = item.icon === 'hotel'
@@ -1185,7 +1166,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
                     : !access.canBrowse
                       ? (item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.name}</a> : <span>{item.name}</span>)
                       : <button type="button" onClick={() => targetPlaceId ? onPlace(item.city, targetPlaceId) : onCity(item.city)}>{item.name}</button>
-                  return <li key={item.key} className="day-location-line"><IconText icon={<img className="ui-icon" src={placeIconUrl(item.icon)} width={24} height={24} alt="" />}>{label}</IconText></li>
+                  return <li key={item.key} className="day-location-line"><TextRow iconType="icon" icon={<img className="ui-icon" src={placeIconUrl(item.icon)} width={24} height={24} alt="" />}>{label}</TextRow></li>
                 })}</ItemList>}
                 {events.length === 0 && <p className="empty-text">В этот день пока нет событий</p>}
               </>}
@@ -1198,7 +1179,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
 }
 
 const transportNames: Record<TransportType, string> = { train: 'Поезд', plane: 'Самолёт', bus: 'Автобус', ship: 'Корабль' }
-const transportNamePlaceholders: Record<TransportType, string> = { train: 'Название поезда', plane: 'Название или номер рейса', bus: 'Название автобуса или номер рейса', ship: 'Название корабля' }
+const transportNamePlaceholders: Record<TransportType, string> = { train: 'Название и номер поезда', plane: 'Номер рейса', bus: 'Название и номер автобуса', ship: 'Название и номер корабля' }
 const transportIconNames: Record<TransportType, IconName> = { train: 'train', plane: 'plane', bus: 'train', ship: 'sailing' }
 const timeZones = ['Europe/Moscow', 'Europe/London', 'Europe/Paris', 'Europe/Istanbul', 'Asia/Dubai', 'Asia/Tokyo', 'Asia/Seoul', 'Asia/Shanghai', 'Asia/Bangkok', 'America/New_York', 'America/Los_Angeles']
 const formatTimeZoneOption = (timeZone: string, date?: string) => {
@@ -1229,8 +1210,6 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
     const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
     return { ...value, ticketOnSite, ...(ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) }
   })
-  const departureDateRef = useRef<HTMLInputElement>(null)
-  const arrivalDateRef = useRef<HTMLInputElement>(null)
   const visibleTickets = tickets.slice(0, 1)
   const legacyTicketName = visibleTickets.length === 0 ? ticketName : ''
   const ticketCount = visibleTickets.length + Number(Boolean(legacyTicketName))
@@ -1242,75 +1221,62 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   return (
     <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); onSave(draft.ticketOnSite ? { ...draft, departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : draft) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
-      <div className="transport-editor-content">
-        <section className="glass editor transport-dialog transport-editor-card">
-        <div className="transport-dialog-stack">
-          <div className="transport-ticket-setup">
-            <fieldset className="dialog-fields transport-mode-fields" disabled={readOnly}>
-              <h3 className="transport-section-title">Как поедем</h3>
-              <div className="transport-mode-stack">
-                <Select content="list" icon={<Icon name={draft.type ? transportIconNames[draft.type] : 'rocket-launch'} />} displayValue={draft.type ? transportNames[draft.type] : 'Транспорт'} controlClassName="transport-type-select" aria-label="Тип транспорта" value={draft.type ?? ''} onChange={(event) => { const type = event.target.value as TransportType; setDraft({ ...draft, type, ticketOnSite: type === 'plane' ? false : draft.ticketOnSite }) }}>
+      <FormPanelLayout action={!readOnly && <Button type="submit">Сохранить</Button>}>
+        <FormPanelGroup>
+          <FormPanelGroup>
+            <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
+              <FormControlList headline="Как поедем"><FormControlRow columns={2}>
+                <Select type="time" label={draft.type ? 'Тип транспорта' : undefined} icon={<Icon name={draft.type ? transportIconNames[draft.type] : 'rocket-launch'} />} displayValue={draft.type ? transportNames[draft.type] : undefined} aria-label="Тип транспорта" value={draft.type ?? ''} onChange={(event) => { const type = event.target.value as TransportType; setDraft({ ...draft, type, ticketOnSite: type === 'plane' ? false : draft.ticketOnSite }) }}>
                   <option value="">Транспорт</option>
                   {(Object.keys(transportNames) as TransportType[]).map((type) => <option key={type} value={type}>{transportEmoji[type]} {transportNames[type]}</option>)}
                 </Select>
-                <Input showLabel={false} aria-label={draft.type ? transportNamePlaceholders[draft.type] : 'Название транспорта'} icon={<Icon name="book" />} placeholder={draft.type ? transportNamePlaceholders[draft.type] : 'Название транспорта'} value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
-              </div>
-            </fieldset>
-            <div className="transport-ticket-list">
-              {visibleTickets.map((ticket) => <InfoRow key={ticket.id} className="transport-ticket-row" disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={ticket.name} subtitle={documentMetadata(ticket)} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }])]} />)}
-              {legacyTicketName && <InfoRow className="transport-ticket-row" disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={legacyTicketName} />}
-              {ticketCount < 1 && !readOnly && <InfoRow className="transport-ticket-row transport-ticket-row-empty" disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
-            </div>
-            <div className="transport-ticket-meta-row">
-              <button className="transport-ticket-on-site" type="button" disabled={readOnly || draft.type === 'plane'} onClick={() => setDraft({ ...draft, ticketOnSite: !draft.ticketOnSite, ...(!draft.ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) })}>
-                <span className={`document-check${draft.ticketOnSite ? ' checked' : ''}`} role="checkbox" aria-checked={draft.ticketOnSite} />
-                <span>{TICKET_ON_SITE_PAGE_TEXT}</span>
-              </button>
-            </div>
-          </div>
-          <fieldset className="dialog-fields transport-stack-fields" disabled={readOnly}>
-            <div className="transport-route-layout">
-              <div className="transport-route-headings">
-                <h3>{departureLabel} – {arrivalLabel}</h3>
-                <p className="transport-duration">{journeySummary}</p>
-              </div>
-              <div className="transport-route-columns">
-                <section className="transport-route-group transport-route-arrival">
-                  <div className="transport-route-column">
-                <label className="form-control transport-date-picker" onClick={(event) => { event.preventDefault(); if (readOnly) return; arrivalDateRef.current?.showPicker() }}><span className="form-control-icon"><Icon name="calendar-month" /></span><span>{formatCompactNumericDate(draft.arrivalDate)}</span><input ref={arrivalDateRef} aria-label="Дата приезда" type="date" value={draft.arrivalDate} onChange={(event) => setDraft({ ...draft, arrivalDate: event.target.value })} /></label>
-                <label className={`form-control transport-time-picker${draft.ticketOnSite ? ' transport-time-picker-disabled' : ''}`} aria-disabled={draft.ticketOnSite || undefined}><span className="form-control-icon"><Icon name="time" /></span><input aria-label="Время приезда" type="time" disabled={draft.ticketOnSite} value={draft.arrivalTime} onChange={(event) => setDraft({ ...draft, arrivalTime: event.target.value })} /><span className="transport-time-zone-picker"><span>{formatTimeZoneOffset(arrivalTimeZone, draft.arrivalDate)}</span><select aria-label="Часовой пояс приезда" disabled={draft.ticketOnSite} value={draft.arrivalTimeZone} onChange={(event) => setDraft({ ...draft, arrivalTimeZone: event.target.value })}><option value="">По часовому поясу поездки — {formatTimeZoneOption(defaultTimeZone, draft.arrivalDate)}</option>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, draft.arrivalDate)}</option>)}</select></span></label>
-                <Input showLabel={false} aria-label="Место приезда" icon={<Icon name="attractions" />} placeholder="Название места" value={draft.arrivalStation} onChange={(event) => setDraft({ ...draft, arrivalStation: event.target.value })} />
-                <Input showLabel={false} aria-label="Ссылка Google Maps места приезда" icon={<Icon name="pin-transport" />} trailingIcon={draft.arrivalStationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.arrivalStationUrl.trim() ? () => void navigator.clipboard.writeText(draft.arrivalStationUrl.trim()) : undefined} controlClassName="transport-link-input" type="url" placeholder="Ссылка Google Maps" value={draft.arrivalStationUrl} onChange={(event) => setDraft({ ...draft, arrivalStationUrl: event.target.value })} />
-                  </div>
-                </section>
-                <section className="transport-route-group transport-route-departure">
-                  <div className="transport-route-column">
-                <label className="form-control transport-date-picker" onClick={(event) => { event.preventDefault(); if (readOnly) return; departureDateRef.current?.showPicker() }}><span className="form-control-icon"><Icon name="calendar-month" /></span><span>{formatCompactNumericDate(draft.departureDate)}</span><input ref={departureDateRef} aria-label="Дата отъезда" type="date" value={draft.departureDate} onChange={(event) => setDraft({ ...draft, departureDate: event.target.value })} /></label>
-                <label className={`form-control transport-time-picker${draft.ticketOnSite ? ' transport-time-picker-disabled' : ''}`} aria-disabled={draft.ticketOnSite || undefined}><span className="form-control-icon"><Icon name="time" /></span><input aria-label="Время отъезда" type="time" disabled={draft.ticketOnSite} value={draft.departureTime} onChange={(event) => setDraft({ ...draft, departureTime: event.target.value })} /><span className="transport-time-zone-picker"><span>{formatTimeZoneOffset(departureTimeZone, draft.departureDate)}</span><select aria-label="Часовой пояс отправления" disabled={draft.ticketOnSite} value={draft.departureTimeZone} onChange={(event) => setDraft({ ...draft, departureTimeZone: event.target.value })}><option value="">По часовому поясу поездки — {formatTimeZoneOption(defaultTimeZone, draft.departureDate)}</option>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, draft.departureDate)}</option>)}</select></span></label>
-                <Input showLabel={false} aria-label="Место отправления" icon={<Icon name="attractions" />} placeholder="Название места" value={draft.departureStation} onChange={(event) => setDraft({ ...draft, departureStation: event.target.value })} />
-                <Input showLabel={false} aria-label="Ссылка Google Maps места отправления" icon={<Icon name="pin-transport" />} trailingIcon={draft.departureStationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.departureStationUrl.trim() ? () => void navigator.clipboard.writeText(draft.departureStationUrl.trim()) : undefined} controlClassName="transport-link-input" type="url" placeholder="Ссылка Google Maps" value={draft.departureStationUrl} onChange={(event) => setDraft({ ...draft, departureStationUrl: event.target.value })} />
-                  </div>
-                </section>
-              </div>
-            </div>
-            <section className="transport-route-group transport-notes-group">
-              <h3>Что стоит помнить</h3>
-              <Textarea aria-label="Заметки о транспорте" placeholder="Места, ориентиры и важная информация" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
-              {!draft.ticketOnSite && <div className="transport-payment-group">
-                <h3>Оплата</h3>
-                <div className="transport-payment-fields">
-                  <AssigneeSelect members={members} value={draft.payerIds} icon="face" emptyLabel="Кто платил" onChange={(payerIds) => setDraft({ ...draft, payerIds })} />
-                  <MoneyInput ariaLabel="Общая сумма в рублях" value={draft.totalAmountRubles} onChange={(totalAmountRubles) => setDraft({ ...draft, totalAmountRubles })} />
-                </div>
-                {draft.totalAmountRubles > 0 && draft.payerIds.length > 1 && <p className="transport-payment-share">По {(draft.totalAmountRubles / draft.payerIds.length).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ заплатил каждый</p>}
-              </div>}
-              <p className="transport-completion-hint">{draft.ticketOnSite ? 'P.S. Галочка в меню появится после заполнения дат и названий\u00a0локаций' : 'P.S. Галочка в меню появится после заполнения дат, времени, названий\u00a0локаций\u00a0и\u00a0прикрепления\u00a0билета'}</p>
-            </section>
-          </fieldset>
-        </div>
-        </section>
-        {!readOnly && <Button type="submit">Сохранить</Button>}
-      </div>
+                <Input aria-label={draft.type ? transportNamePlaceholders[draft.type] : 'Название транспорта'} icon={<Icon name="book" />} placeholder={draft.type ? transportNamePlaceholders[draft.type] : 'Название транспорта'} value={draft.name} disabled={!draft.type} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+              </FormControlRow></FormControlList>
+            </FormPanelGroup>
+            <FormPanelGroup gap={8}>
+            <InfoRowList>
+              {visibleTickets.map((ticket) => <InfoRow key={ticket.id} disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={ticket.name} subtitle={documentMetadata(ticket)} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }])]} />)}
+              {legacyTicketName && <InfoRow disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={legacyTicketName} />}
+              {ticketCount < 1 && !readOnly && <InfoRow disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" imageDimmed title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
+            </InfoRowList>
+            <CheckboxTextRow checked={draft.ticketOnSite} disabled={readOnly || draft.type === 'plane'} onClick={() => setDraft({ ...draft, ticketOnSite: !draft.ticketOnSite, ...(!draft.ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) })}>{TICKET_ON_SITE_PAGE_TEXT}</CheckboxTextRow>
+            </FormPanelGroup>
+          </FormPanelGroup>
+          <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly} flatten>
+            <FormPanelGroup order="first">
+              <FormPanelHeader title={`${departureLabel} – ${arrivalLabel}`} text={journeySummary} />
+              <FormControlList>
+                <FormControlRow columns={2}>
+                  <DateInput label="Уедем" icon={<Icon name="calendar-month" />} displayValue={formatCompactNumericDate(draft.departureDate)} aria-label="Дата отъезда" value={draft.departureDate} onChange={(event) => setDraft({ ...draft, departureDate: event.target.value })} />
+                  <DateInput label="Приедем" icon={<Icon name="calendar-month" />} displayValue={formatCompactNumericDate(draft.arrivalDate)} aria-label="Дата приезда" value={draft.arrivalDate} onChange={(event) => setDraft({ ...draft, arrivalDate: event.target.value })} />
+                </FormControlRow>
+                <FormControlRow columns={2}>
+                  <TimeZoneInput label="Время отъезда" icon={<Icon name="time" />} aria-label="Время отъезда" disabled={draft.ticketOnSite} value={draft.departureTime} onChange={(event) => setDraft({ ...draft, departureTime: event.target.value })} secondaryText={formatTimeZoneOffset(departureTimeZone, draft.departureDate)} secondaryLabel="Часовой пояс отправления" secondaryValue={draft.departureTimeZone} secondaryOptions={[{ value: '', label: `По часовому поясу поездки — ${formatTimeZoneOption(defaultTimeZone, draft.departureDate)}` }, ...timeZones.map((zone) => ({ value: zone, label: formatTimeZoneOption(zone, draft.departureDate) }))]} onSecondaryChange={(departureTimeZone) => setDraft({ ...draft, departureTimeZone })} />
+                  <TimeZoneInput label="Время приезда" icon={<Icon name="time" />} aria-label="Время приезда" disabled={draft.ticketOnSite} value={draft.arrivalTime} onChange={(event) => setDraft({ ...draft, arrivalTime: event.target.value })} secondaryText={formatTimeZoneOffset(arrivalTimeZone, draft.arrivalDate)} secondaryLabel="Часовой пояс приезда" secondaryValue={draft.arrivalTimeZone} secondaryOptions={[{ value: '', label: `По часовому поясу поездки — ${formatTimeZoneOption(defaultTimeZone, draft.arrivalDate)}` }, ...timeZones.map((zone) => ({ value: zone, label: formatTimeZoneOption(zone, draft.arrivalDate) }))]} onSecondaryChange={(arrivalTimeZone) => setDraft({ ...draft, arrivalTimeZone })} />
+                </FormControlRow>
+                <FormControlRow columns={2}>
+                  <Input label="Место отъезда" aria-label="Место отъезда" icon={<Icon name="public" />} value={draft.departureStation} onChange={(event) => setDraft({ ...draft, departureStation: event.target.value })} />
+                  <Input label="Место приезда" aria-label="Место приезда" icon={<Icon name="public" />} value={draft.arrivalStation} onChange={(event) => setDraft({ ...draft, arrivalStation: event.target.value })} />
+                </FormControlRow>
+                <FormControlRow columns={2}>
+                  <Input aria-label="Ссылка Google Maps места отправления" icon={<Icon name="pin-transport" />} trailingIcon={draft.departureStationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.departureStationUrl.trim() ? () => void navigator.clipboard.writeText(draft.departureStationUrl.trim()) : undefined} type="url" placeholder="Ссылка Google Maps" value={draft.departureStationUrl} onChange={(event) => setDraft({ ...draft, departureStationUrl: event.target.value })} />
+                  <Input aria-label="Ссылка Google Maps места приезда" icon={<Icon name="pin-transport" />} trailingIcon={draft.arrivalStationUrl.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.arrivalStationUrl.trim() ? () => void navigator.clipboard.writeText(draft.arrivalStationUrl.trim()) : undefined} type="url" placeholder="Ссылка Google Maps" value={draft.arrivalStationUrl} onChange={(event) => setDraft({ ...draft, arrivalStationUrl: event.target.value })} />
+                </FormControlRow>
+              </FormControlList>
+            </FormPanelGroup>
+            <FormPanelGroup order="last">
+              <TextareaList headline="Что стоит помнить"><Textarea aria-label="Заметки о транспорте" placeholder="Места, ориентиры и важная информация" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></TextareaList>
+              {!draft.ticketOnSite && <FormPanelGroup>
+                <FormControlList headline="Оплата"><FormControlRow columns={2}>
+                  <Select type="assignee" options={assigneeOptions(members)} value={draft.payerIds} icon={<Icon name="face" />} emptyLabel="Кто платил" onValueChange={(payerIds) => setDraft({ ...draft, payerIds })} />
+                  <Input content="money" aria-label="Общая сумма в рублях" value={draft.totalAmountRubles} onValueChange={(totalAmountRubles) => setDraft({ ...draft, totalAmountRubles })} />
+                </FormControlRow></FormControlList>
+              </FormPanelGroup>}
+              <FormPanelNote centered>{draft.ticketOnSite ? 'P.S. Галочка в меню появится после заполнения дат и названий\u00a0локаций' : 'P.S. Галочка в меню появится после заполнения дат, времени, названий\u00a0локаций\u00a0и\u00a0прикрепления\u00a0билета'}</FormPanelNote>
+            </FormPanelGroup>
+          </FormPanelGroup>
+        </FormPanelGroup>
+      </FormPanelLayout>
     </form>
   )
 }
@@ -1320,38 +1286,36 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
   return (
     <form className="transport-editor-screen trip-background setup-transition" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); onSave({ name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim(), payerIds: draft.payerIds, totalAmountRubles: draft.totalAmountRubles }) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
-      <div className="transport-editor-content">
-        <section className="glass editor transport-dialog transport-editor-card hotel-editor-card">
-          <div id="hotel-title" className="transport-dialog-title"><TypographyGroup headingLevel="h2" title={`Отель ${cityName}`} /></div>
-          <fieldset className="dialog-fields hotel-editor-fields" disabled={readOnly}>
-            <div className="hotel-time-fields">
-              <Input label="Время заселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkInTime} onChange={(event) => setDraft({ ...draft, checkInTime: manualTime(event.target.value) })} />
-              <Input label="Время выселения" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkOutTime} onChange={(event) => setDraft({ ...draft, checkOutTime: manualTime(event.target.value) })} />
-            </div>
-            <div className="hotel-location-fields">
-              <Input showLabel={false} icon={<Icon name="hotel" />} aria-label="Название места" placeholder="Название места" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} autoFocus />
-              <Input showLabel={false} icon={<Icon name="pin-home" />} trailingIcon={draft.url.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.url.trim() ? () => void navigator.clipboard.writeText(draft.url.trim()) : undefined} controlClassName="transport-link-input" aria-label="Ссылка на отель в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} />
-            </div>
-          </fieldset>
-          {(booking || !readOnly) && <InfoRow className={booking ? 'transport-ticket-row' : 'transport-ticket-row transport-ticket-row-empty'} image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" title={booking ? booking.name : 'Прикрепить бронь'} subtitle={booking ? documentMetadata(booking) : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }])] : readOnly ? [] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />}
-          <fieldset className="dialog-fields hotel-details-fields" disabled={readOnly}>
-            <section className="transport-route-group transport-notes-group hotel-notes-group">
-              <h3>Что стоит помнить</h3>
-              <Textarea aria-label="Заметки об отеле" placeholder="Места, ориентиры и важная информация" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} />
-              <div className="transport-payment-group">
-                <h3>Оплата</h3>
-                <div className="transport-payment-fields">
-                  <AssigneeSelect members={members} value={draft.payerIds} icon="face" emptyLabel="Кто платил" onChange={(payerIds) => setDraft({ ...draft, payerIds })} />
-                  <MoneyInput ariaLabel="Общая сумма за отель в рублях" value={draft.totalAmountRubles} onChange={(totalAmountRubles) => setDraft({ ...draft, totalAmountRubles })} />
-                </div>
-                {draft.totalAmountRubles > 0 && draft.payerIds.length > 1 && <p className="transport-payment-share">По {(draft.totalAmountRubles / draft.payerIds.length).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} ₽ заплатил каждый</p>}
-              </div>
-            </section>
-          </fieldset>
-          <p className="transport-completion-hint">P.S. Галочка в меню появится, когда все поля будут заполнены и&nbsp;появится&nbsp;файл&nbsp;с&nbsp;бронью&nbsp;отеля</p>
-        </section>
-        {!readOnly && <Button type="submit">Сохранить</Button>}
-      </div>
+      <FormPanelLayout action={!readOnly && <Button type="submit">Сохранить</Button>}>
+          <FormPanelHeader id="hotel-title" title={`Отель ${cityName}`} />
+          <FormPanelGroup>
+          <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
+            <FormControlList>
+              <FormControlRow columns={2}>
+              <Input label="Заселение с" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkInTime} onChange={(event) => setDraft({ ...draft, checkInTime: manualTime(event.target.value) })} />
+              <Input label="Выселение до" icon={<Icon name="time" />} type="text" inputMode="numeric" maxLength={5} placeholder="--:--" value={draft.checkOutTime} onChange={(event) => setDraft({ ...draft, checkOutTime: manualTime(event.target.value) })} />
+              </FormControlRow>
+              <FormControlRow>
+              <Input icon={<Icon name="hotel" />} aria-label="Название места" placeholder="Название места" value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />
+              </FormControlRow>
+              <FormControlRow>
+              <Input icon={<Icon name="pin-home" />} trailingIcon={draft.url.trim() ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={draft.url.trim() ? () => void navigator.clipboard.writeText(draft.url.trim()) : undefined} aria-label="Ссылка на отель в Google Maps" type="url" placeholder="Ссылка Google Maps" value={draft.url} onChange={(event) => setDraft({ ...draft, url: event.target.value })} />
+              </FormControlRow>
+            </FormControlList>
+          </FormPanelGroup>
+          {(booking || !readOnly) && <InfoRow image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" imageDimmed={!booking} title={booking ? booking.name : 'Прикрепить бронь'} subtitle={booking ? documentMetadata(booking) : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : onBooking} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }])] : readOnly ? [] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: onBooking }]} />}
+          </FormPanelGroup>
+          <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
+              <TextareaList headline="Что стоит помнить"><Textarea aria-label="Заметки об отеле" placeholder="Места, ориентиры и важная информация" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></TextareaList>
+              <FormPanelGroup>
+                <FormControlList headline="Оплата"><FormControlRow columns={2}>
+                  <Select type="assignee" options={assigneeOptions(members)} value={draft.payerIds} icon={<Icon name="face" />} emptyLabel="Кто платил" onValueChange={(payerIds) => setDraft({ ...draft, payerIds })} />
+                  <Input content="money" aria-label="Общая сумма за отель в рублях" value={draft.totalAmountRubles} onValueChange={(totalAmountRubles) => setDraft({ ...draft, totalAmountRubles })} />
+                </FormControlRow></FormControlList>
+              </FormPanelGroup>
+          </FormPanelGroup>
+          <FormPanelNote centered>P.S. Галочка в меню появится, когда все поля будут заполнены и&nbsp;появится&nbsp;файл&nbsp;с&nbsp;бронью&nbsp;отеля</FormPanelNote>
+      </FormPanelLayout>
     </form>
   )
 }
@@ -1526,6 +1490,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
                 activeDate={activeDate}
                 readOnly={readOnly}
                 formatDate={formatDate}
+                formatDateOption={formatDateWithWeekday}
                 focusRequest={focusRequest}
                 onFocusHandled={() => setFocusRequest(null)}
                 onEditTarget={({ cityId, panel }) => onOpenManagedPanel(cityId, panel)}

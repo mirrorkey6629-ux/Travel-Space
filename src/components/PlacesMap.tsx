@@ -89,7 +89,7 @@ function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false, inter
   return element
 }
 
-export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, readOnly, formatDate, onAdd, onUpdate, onDelete, onResolvePlace, onEditTarget, onOpenBooking, focusRequest, onFocusHandled }: {
+export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, readOnly, formatDate, formatDateOption, onAdd, onUpdate, onDelete, onResolvePlace, onEditTarget, onOpenBooking, focusRequest, onFocusHandled }: {
   query: string
   centerUrl?: string
   places: MapPlace[]
@@ -97,6 +97,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
   activeDate: string | null
   readOnly?: boolean
   formatDate: (value: string) => string
+  formatDateOption: (value: string) => string
   onAdd: (value: { name: string; icon: PlaceIconKey; date: string; position: Coordinates }) => void
   onUpdate: (id: string, value: { name: string; icon: PlaceIconKey; date: string }) => void
   onDelete: (id: string) => void
@@ -362,6 +363,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
             draft={popupDraft}
             dates={dates}
             formatDate={formatDate}
+            formatDateOption={formatDateOption}
             readOnly={readOnly}
             dateLocked={selected?.dateLocked}
             mapsUrl={selected ? placeMapsHref(selected) || undefined : undefined}
@@ -394,6 +396,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
             draft={{ name: selected.name, icon: selected.icon, date: selected.date }}
             dates={dates}
             formatDate={formatDate}
+            formatDateOption={formatDateOption}
             readOnly
             mapsUrl={placeMapsHref(selected) || undefined}
             onEdit={() => undefined}

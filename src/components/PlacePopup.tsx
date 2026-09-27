@@ -1,17 +1,19 @@
 import { Button, IconButton } from './Button'
 import { Input, Select } from './FormControls'
+import { FormControlList, FormControlRow } from './FormControlList'
 import { Icon } from './Icon'
-import { IconText } from './IconText'
+import { TextRow } from './TextRow'
 import { PLACE_ICON_OPTIONS, placeIconUrl } from '../placeIcons'
 import { UNSCHEDULED_KEY, type PlaceDraft } from '../places'
 
 type HotelPointDetails = { cityName: string; dateLabel: string; checkInTime: string; checkOutTime: string; hasBooking: boolean }
 
-export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocked, mapsUrl, mapsAddress, hotelDetails, onOpenBooking, onEdit, onChange, onSave, onDelete, onClose }: {
+export function PlacePopup({ mode, draft, dates, formatDate, formatDateOption, readOnly, dateLocked, mapsUrl, mapsAddress, hotelDetails, onOpenBooking, onEdit, onChange, onSave, onDelete, onClose }: {
   mode: 'view' | 'edit'
   draft: PlaceDraft
   dates: string[]
   formatDate: (value: string) => string
+  formatDateOption: (value: string) => string
   readOnly?: boolean
   dateLocked?: boolean
   mapsUrl?: string
@@ -34,9 +36,9 @@ export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocke
             <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
           </div>
           <div className="place-popup-hotel-details">
-            <IconText icon={<Icon name="calendar-month" />}>{hotelDetails.dateLabel}</IconText>
-            {stayTimes && <IconText icon={<Icon name="time" />}>{stayTimes}</IconText>}
-            {mapsUrl && <IconText icon={<Icon name="pin-home" />}><a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">{mapsAddress || 'Открыть в Google Maps'}</a></IconText>}
+            <TextRow iconType="icon" icon={<Icon name="calendar-month" />}>{hotelDetails.dateLabel}</TextRow>
+            {stayTimes && <TextRow iconType="icon" icon={<Icon name="time" />}>{stayTimes}</TextRow>}
+            {mapsUrl && <TextRow iconType="icon" icon={<Icon name="pin-home" />}><a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">{mapsAddress || 'Открыть в Google Maps'}</a></TextRow>}
           </div>
           <div className="place-popup-actions">
             {hotelDetails.hasBooking && onOpenBooking && <Button type="button" size="m" theme="secondary" onClick={onOpenBooking}>Открыть бронь</Button>}
@@ -52,7 +54,7 @@ export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocke
           <strong>{draft.name}</strong>
           <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
         </div>
-        <p className="secondary-text">{draft.date === UNSCHEDULED_KEY ? 'Без даты' : formatDate(draft.date)}</p>
+        <p><TextRow showIcon={false}>{draft.date === UNSCHEDULED_KEY ? 'Без даты' : formatDate(draft.date)}</TextRow></p>
         {mapsUrl && <a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">Открыть в Google Maps</a>}
         {!readOnly && <Button type="button" theme="secondary" onClick={onEdit}>Редактировать</Button>}
       </div>
@@ -73,13 +75,15 @@ export function PlacePopup({ mode, draft, dates, formatDate, readOnly, dateLocke
           </button>
         ))}
       </div>
-      <Select content="date" icon={<Icon name="calendar-month" />} aria-label="Дата посещения" value={draft.date} disabled={dateLocked}
-        onChange={(event) => onChange({ ...draft, date: event.target.value })}>
-        <option value={UNSCHEDULED_KEY}>Без даты</option>
-        {dates.map((date) => <option key={date} value={date}>{formatDate(date)}</option>)}
-      </Select>
-      <Input icon={<img className="ui-icon" src={placeIconUrl(draft.icon)} width={24} height={24} alt="" aria-hidden="true" />} aria-label="Название места" value={draft.name} placeholder="Название места" autoFocus
-        onChange={(event) => onChange({ ...draft, name: event.target.value })} />
+      <FormControlList>
+        <FormControlRow><Select type="date" icon={<Icon name="calendar-month" />} aria-label="Дата посещения" value={draft.date} disabled={dateLocked}
+          onChange={(event) => onChange({ ...draft, date: event.target.value })}>
+          <option value={UNSCHEDULED_KEY}>Без даты</option>
+          {dates.map((date) => <option key={date} value={date}>{formatDateOption(date)}</option>)}
+        </Select></FormControlRow>
+        <FormControlRow><Input icon={<img className="ui-icon" src={placeIconUrl(draft.icon)} width={24} height={24} alt="" aria-hidden="true" />} aria-label="Название места" value={draft.name} placeholder="Название места" autoFocus
+          onChange={(event) => onChange({ ...draft, name: event.target.value })} /></FormControlRow>
+      </FormControlList>
       <div className="place-popup-actions">
         {onDelete && <Button type="button" size="m" theme="secondary" onClick={onDelete}>Удалить</Button>}
         <Button size="m" disabled={!draft.name.trim()}>{onDelete ? 'Сохранить' : 'Добавить точку'}</Button>

@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { Icon } from './Icon'
 
 type ButtonTheme = 'primary' | 'secondary' | 'transparent'
 type ButtonSize = 'l' | 'm'
@@ -20,8 +21,11 @@ export function IconButton({
   icon,
   size = 'm',
   theme = 'secondary',
+  indicator = false,
   className = '',
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { icon: ReactNode; size?: IconButtonSize; theme?: IconButtonTheme }) {
-  return <button className={`icon-button icon-button-${theme} icon-button-${size} ${className}`.trim()} {...props}>{icon}</button>
+}: ButtonHTMLAttributes<HTMLButtonElement> & { icon: ReactNode; size?: IconButtonSize; theme?: IconButtonTheme; indicator?: boolean }) {
+  const showIndicator = indicator && theme === 'secondary' && size !== 's' && !props.disabled
+
+  return <button className={`icon-button icon-button-${theme} icon-button-${size} ${className}`.trim()} {...props}>{icon}{showIndicator && <span className="icon-button-indicator" aria-hidden="true"><Icon name="done-indicator" size={16} /></span>}</button>
 }
