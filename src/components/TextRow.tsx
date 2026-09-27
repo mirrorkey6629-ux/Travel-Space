@@ -16,7 +16,7 @@ export function TextRow(props: TextRowProps) {
   const showIcon = props.showIcon !== false
   const checkbox = showIcon && props.iconType === 'checkbox'
 
-  return <span className={`text-row${checkbox ? ' text-row-checkbox' : ''}${hoverEffect ? ' text-row-hover-effect' : ''}${className ? ` ${className}` : ''}`}>
+  return <span className={`text-row${checkbox ? ` text-row-checkbox text-row-checkbox-${props.checkboxState}` : ''}${hoverEffect ? ' text-row-hover-effect' : ''}${className ? ` ${className}` : ''}`}>
     {showIcon && <span className="text-row-icon" aria-hidden={!checkbox} role={checkbox ? 'checkbox' : undefined} aria-checked={checkbox ? props.checkboxState === 'on' : undefined}>{checkbox ? <Icon name={props.checkboxState === 'on' ? 'checkbox-filled' : 'checkbox-empty'} /> : props.icon}</span>}
     <span className="text-row-label">{children}</span>
   </span>

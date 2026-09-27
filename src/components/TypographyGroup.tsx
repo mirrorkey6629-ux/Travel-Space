@@ -10,12 +10,13 @@ export function TypographyGroup({
   variant = 'head-l-text',
   className = '',
 }: {
-  title: ReactNode
+  title?: ReactNode
   text?: ReactNode
   headingLevel?: HeadingLevel
   variant?: TypographyGroupVariant
   className?: string
 }) {
   const Heading = headingLevel
-  return <div className={`typography-group typography-group-${variant} ${className}`.trim()}><Heading className="typography-group-title">{title}</Heading>{text !== undefined && text !== null && text !== '' && <div className="typography-group-text">{text}</div>}</div>
+  const hasTitle = title !== undefined && title !== null && title !== ''
+  return <div className={`typography-group typography-group-${variant} ${className}`.trim()}>{hasTitle && <Heading className="typography-group-title">{title}</Heading>}{text !== undefined && text !== null && text !== '' && <div className="typography-group-text">{text}</div>}</div>
 }

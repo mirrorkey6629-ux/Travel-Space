@@ -65,9 +65,9 @@ export function ComponentContentPreview() {
       <Example title="Даты">
         <InputUsage context="Поездка · даты ещё не выбраны"><div className="date-summary kit-date-summary-preview"><button type="button">Дата начала</button><span>–</span><button type="button">Дата окончания</button></div></InputUsage>
         <InputUsage context="Поездка · заполненные даты"><div className="date-summary kit-date-summary-preview"><button type="button">4 октября</button><span>–</span><button type="button">15 октября</button><span>· 12 дней</span></div></InputUsage>
-        <InputUsage context="Город · прибытие, дата ещё не выбрана"><Select type="date" icon={<Icon name="calendar-month" />} aria-label="Дата прибытия" defaultValue=""><option value="">Приедем</option><option>4 октября · Вс</option></Select></InputUsage>
+        <InputUsage context="Город · прибытие, дата ещё не выбрана"><Select type="date" placeholder="Приедем" icon={<Icon name="calendar-month" />} aria-label="Дата прибытия" defaultValue=""><option>4 октября · Вс</option></Select></InputUsage>
         <InputUsage context="Город · прибытие, заполненное состояние"><Select type="date" icon={<Icon name="calendar-month" />} aria-label="Дата прибытия" defaultValue="4 октября · Вс"><option>4 октября · Вс</option></Select></InputUsage>
-        <InputUsage context="Город · отъезд, дата ещё не выбрана"><Select type="date" icon={<Icon name="calendar-month" />} aria-label="Дата отъезда из города" defaultValue=""><option value="">Уедем</option><option>7 октября · Ср</option></Select></InputUsage>
+        <InputUsage context="Город · отъезд, дата ещё не выбрана"><Select type="date" placeholder="Уедем" icon={<Icon name="calendar-month" />} aria-label="Дата отъезда из города" defaultValue=""><option>7 октября · Ср</option></Select></InputUsage>
         <InputUsage context="Город · отъезд, заполненное состояние"><Select type="date" icon={<Icon name="calendar-month" />} aria-label="Дата отъезда из города" defaultValue="7 октября · Ср"><option>7 октября · Ср</option></Select></InputUsage>
         <InputUsage context="Место на карте · дата посещения"><Select type="date" icon={<Icon name="calendar-month" />} aria-label="Дата посещения" defaultValue="4 октября · Вс"><option>4 октября · Вс</option><option>5 октября · Пн</option></Select></InputUsage>
         <InputUsage context="Место на карте · без привязки к дате"><Select type="date" icon={<Icon name="calendar-month" />} aria-label="Дата посещения" defaultValue="Без даты"><option>Без даты</option><option>4 октября · Вс</option></Select></InputUsage>
@@ -76,7 +76,7 @@ export function ComponentContentPreview() {
       </Example>
       <Example title="Время и тип транспорта">
         <InputUsage context="Город · время прибытия или отъезда"><Select type="time" icon={<Icon name="time" />} aria-label="Время прибытия" defaultValue="Утро"><option>Утро</option><option>День</option><option>Вечер</option></Select></InputUsage>
-        <InputUsage context="Транспорт · тип ещё не выбран"><Select type="time" icon={<Icon name="rocket-launch" />} aria-label="Тип транспорта" defaultValue=""><option value="">Транспорт</option><option value="plane">Самолёт</option><option value="train">Поезд</option><option value="bus">Автобус</option><option value="ship">Корабль</option></Select></InputUsage>
+        <InputUsage context="Транспорт · тип ещё не выбран"><Select type="time" placeholder="Транспорт" icon={<Icon name="rocket-launch" />} aria-label="Тип транспорта" defaultValue=""><option value="plane">Самолёт</option><option value="train">Поезд</option><option value="bus">Автобус</option><option value="ship">Корабль</option></Select></InputUsage>
         <InputUsage context="Транспорт · тип выбран"><Select type="time" label="Тип транспорта" icon={<Icon name="plane" />} displayValue="Самолёт" aria-label="Тип транспорта" defaultValue="plane"><option value="plane">Самолёт</option><option value="train">Поезд</option><option value="bus">Автобус</option><option value="ship">Корабль</option></Select></InputUsage>
       </Example>
       <Example title="Ответственные">
@@ -93,10 +93,10 @@ export function ComponentContentPreview() {
         <Select type="assignee" options={people} value={[]} icon={<Icon name="hotel" />} emptyLabel="Кто бронит отель" onValueChange={setAssignees} />
         </InputUsage>
         <InputUsage context="Пользователь выбран">
-        <Select type="assignee" options={people} value={assignees} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет план города" onValueChange={setAssignees} />
+        <Select type="assignee" options={people} value={assignees} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет маршрут" onValueChange={setAssignees} />
         </InputUsage>
         <InputUsage context="Пользователь не выбран">
-        <Select type="assignee" options={people} value={[]} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет план города" onValueChange={setAssignees} />
+        <Select type="assignee" options={people} value={[]} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет маршрут" onValueChange={setAssignees} />
         </InputUsage>
         <InputUsage context="Пользователь выбран">
         <Select type="assignee" options={people} value={assignees} icon={<Icon name="face" />} emptyLabel="Кто платил" onValueChange={setAssignees} />

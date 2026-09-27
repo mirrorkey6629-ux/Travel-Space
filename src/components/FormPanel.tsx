@@ -9,6 +9,7 @@ type FormPanelProps = HTMLAttributes<HTMLElement> & {
 type FormPanelLayoutProps = {
   children: ReactNode
   action?: ReactNode
+  className?: string
 }
 
 type FormPanelGroupProps = {
@@ -24,6 +25,7 @@ type FormPanelGroupProps = {
 type FormPanelHeaderProps = {
   title: ReactNode
   text?: ReactNode
+  action?: ReactNode
   className?: string
   id?: string
 }
@@ -32,8 +34,8 @@ export function FormPanel({ children, className = '', scrollable = false, ...pro
   return <section className={`glass editor form-panel${scrollable ? ' form-panel-scrollable' : ''}${className ? ` ${className}` : ''}`} {...props}>{children}</section>
 }
 
-export function FormPanelLayout({ children, action }: FormPanelLayoutProps) {
-  return <div className="form-panel-layout"><FormPanel scrollable>{children}</FormPanel>{action}</div>
+export function FormPanelLayout({ children, action, className = '' }: FormPanelLayoutProps) {
+  return <div className={`form-panel-layout${className ? ` ${className}` : ''}`}><FormPanel scrollable>{children}</FormPanel>{action}</div>
 }
 
 export function FormPanelGroup({ children, className = '', gap = 32, as = 'div', disabled, flatten = false, order = 'normal' }: FormPanelGroupProps) {
@@ -42,8 +44,8 @@ export function FormPanelGroup({ children, className = '', gap = 32, as = 'div',
   return <div className={classes}>{children}</div>
 }
 
-export function FormPanelHeader({ title, text, className = '', id }: FormPanelHeaderProps) {
-  return <div id={id}><TypographyGroup className={`form-panel-header${className ? ` ${className}` : ''}`} headingLevel="h2" title={title} text={text} /></div>
+export function FormPanelHeader({ title, text, action, className = '', id }: FormPanelHeaderProps) {
+  return <div className="form-panel-header-row" id={id}><TypographyGroup className={`form-panel-header${className ? ` ${className}` : ''}`} headingLevel="h2" title={title} text={text} />{action && <span className="form-panel-header-action">{action}</span>}</div>
 }
 
 export function FormPanelNote({ children, centered = false, className = '' }: { children: ReactNode; centered?: boolean; className?: string }) {

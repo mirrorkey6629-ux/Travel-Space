@@ -17,6 +17,7 @@ import { ItemList } from './components/ItemList'
 import { FormControlList, FormControlRow } from './components/FormControlList'
 import { TextareaList } from './components/TextareaList'
 import { FormPanelGroup, FormPanelHeader, FormPanelLayout, FormPanelNote } from './components/FormPanel'
+import { ImageFilePicker } from './components/ImageFilePicker'
 import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
@@ -485,9 +486,6 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
-  const avatarInputRef = useRef<HTMLInputElement>(null)
-  const avatarPreviewRef = useRef<string | null>(null)
-  useEffect(() => () => { if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current) }, [])
   const profileChanged = displayName.trim() !== user.displayName || email.trim().toLowerCase() !== user.email.toLowerCase() || Boolean(password)
   const changed = profileChanged || Boolean(avatarFile)
   const valid = displayName.trim() && /^\S+@\S+\.\S+$/.test(email.trim()) && (!password || password.length >= 8)
@@ -500,8 +498,6 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
       if (profileChanged) await onSave({ displayName: displayName.trim(), email: email.trim().toLowerCase(), ...(password ? { password } : {}) })
       if (avatarFile) {
         const savedUrl = await onAvatar(avatarFile)
-        if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current)
-        avatarPreviewRef.current = null
         setAvatarUrl(savedUrl)
         setAvatarFile(null)
       }
@@ -517,20 +513,26 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
     <main className="screen auth-screen profile-screen">
       <GalaxyBackground />
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
-      <form className="glass profile-card-screen" onSubmit={submit}>
-        <button className="profile-avatar-button" type="button" disabled={!access.canEdit} onClick={() => avatarInputRef.current?.click()} aria-label="Загрузить новый аватар">
-          <img className="profile-avatar" src={avatarUrl} alt="Аватар профиля" />
-          <span className="profile-avatar-overlay"><Icon name="edit" size={32} /></span>
-        </button>
-        <input ref={avatarInputRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (avatarPreviewRef.current) URL.revokeObjectURL(avatarPreviewRef.current); avatarPreviewRef.current = URL.createObjectURL(file); setAvatarUrl(avatarPreviewRef.current); setAvatarFile(file); setMessage(''); event.currentTarget.value = '' }} />
-        <FormControlList className="profile-fields">
-          <FormControlRow><Input icon={<Icon name="face" />} aria-label="Имя" placeholder="Имя" value={displayName} onChange={(event) => { setDisplayName(event.target.value); setMessage('') }} autoComplete="name" /></FormControlRow>
-          <FormControlRow><Input icon={<Icon name="email" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" /></FormControlRow>
-          <FormControlRow><Input icon={<Icon name="encrypted" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" /></FormControlRow>
-        </FormControlList>
-        <Button type="submit" disabled={busy || !changed || !valid || !access.canEdit}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button>
-        <button className="auth-mode-switch" type="button" onClick={onLogout}>Выйти из аккаунта</button>
-        {message && <p className="form-hint">{message}</p>}
+      <form className="profile-form" onSubmit={submit}>
+        <FormPanelLayout className="setup-transition" action={<><Button type="submit" disabled={busy || !changed || !valid || !access.canEdit}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button><Button type="button" theme="transparent" onClick={onLogout}>Выйти из аккаунта</Button></>}>
+          <FormPanelHeader title="Профиль" />
+          <FormPanelGroup className="profile-avatar-group">
+            <ImageFilePicker disabled={!access.canEdit} onSelect={(file, previewUrl) => { setAvatarUrl(previewUrl); setAvatarFile(file); setMessage('') }}>
+              {({ open }) => <button className="profile-avatar-button" type="button" disabled={!access.canEdit} onClick={open} aria-label="Загрузить новый аватар">
+                <img className="profile-avatar" src={avatarUrl} alt="Аватар профиля" />
+                <span className="profile-avatar-overlay"><Icon name="edit" size={32} /></span>
+              </button>}
+            </ImageFilePicker>
+          </FormPanelGroup>
+          <FormPanelGroup>
+            <FormControlList>
+              <FormControlRow><Input icon={<Icon name="face" />} aria-label="Имя" placeholder="Имя" value={displayName} onChange={(event) => { setDisplayName(event.target.value); setMessage('') }} autoComplete="name" /></FormControlRow>
+              <FormControlRow><Input icon={<Icon name="email" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" /></FormControlRow>
+              <FormControlRow><Input icon={<Icon name="encrypted" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" /></FormControlRow>
+            </FormControlList>
+          </FormPanelGroup>
+          {message && <FormPanelNote centered>{message}</FormPanelNote>}
+        </FormPanelLayout>
       </form>
     </main>
   )
@@ -615,19 +617,28 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
   useEffect(() => { if (isOwner) void onViewLink().then(setViewLink).catch(() => setViewLink('')) }, [isOwner, onViewLink])
   return <main className="screen trip-background setup-screen" style={tripBackgroundStyle(trip)}>
     <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
-    <section className="glass setup-card invite-screen-card">
-      <h1>Участники «{trip.name}»</h1>
-      {members.length > 0
-        ? <InfoRowList className="member-list">{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={!isOwner || member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</InfoRowList>
-        : <p>Не удалось загрузить список участников.</p>}
+    <FormPanelLayout className="setup-transition">
+      <FormPanelHeader title={`Участники «${trip.name}»`} />
+      <FormPanelGroup>
+        {members.length > 0
+          ? <InfoRowList>{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={!isOwner || member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</InfoRowList>
+          : <FormPanelNote centered>Не удалось загрузить список участников.</FormPanelNote>}
+      </FormPanelGroup>
       {isOwner && <>
-        <TypographyGroup headingLevel="h2" variant="head-m-text" title="Ссылка-приглашение" text="Ссылка действует 24 часа. Новая ссылка сразу отключит предыдущую. Все вошедшие по ней станут гостями." />
-        {invite && <div className="invite-result"><Input aria-label="Активная ссылка приглашения" icon={<Icon name="link" />} readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /><small>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</small></div>}
-        <Button size="l" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(24)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button>
-        <TypographyGroup headingLevel="h2" variant="head-m-text" title="Доступ на просмотр" text={'Постоянная ссылка без присоединения к поездке и\u00a0возможности редактирования'} />
-        <div className="invite-result"><Input icon={<Icon name="link" />} readOnly value={viewLink} placeholder="Загружаем ссылку…" trailingIcon={viewLink ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку на просмотр" onTrailingIconClick={viewLink ? () => void navigator.clipboard.writeText(viewLink) : undefined} /></div>
+        <FormPanelGroup>
+          <FormControlList headline="Ссылка-приглашение" text="Действует 24 часа, при повторном создании прошлая ссылка сбросится">
+          {invite && <>
+            <FormControlRow><Input aria-label="Активная ссылка приглашения" icon={<Icon name="link" />} type="url" readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /></FormControlRow>
+            <FormPanelNote>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</FormPanelNote>
+          </>}
+          <FormControlRow><Button size="l" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(24)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button></FormControlRow>
+          </FormControlList>
+        </FormPanelGroup>
+        <FormPanelGroup>
+          <FormControlList headline="Доступ на просмотр" text="Постоянная ссылка без присоединения к поездке"><FormControlRow><Input icon={<Icon name="link" />} type="url" readOnly value={viewLink} trailingIcon={viewLink ? <Icon name="content-copy" /> : undefined} trailingIconLabel="Скопировать ссылку на просмотр" onTrailingIconClick={viewLink ? () => void navigator.clipboard.writeText(viewLink) : undefined} /></FormControlRow></FormControlList>
+        </FormPanelGroup>
       </>}
-    </section>
+    </FormPanelLayout>
   </main>
 }
 
@@ -676,8 +687,6 @@ const assigneeOptions = (members: TripMember[]) => members.map((member) => ({ va
 
 function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: City; onSave: (city: City) => void; onClose: () => void }) {
   const [city, setCity] = useState<City>(() => initial ? { ...initial, arrivalPeriod: initial.arrivalPeriod ?? 'morning', departurePeriod: initial.departurePeriod ?? 'evening' } : emptyCity())
-  const imageFileRef = useRef<HTMLInputElement>(null)
-  const imagePreviewUrlRef = useRef<string | null>(null)
   const sameDayPeriodsValid = city.arrival !== city.departure || periodOrder[city.departurePeriod ?? 'evening'] >= periodOrder[city.arrivalPeriod ?? 'morning']
   const valid = city.name.trim() && city.arrival && city.departure && city.departure >= city.arrival && sameDayPeriodsValid
   const tripDates = dateRange(trip.startDate, trip.endDate)
@@ -686,30 +695,39 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
   const members = trip.members ?? []
   const canAssign = trip.role === 'owner' || !trip.id
   return (
-    <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
-      <section className="glass setup-card">
-      <div className="city-editor-view">
-      <div className="modal-title">
-        <div>{!initial && <span className="eyebrow">Новая локация</span>}<h2>{initial ? city.name : 'Добавить город'}</h2></div>
-        <IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
-      </div>
-      <InfoRow className="city-image-row" image={hasImage ? city.imageUrl || cityPlaceholder : undefined} imageAlt="Фото города" title={hasImage ? 'Фото города' : 'Прикрепить фото города'} subtitle={hasImage ? city.imageFile?.name || city.image?.name || 'Фото города' : 'Лучше в вертикальном формате'} actionTheme="secondary" actions={hasImage ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фото города', onClick: () => imageFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото города', onClick: () => setCity((current) => ({ ...current, imageDeleteId: current.image?.id, image: undefined, imageFile: undefined, imageUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото города', onClick: () => imageFileRef.current?.click() }]} />
-      <input ref={imageFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; if (imagePreviewUrlRef.current) URL.revokeObjectURL(imagePreviewUrlRef.current); imagePreviewUrlRef.current = URL.createObjectURL(file); setCity((current) => ({ ...current, imageFile: file, imageUrl: imagePreviewUrlRef.current ?? undefined })); event.currentTarget.value = '' }} />
-      <FormControlList gap={24}>
-        <FormControlRow><Input label="Название города" icon={<Icon name="planet" />} value={city.name} onChange={(e) => setCity({ ...city, name: e.target.value })} placeholder="Например, Осака" autoFocus /></FormControlRow>
-        <FormControlRow><Input label="Ссылка Google Maps" icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(e) => setCity({ ...city, googleMapsUrl: e.target.value })} /></FormControlRow>
-        <FormControlRow columns={2}>
-          <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select type="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(e) => { const value = e.target.value; setCity((current) => ({ ...current, arrival: value, departure: current.departure < value ? '' : current.departure })) }}><option value="">Приедем</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(e) => setCity((current) => ({ ...current, arrivalPeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-          <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select type="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(e) => setCity((current) => ({ ...current, departure: e.target.value }))}><option value="">Уедем</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(e) => setCity((current) => ({ ...current, departurePeriod: e.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-        </FormControlRow>
-        <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.ticketAssigneeIds} icon={<Icon name="ticket" />} emptyLabel="Кто покупает билет" disabled={!canAssign} onValueChange={(ticketAssigneeIds) => setCity((current) => ({ ...current, ticketAssigneeIds }))} /></FormControlRow>
-        <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.hotelAssigneeIds} icon={<Icon name="hotel" />} emptyLabel="Кто бронит отель" disabled={!canAssign || city.hotelNotNeeded} onValueChange={(hotelAssigneeIds) => setCity((current) => ({ ...current, hotelAssigneeIds }))} /></FormControlRow>
-        <FormControlRow><label className="city-hotel-toggle city-hotel-toggle-after-assignee"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => setCity((current) => ({ ...current, hotelNotNeeded: event.target.checked, hotelAssigneeIds: event.target.checked ? [] : current.hotelAssigneeIds }))} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><TextRow showIcon={false}>Отель не нужен</TextRow></label></FormControlRow>
-        <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.planAssigneeIds} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет план города" disabled={!canAssign} onValueChange={(planAssigneeIds) => setCity((current) => ({ ...current, planAssigneeIds }))} /></FormControlRow>
-      </FormControlList>
-      </div>
-      </section>
-      <Button type="submit" disabled={!valid}>Сохранить город</Button>
+    <form className="setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
+      <FormPanelLayout action={<Button type="submit" disabled={!valid}>Сохранить город</Button>}>
+        <FormPanelHeader title={initial ? city.name : 'Добавить город'} action={<IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />} />
+        <ImageFilePicker onSelect={(file, previewUrl) => setCity((current) => ({ ...current, imageFile: file, imageUrl: previewUrl }))}>
+          {({ open, clearPreview }) => <InfoRow image={hasImage ? city.imageUrl || cityPlaceholder : undefined} imageAlt="Фото города" title={hasImage ? 'Фото города' : 'Прикрепить фото города'} subtitle={hasImage ? city.imageFile?.name || city.image?.name || 'Фото города' : 'Лучше в вертикальном формате'} actionTheme="secondary" actions={hasImage ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фото города', onClick: open }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото города', onClick: () => { clearPreview(); setCity((current) => ({ ...current, imageDeleteId: current.image?.id, image: undefined, imageFile: undefined, imageUrl: undefined })) } }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото города', onClick: open }]} />}
+        </ImageFilePicker>
+        <FormPanelGroup>
+          <FormControlList headline="Куда едем">
+            <FormControlRow><Input label="Название города" icon={<Icon name="planet" />} value={city.name} onChange={(event) => setCity({ ...city, name: event.target.value })} placeholder="Например, Осака" /></FormControlRow>
+            <FormControlRow><Input label="Ссылка Google Maps" icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(event) => setCity({ ...city, googleMapsUrl: event.target.value })} /></FormControlRow>
+          </FormControlList>
+        </FormPanelGroup>
+        <FormPanelGroup>
+          <FormControlList headline="Когда едем">
+            <FormControlRow columns={2}>
+              <Select type="date" label="Прибытие" placeholder="Приедем" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; setCity((current) => ({ ...current, arrival, departure: current.departure < arrival ? '' : current.departure })) }}>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select>
+              <Select type="date" label="Отъезд" placeholder="Уедем" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => setCity((current) => ({ ...current, departure: event.target.value }))}>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select>
+            </FormControlRow>
+            <FormControlRow columns={2}>
+              <Select type="time" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(event) => setCity((current) => ({ ...current, arrivalPeriod: event.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select>
+              <Select type="time" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(event) => setCity((current) => ({ ...current, departurePeriod: event.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select>
+            </FormControlRow>
+          </FormControlList>
+        </FormPanelGroup>
+        <FormPanelGroup>
+          <FormControlList headline="Кто отвечает за город">
+            <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.ticketAssigneeIds} icon={<Icon name="ticket" />} emptyLabel="Кто покупает билет" disabled={!canAssign} onValueChange={(ticketAssigneeIds) => setCity((current) => ({ ...current, ticketAssigneeIds }))} /></FormControlRow>
+            <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.hotelAssigneeIds} icon={<Icon name="hotel" />} emptyLabel="Кто бронит отель" disabled={!canAssign || city.hotelNotNeeded} onValueChange={(hotelAssigneeIds) => setCity((current) => ({ ...current, hotelAssigneeIds }))} /></FormControlRow>
+            <CheckboxTextRow checked={city.hotelNotNeeded} disabled={!canAssign} onClick={() => setCity((current) => ({ ...current, hotelNotNeeded: !current.hotelNotNeeded, hotelAssigneeIds: !current.hotelNotNeeded ? [] : current.hotelAssigneeIds }))}>Отель не нужен</CheckboxTextRow>
+            <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.planAssigneeIds} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет маршрут" disabled={!canAssign} onValueChange={(planAssigneeIds) => setCity((current) => ({ ...current, planAssigneeIds }))} /></FormControlRow>
+          </FormControlList>
+        </FormPanelGroup>
+      </FormPanelLayout>
     </form>
   )
 }
@@ -741,13 +759,13 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
                 <FormControlRow><Input label="Название города" icon={<Icon name="planet" />} value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></FormControlRow>
                 <FormControlRow><Input label="Ссылка Google Maps" icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(event) => updateCity(city.id, { googleMapsUrl: event.target.value })} /></FormControlRow>
                 <FormControlRow columns={2}>
-                  <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select type="date" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}><option value="">Приедем</option>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-                  <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select type="date" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}><option value="">Уедем</option>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+                  <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select type="date" placeholder="Приедем" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+                  <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select type="date" placeholder="Уедем" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
                 </FormControlRow>
                 <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.ticketAssigneeIds} icon={<Icon name="ticket" />} emptyLabel="Кто покупает билет" disabled={!canAssign} onValueChange={(ticketAssigneeIds) => updateCity(city.id, { ticketAssigneeIds })} /></FormControlRow>
                 <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.hotelAssigneeIds} icon={<Icon name="hotel" />} emptyLabel="Кто бронит отель" disabled={!canAssign || city.hotelNotNeeded} onValueChange={(hotelAssigneeIds) => updateCity(city.id, { hotelAssigneeIds })} /></FormControlRow>
                 <FormControlRow><label className="city-hotel-toggle city-hotel-toggle-after-assignee"><input type="checkbox" checked={city.hotelNotNeeded} onChange={(event) => updateCity(city.id, { hotelNotNeeded: event.target.checked, ...(event.target.checked ? { hotelAssigneeIds: [] } : {}) })} /><span className={`document-check${city.hotelNotNeeded ? ' checked' : ''}`} aria-hidden="true" /><TextRow showIcon={false}>Отель не нужен</TextRow></label></FormControlRow>
-                <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.planAssigneeIds} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет план города" disabled={!canAssign} onValueChange={(planAssigneeIds) => updateCity(city.id, { planAssigneeIds })} /></FormControlRow>
+                <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.planAssigneeIds} icon={<Icon name="barefoot" />} emptyLabel="Кто составляет маршрут" disabled={!canAssign} onValueChange={(planAssigneeIds) => updateCity(city.id, { planAssigneeIds })} /></FormControlRow>
               </FormControlList>
             )
           })}
@@ -764,19 +782,10 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
   const [trip, setTrip] = useState<Trip>(initial ?? { name: '', startDate: '', endDate: '', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', cities: [], dayDescriptions: {}, members: user ? [{ id: user.id, email: user.email, displayName: user.displayName, role: 'owner', hasAvatar: user.hasAvatar, avatarUrl: user.avatarUrl }] : [] })
   const [editing, setEditing] = useState<City | null | undefined>(undefined)
   const [editingAll, setEditingAll] = useState(false)
-  const startDateRef = useRef<HTMLInputElement>(null)
-  const endDateRef = useRef<HTMLInputElement>(null)
   const access = useAccess()
-  const backgroundFileRef = useRef<HTMLInputElement>(null)
   const datesValid = trip.startDate && trip.endDate && trip.endDate >= trip.startDate
   const tripDays = datesValid ? daysBetween(trip.startDate, trip.endDate) : 0
   const hasBackground = !trip.backgroundRemoved && Boolean(trip.backgroundFile || trip.background || trip.backgroundUrl)
-  const openDatePicker = (ref: React.RefObject<HTMLInputElement | null>) => {
-    const input = ref.current
-    if (!input) return
-    input.focus()
-    try { input.showPicker() } catch { input.click() }
-  }
   const upsertCity = (city: City) => {
     const exists = trip.cities.some((item) => item.id === city.id)
     const cities = exists ? trip.cities.map((item) => item.id === city.id ? city : item) : [...trip.cities, city]
@@ -791,34 +800,32 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
         ) : editing !== undefined ? (
           <CityEditor trip={trip} initial={editing ?? undefined} onSave={upsertCity} onClose={() => setEditing(undefined)} />
         ) : (
-          <div className="setup-editor-content">
-          <section className="glass setup-card">
-          <div className="setup-content setup-transition">
-            <FormControlList className="trip-fields" gap={12}>
-              <FormControlRow><div className="trip-title-input"><Icon name="book" /><input className="title-input" value={trip.name} onChange={(e) => setTrip((current) => ({ ...current, name: e.target.value }))} placeholder="Название поездки" /></div></FormControlRow>
-              <FormControlRow><div className="date-summary">
-                <button type="button" onClick={() => openDatePicker(startDateRef)}>{trip.startDate ? formatDate(trip.startDate) : 'Дата начала'}</button>
-                <span>–</span>
-                <button type="button" onClick={() => openDatePicker(endDateRef)}>{trip.endDate ? formatDate(trip.endDate) : 'Дата окончания'}</button>
-                {datesValid && <span>· {formatDays(tripDays)}</span>}
-                <label className="trip-time-zone-picker"><span>·</span><span className="trip-time-zone-value">{formatTimeZoneOffset(trip.timeZone, trip.startDate)}</span><select aria-label="Основной часовой пояс поездки" value={trip.timeZone} onChange={(event) => setTrip((current) => ({ ...current, timeZone: event.target.value }))}>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, trip.startDate)}</option>)}</select></label>
-                <input ref={startDateRef} className="native-date-input" aria-label="Дата начала поездки" type="date" value={trip.startDate} onInput={(e) => { const value = e.currentTarget.value; setTrip((current) => ({ ...current, startDate: value, endDate: current.endDate < value ? '' : current.endDate, cities: [] })) }} />
-                <input ref={endDateRef} className="native-date-input" aria-label="Дата окончания поездки" type="date" min={trip.startDate} value={trip.endDate} onInput={(e) => { const value = e.currentTarget.value; setTrip((current) => ({ ...current, endDate: value, cities: [] })) }} />
-              </div></FormControlRow>
-            </FormControlList>
-            <input ref={backgroundFileRef} className="hidden-file-input" type="file" accept="image/*" onChange={(event) => { const file = event.target.files?.[0]; if (!file) return; setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: URL.createObjectURL(file), backgroundRemoved: false })); event.currentTarget.value = '' }} />
-            <div className="trip-route-editor">
-              <InfoRow className="trip-background-row" image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'В хорошем качестве'} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: () => backgroundFileRef.current?.click() }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: () => backgroundFileRef.current?.click() }]} />
-              <div className="city-editor-group">
-                {trip.cities.length > 0 && <InfoRowList className="setup-list">{trip.cities.map((city) => <InfoRow key={city.id} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} title={city.name} subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}${city.hotelNotNeeded ? ' · Отель не нужен' : ''}`} onClick={() => setEditing(city)} actionTheme="secondary" hoverEffect actions={[{ icon: <Icon name="delete-forever" />, label: `Удалить город ${city.name}`, onClick: () => { if (!window.confirm(`Удалить город «${city.name}» из маршрута?`)) return; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id) })) } }]} />)}</InfoRowList>}
+          <FormPanelLayout className="setup-transition" action={trip.cities.length > 0 && <Button disabled={!trip.name.trim() || !access.canEdit} onClick={() => onCreate(trip)}>Сохранить поездку</Button>}>
+            <FormPanelHeader title={trip.name || (initial ? 'Поездка' : 'Добавить поездку')} text={<>{datesValid && <>{formatDays(tripDays)} · </>}{formatTimeZoneOffset(trip.timeZone, trip.startDate)}</>} />
+            <ImageFilePicker onSelect={(file, previewUrl) => setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: previewUrl, backgroundRemoved: false }))}>
+              {({ open, clearPreview }) => <InfoRow image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'В хорошем качестве'} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: open }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => { clearPreview(); setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) } }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: open }]} />}
+            </ImageFilePicker>
+            <FormPanelGroup>
+              <FormControlList headline="О поездке">
+                <FormControlRow><Input label="Название поездки" icon={<Icon name="book" />} value={trip.name} onChange={(event) => setTrip((current) => ({ ...current, name: event.target.value }))} placeholder="Например, Аниме Тур" /></FormControlRow>
+                <FormControlRow columns={2}>
+                  <DateInput label="Начало" icon={<Icon name="calendar-month" />} value={trip.startDate} displayValue={trip.startDate ? `${formatDate(trip.startDate)} · ${ruWeekdays[parseDate(trip.startDate).getDay()]}` : 'Выбрать дату'} onChange={(event) => { const value = event.target.value; setTrip((current) => ({ ...current, startDate: value, endDate: current.endDate < value ? '' : current.endDate, cities: [] })) }} />
+                  <DateInput label="Окончание" icon={<Icon name="calendar-month" />} min={trip.startDate} disabled={!trip.startDate} value={trip.endDate} displayValue={trip.endDate ? `${formatDate(trip.endDate)} · ${ruWeekdays[parseDate(trip.endDate).getDay()]}` : 'Выбрать дату'} onChange={(event) => { const value = event.target.value; setTrip((current) => ({ ...current, endDate: value, cities: [] })) }} />
+                </FormControlRow>
+              </FormControlList>
+            </FormPanelGroup>
+            <FormPanelGroup gap={8}>
+              <InfoRowList headline="Список городов">
+                {trip.cities.map((city) => <InfoRow key={city.id} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} title={city.name} subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}${city.hotelNotNeeded ? ' · Отель не нужен' : ''}`} onClick={() => setEditing(city)} actionTheme="secondary" hoverEffect actions={[{ icon: <Icon name="delete-forever" />, label: `Удалить город ${city.name}`, onClick: () => { if (!window.confirm(`Удалить город «${city.name}» из маршрута?`)) return; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id) })) } }]} />)}
                 <AddRow icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
-                {trip.cities.length > 0 && <button className="route-overview-link" type="button" onClick={() => setEditingAll(true)}><TextRow showIcon={false} hoverEffect>Посмотреть весь маршрут</TextRow></button>}
-              </div>
-            </div>
-          </div>
-          </section>
-          {trip.cities.length > 0 && <Button disabled={!trip.name.trim() || !access.canEdit} onClick={() => onCreate(trip)}>Сохранить поездку</Button>}
-          </div>
+              </InfoRowList>
+            </FormPanelGroup>
+            <FormPanelGroup>
+              <FormControlList headline="Часовой пояс">
+                <FormControlRow><Select type="time" icon={<Icon name="time" />} aria-label="Основной часовой пояс поездки" value={trip.timeZone} displayValue={formatTimeZoneOffset(trip.timeZone, trip.startDate)} onChange={(event) => setTrip((current) => ({ ...current, timeZone: event.target.value }))}>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, trip.startDate)}</option>)}</Select></FormControlRow>
+              </FormControlList>
+            </FormPanelGroup>
+          </FormPanelLayout>
         )}
     </main>
   )
@@ -980,20 +987,18 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
       : expense.payerIds.length > 1
         ? `${payers} · По ${formatRubles(expense.totalAmountRubles / expense.payerIds.length)}`
         : payers
-    return <InfoRow key={expense.id} className="expense-row" title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} subtitle={paymentText} trailing={formatRubles(expense.totalAmountRubles)} />
+    return <InfoRow key={expense.id} title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} subtitle={paymentText} trailing={formatRubles(expense.totalAmountRubles)} />
   }
   return (
     <main className="transport-editor-screen trip-background setup-transition" style={tripBackgroundStyle(trip)}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
-      <div className="transport-editor-content expenses-screen-content">
-        <section className="glass transport-editor-card expenses-card">
-          <TypographyGroup title="Траты" text={`Всего ${formatRubles(allExpenses.reduce((sum, expense) => sum + expense.totalAmountRubles, 0))}`} />
-          {allExpenses.length === 0 && <p className="expenses-empty">Трат пока нет</p>}
-          {expenses.hotels.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Жильё" text={`Всего ${formatRubles(categoryTotal(expenses.hotels))}`} /><InfoRowList className="expenses-list">{expenses.hotels.map(expenseRow)}</InfoRowList></section>}
-          {expenses.transport.length > 0 && <section className="expenses-group"><TypographyGroup variant="head-m-text" headingLevel="h2" title="Транспорт" text={`Всего ${formatRubles(categoryTotal(expenses.transport))}`} /><InfoRowList className="expenses-list">{expenses.transport.map(expenseRow)}</InfoRowList></section>}
-          {memberExpenses.length > 0 && <section className="expenses-group"><InfoRowList className="expenses-list" headline="Итого по людям">{memberExpenses.map(({ member, records, totalAmountRubles }) => <InfoRow key={member.id} className="expense-row" image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={formatExpenseRecords(records)} trailing={formatRubles(totalAmountRubles)} />)}</InfoRowList></section>}
-        </section>
-      </div>
+      <FormPanelLayout>
+        <FormPanelHeader title="Траты" text={`Всего ${formatRubles(allExpenses.reduce((sum, expense) => sum + expense.totalAmountRubles, 0))}`} />
+        {allExpenses.length === 0 && <FormPanelGroup><FormPanelNote centered>Трат пока нет</FormPanelNote></FormPanelGroup>}
+        {expenses.hotels.length > 0 && <FormPanelGroup><InfoRowList headline="Жильё" text={`Всего ${formatRubles(categoryTotal(expenses.hotels))}`}>{expenses.hotels.map(expenseRow)}</InfoRowList></FormPanelGroup>}
+        {expenses.transport.length > 0 && <FormPanelGroup><InfoRowList headline="Транспорт" text={`Всего ${formatRubles(categoryTotal(expenses.transport))}`}>{expenses.transport.map(expenseRow)}</InfoRowList></FormPanelGroup>}
+        {memberExpenses.length > 0 && <FormPanelGroup><InfoRowList headline="Итого по людям">{memberExpenses.map(({ member, records, totalAmountRubles }) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={formatExpenseRecords(records)} trailing={formatRubles(totalAmountRubles)} />)}</InfoRowList></FormPanelGroup>}
+      </FormPanelLayout>
     </main>
   )
 }
@@ -1226,8 +1231,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
           <FormPanelGroup>
             <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
               <FormControlList headline="Как поедем"><FormControlRow columns={2}>
-                <Select type="time" label={draft.type ? 'Тип транспорта' : undefined} icon={<Icon name={draft.type ? transportIconNames[draft.type] : 'rocket-launch'} />} displayValue={draft.type ? transportNames[draft.type] : undefined} aria-label="Тип транспорта" value={draft.type ?? ''} onChange={(event) => { const type = event.target.value as TransportType; setDraft({ ...draft, type, ticketOnSite: type === 'plane' ? false : draft.ticketOnSite }) }}>
-                  <option value="">Транспорт</option>
+                <Select type="time" label={draft.type ? 'Тип транспорта' : undefined} placeholder="Транспорт" icon={<Icon name={draft.type ? transportIconNames[draft.type] : 'rocket-launch'} />} displayValue={draft.type ? transportNames[draft.type] : undefined} aria-label="Тип транспорта" value={draft.type ?? ''} onChange={(event) => { const type = event.target.value as TransportType; setDraft({ ...draft, type, ticketOnSite: type === 'plane' ? false : draft.ticketOnSite }) }}>
                   {(Object.keys(transportNames) as TransportType[]).map((type) => <option key={type} value={type}>{transportEmoji[type]} {transportNames[type]}</option>)}
                 </Select>
                 <Input aria-label={draft.type ? transportNamePlaceholders[draft.type] : 'Название транспорта'} icon={<Icon name="book" />} placeholder={draft.type ? transportNamePlaceholders[draft.type] : 'Название транспорта'} value={draft.name} disabled={!draft.type} onChange={(event) => setDraft({ ...draft, name: event.target.value })} />

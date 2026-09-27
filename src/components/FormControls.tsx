@@ -1,4 +1,4 @@
-import { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes, useEffect, useRef, useState } from 'react'
+import { Children, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes, isValidElement, useEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react'
 import { Icon } from './Icon'
 
 type InputBaseProps = {
@@ -109,6 +109,7 @@ type NativeSelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   label?: ReactNode
   showLabel?: boolean
   icon?: ReactNode
+  placeholder?: ReactNode
   displayValue?: ReactNode
   secondaryText?: ReactNode
   controlClassName?: string
@@ -129,9 +130,25 @@ type AssigneeSelectProps = {
 
 type SelectProps = NativeSelectProps | AssigneeSelectProps
 
+function useBlurOnOutsidePointer(containerRef: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const blur = (event: PointerEvent) => {
+      const container = containerRef.current
+      if (container?.contains(event.target as Node)) return
+      window.setTimeout(() => {
+        const activeElement = document.activeElement
+        if (activeElement instanceof HTMLElement && containerRef.current?.contains(activeElement)) activeElement.blur()
+      }, 0)
+    }
+    window.addEventListener('pointerdown', blur, true)
+    return () => window.removeEventListener('pointerdown', blur, true)
+  }, [containerRef])
+}
+
 function AssigneeSelect({ label, showLabel = true, icon, options, value, emptyLabel = 'Не назначен', disabled = false, onValueChange }: Omit<AssigneeSelectProps, 'type'>) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  useBlurOnOutsidePointer(containerRef)
 
   useEffect(() => {
     if (!open) return
@@ -168,23 +185,62 @@ function AssigneeSelect({ label, showLabel = true, icon, options, value, emptyLa
   </div>
 }
 
+function NativeSelect(props: NativeSelectProps) {
+  const { type, label, showLabel = true, icon, placeholder, displayValue, secondaryText, controlClassName = '', children, ...selectProps } = props
+  const [open, setOpen] = useState(false)
+  const [uncontrolledValue, setUncontrolledValue] = useState(() => String(selectProps.defaultValue ?? ''))
+  const containerRef = useRef<HTMLDivElement>(null)
+  const controlled = selectProps.value !== undefined
+  const value = controlled ? String(selectProps.value ?? '') : uncontrolledValue
+  const floatingLabel = showLabel ? label : undefined
+  const hasValue = Boolean(value)
+  const options = [
+    ...(placeholder !== undefined ? [{ value: '', label: 'Не выбрано', disabled: false }] : []),
+    ...Children.toArray(children).filter(isValidElement).map((option) => {
+      const optionProps = option.props as { value?: string | number; children?: ReactNode; disabled?: boolean }
+      return { value: String(optionProps.value ?? optionProps.children ?? ''), label: optionProps.children, disabled: Boolean(optionProps.disabled) }
+    }),
+  ]
+  const selectedOption = options.find((option) => option.value === value)
+  const visibleValue = hasValue ? displayValue ?? selectedOption?.label : placeholder
+  useBlurOnOutsidePointer(containerRef)
+  useEffect(() => {
+    if (!open) return
+    const close = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    window.addEventListener('pointerdown', close, true)
+    return () => window.removeEventListener('pointerdown', close, true)
+  }, [open])
+
+  const choose = (nextValue: string) => {
+    if (!controlled) setUncontrolledValue(nextValue)
+    selectProps.onChange?.({ target: { value: nextValue }, currentTarget: { value: nextValue } } as ChangeEvent<HTMLSelectElement>)
+    setOpen(false)
+  }
+
+  return (
+    <div ref={containerRef} className={`native-select${open ? ' open' : ''}`}>
+      <button type="button" className={`form-control form-select form-select-${type}${floatingLabel ? ' form-select-floating' : ''}${icon ? ' form-control-with-icon' : ''}${visibleValue !== undefined ? ' form-select-with-display-value' : ''}${controlClassName ? ` ${controlClassName}` : ''}`} data-filled={floatingLabel && hasValue || undefined} data-placeholder={floatingLabel && !hasValue && placeholder !== undefined || undefined} disabled={selectProps.disabled} aria-label={selectProps['aria-label']} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+        {icon && <span className="form-control-icon">{icon}</span>}
+        <span className="form-control-input">
+          {floatingLabel && <span className="form-control-floating-label">{floatingLabel}</span>}
+          {visibleValue !== undefined && <span className="form-select-display-value">{visibleValue}</span>}
+        </span>
+        {type === 'time' && secondaryText !== undefined && <span className="form-select-secondary-text">{secondaryText}</span>}
+      </button>
+      {open && <div className="native-select-menu" role="listbox" aria-label={selectProps['aria-label']}>
+        {options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === value} disabled={option.disabled} onClick={() => choose(option.value)}>{option.value === value && <span aria-hidden="true">✓</span>}<span>{option.label}</span></button>)}
+      </div>}
+      {selectProps.name && <input type="hidden" name={selectProps.name} value={value} />}
+    </div>
+  )
+}
+
 export function Select(props: SelectProps) {
   if (props.type === 'assignee') {
     const { type: _type, ...assigneeProps } = props
     return <AssigneeSelect {...assigneeProps} />
   }
-  const { type, label, showLabel = true, icon, displayValue, secondaryText, controlClassName = '', children, ...selectProps } = props
-  const floatingLabel = showLabel ? label : undefined
-  const hasValue = Boolean(selectProps.value ?? selectProps.defaultValue)
-  return (
-    <span className={`form-control form-select form-select-${type}${floatingLabel ? ' form-select-floating' : ''}${icon ? ' form-control-with-icon' : ''}${displayValue !== undefined ? ' form-select-with-display-value' : ''}${controlClassName ? ` ${controlClassName}` : ''}`} data-filled={floatingLabel && hasValue || undefined}>
-      {icon && <span className="form-control-icon">{icon}</span>}
-      <span className="form-control-input">
-        {floatingLabel && <span className="form-control-floating-label">{floatingLabel}</span>}
-        {displayValue !== undefined && <span className="form-select-display-value" aria-hidden="true">{displayValue}</span>}
-        <select {...selectProps}>{children}</select>
-      </span>
-      {type === 'time' && secondaryText !== undefined && <span className="form-select-secondary-text">{secondaryText}</span>}
-    </span>
-  )
+  return <NativeSelect {...props} />
 }

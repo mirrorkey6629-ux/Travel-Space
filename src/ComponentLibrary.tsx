@@ -107,6 +107,7 @@ export default function ComponentLibrary() {
   const [formControlListLayout, setFormControlListLayout] = useState<'single' | 'double' | 'mixed'>('mixed')
   const [formControlListHeadline, setFormControlListHeadline] = useState(false)
   const [infoRowListHeadline, setInfoRowListHeadline] = useState(false)
+  const [infoRowListText, setInfoRowListText] = useState(false)
   const [itemListHeadline, setItemListHeadline] = useState(false)
   const [textareaListHeadline, setTextareaListHeadline] = useState(false)
   const [assignees, setAssignees] = useState<string[]>(['torch'])
@@ -254,17 +255,17 @@ export default function ComponentLibrary() {
           </Specimen>
           <Specimen name="Info row list" className="kit-info-row-list-specimen kit-configurable-list-specimen">
             <div className="kit-info-row-layout">
-              <div className="kit-info-row-controls"><PropertyToggle label="Headline" checked={infoRowListHeadline} onChange={setInfoRowListHeadline} /></div>
+              <div className="kit-info-row-controls"><PropertyToggle label="Headline" checked={infoRowListHeadline} onChange={setInfoRowListHeadline} /><PropertyToggle label="Text" checked={infoRowListText} onChange={setInfoRowListText} /></div>
               <div className="kit-info-row-list-examples">
                 <Variant label="Color · Gap 4">
-                  <InfoRowList gap={4} headline={infoRowListHeadline ? 'Маршрут' : undefined}>
+                  <InfoRowList gap={4} headline={infoRowListHeadline ? 'Маршрут' : undefined} text={infoRowListText ? 'Три города' : undefined}>
                     <InfoRow title="Осака" subtitle="4–7 окт · 2,5 дня" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Осака" />
                     <InfoRow title="Нара" subtitle="7 окт · 1 день" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Нара" />
                     <InfoRow title="Киото" subtitle="7–10 окт · 2 дня" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Киото" />
                   </InfoRowList>
                 </Variant>
                 <Variant label="Transparent · Gap 4">
-                  <InfoRowList gap={4} headline={infoRowListHeadline ? 'Маршрут' : undefined}>
+                  <InfoRowList gap={4} headline={infoRowListHeadline ? 'Маршрут' : undefined} text={infoRowListText ? 'Три города' : undefined}>
                     <InfoRow theme="transparent" title="Осака" subtitle="4–7 окт · 2,5 дня" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Осака" />
                     <InfoRow theme="transparent" title="Нара" subtitle="7 окт · 1 день" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Нара" />
                     <InfoRow theme="transparent" title="Киото" subtitle="7–10 окт · 2 дня" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Киото" />
