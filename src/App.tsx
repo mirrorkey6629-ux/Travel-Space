@@ -1835,7 +1835,10 @@ export default function App() {
     try {
       await api.createPlace(trip.id, city.id, { name: place.name, googleMapsUrl: place.url, icon: place.icon, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
       await loadTrip(trip.id)
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка добавления места') }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Ошибка добавления места')
+      await loadTrip(trip.id)
+    }
   }
 
   const updatePlace = async (city: City, date: string, place: Place) => {
@@ -1843,7 +1846,10 @@ export default function App() {
     try {
       // visitDate: null здесь обязателен — иначе точку нельзя вернуть в «Без даты».
       await api.updatePlace(trip.id, place.id, { name: place.name, googleMapsUrl: place.url, icon: place.icon, latitude: place.latitude, longitude: place.longitude, visitDate: date === UNSCHEDULED_KEY ? null : date })
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка обновления места') }
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Ошибка обновления места')
+      await loadTrip(trip.id)
+    }
   }
 
   const deletePlace = async (placeId: string) => {

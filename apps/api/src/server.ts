@@ -10,7 +10,7 @@ import { createToken, hashPassword, hashToken, requireTripRole, requireUser, ver
 import { apiPrefix, config } from './config.js'
 import { db, transaction } from './db.js'
 import { runMigrations } from './migrate.js'
-import { normalizePlaceIcon, reorderPlaces } from './places.js'
+import { hasDuplicatePlaceUrl, normalizePlaceIcon, reorderPlaces } from './places.js'
 
 type Json = Record<string, unknown>
 const bodyOf = (value: unknown) => (value && typeof value === 'object' ? value as Json : {})
@@ -717,10 +717,13 @@ app.post(`${apiPrefix}/trips/:tripId/cities/:cityId/places`, async (request, rep
   const city = (await db.query('SELECT id FROM cities WHERE id=$1 AND trip_id=$2', [cityId, tripId])).rows[0]
   if (!city) throw httpError(404, 'Город не найден')
   if (visitDate) await assertVisitDateInCity(tripId, cityId, visitDate)
+  const googleMapsUrl = text(body.googleMapsUrl)
+  const sameDayPlaces = await db.query('SELECT id, google_maps_url FROM places WHERE city_id=$1 AND visit_date IS NOT DISTINCT FROM $2', [cityId, visitDate])
+  if (hasDuplicatePlaceUrl(sameDayPlaces.rows, googleMapsUrl)) throw httpError(409, 'Эта точка уже добавлена на выбранный день')
   const position = Number((await db.query('SELECT coalesce(max(position), -1) + 1 AS value FROM places WHERE city_id=$1 AND visit_date IS NOT DISTINCT FROM $2', [cityId, visitDate])).rows[0].value)
   const result = await db.query(
     `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,icon,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [tripId, cityId, visitDate, name, text(body.googleMapsUrl), latitude ?? null, longitude ?? null, position, icon, user.id],
+    [tripId, cityId, visitDate, name, googleMapsUrl, latitude ?? null, longitude ?? null, position, icon, user.id],
   )
   reply.code(201)
   return { place: result.rows[0] }
@@ -743,6 +746,10 @@ app.patch(`${apiPrefix}/trips/:tripId/places/:placeId`, async (request) => {
   const visitDateGiven = 'visitDate' in body
   const visitDate = visitDateGiven ? (optionalText(body.visitDate) || null) : undefined
   if (visitDate) await assertVisitDateInCity(tripId, place.city_id, visitDate)
+  const targetDate = visitDateGiven ? visitDate ?? null : place.visit_date
+  const targetUrl = 'googleMapsUrl' in body ? text(body.googleMapsUrl) : place.google_maps_url
+  const sameDayPlaces = await db.query('SELECT id, google_maps_url FROM places WHERE city_id=$1 AND visit_date IS NOT DISTINCT FROM $2', [place.city_id, targetDate])
+  if (hasDuplicatePlaceUrl(sameDayPlaces.rows, targetUrl, placeId)) throw httpError(409, 'Эта точка уже добавлена на выбранный день')
   const result = await db.query(
     `UPDATE places SET name=coalesce($3,name), google_maps_url=coalesce($4,google_maps_url),
        visit_date=CASE WHEN $5 THEN $6 ELSE visit_date END,
@@ -772,9 +779,11 @@ app.patch(`${apiPrefix}/trips/:tripId/places/:placeId/move`, async (request) => 
   const position = Number(body.position)
   if (!Number.isInteger(position) || position < 0) throw httpError(400, 'Некорректная позиция точки')
   const visitDate = optionalText(body.visitDate) || null
-  const place = (await db.query('SELECT city_id FROM places WHERE id=$1 AND trip_id=$2', [placeId, tripId])).rows[0]
+  const place = (await db.query('SELECT city_id, google_maps_url FROM places WHERE id=$1 AND trip_id=$2', [placeId, tripId])).rows[0]
   if (!place) throw httpError(404, 'Место не найдено')
   if (visitDate) await assertVisitDateInCity(tripId, place.city_id, visitDate)
+  const sameDayPlaces = await db.query('SELECT id, google_maps_url FROM places WHERE city_id=$1 AND visit_date IS NOT DISTINCT FROM $2', [place.city_id, visitDate])
+  if (hasDuplicatePlaceUrl(sameDayPlaces.rows, place.google_maps_url, placeId)) throw httpError(409, 'Эта точка уже добавлена на выбранный день')
 
   await transaction(async (client) => {
     // FOR UPDATE держит строки города до конца транзакции: без блокировки два

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PLACE_ICONS, normalizePlaceIcon, reorderPlaces } from './places.js'
+import { PLACE_ICONS, hasDuplicatePlaceUrl, normalizeGoogleMapsUrl, normalizePlaceIcon, reorderPlaces } from './places.js'
 
 describe('normalizePlaceIcon', () => {
   it('содержит ровно восемь ключей', () => {
@@ -19,6 +19,18 @@ describe('normalizePlaceIcon', () => {
   it('возвращает undefined для неизвестного ключа', () => {
     expect(normalizePlaceIcon('casino')).toBeUndefined()
     expect(normalizePlaceIcon(42)).toBeUndefined()
+  })
+})
+
+describe('Google Maps duplicates', () => {
+  it('ignores tracking parameters and a trailing slash', () => {
+    expect(normalizeGoogleMapsUrl('https://www.google.com/maps/place/Osaka/?entry=ttu')).toBe('google.com/maps/place/Osaka')
+  })
+
+  it('finds a duplicate and can exclude the edited point', () => {
+    const rows = [{ id: 'a', google_maps_url: 'https://www.google.com/maps/place/Osaka/?entry=ttu' }]
+    expect(hasDuplicatePlaceUrl(rows, 'https://google.com/maps/place/Osaka')).toBe(true)
+    expect(hasDuplicatePlaceUrl(rows, 'https://google.com/maps/place/Osaka', 'a')).toBe(false)
   })
 })
 

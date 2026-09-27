@@ -9,6 +9,28 @@ export function normalizePlaceIcon(value: unknown): PlaceIcon | undefined {
   return PLACE_ICONS.includes(value as PlaceIcon) ? (value as PlaceIcon) : undefined
 }
 
+export function normalizeGoogleMapsUrl(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return ''
+  try {
+    const url = new URL(value.trim())
+    url.hostname = url.hostname.toLowerCase().replace(/^www\./, '')
+    url.hash = ''
+    url.pathname = url.pathname.replace(/\/+$/, '') || '/'
+    for (const key of [...url.searchParams.keys()]) {
+      if (key.startsWith('utm_') || ['entry', 'g_st', 'source'].includes(key)) url.searchParams.delete(key)
+    }
+    url.searchParams.sort()
+    return `${url.hostname}${url.pathname}${url.search}`
+  } catch {
+    return value.trim().replace(/\/+$/, '').toLocaleLowerCase()
+  }
+}
+
+export function hasDuplicatePlaceUrl(rows: readonly { id?: string; google_maps_url: string }[], url: string, excludeId?: string): boolean {
+  const key = normalizeGoogleMapsUrl(url)
+  return Boolean(key) && rows.some((row) => row.id !== excludeId && normalizeGoogleMapsUrl(row.google_maps_url) === key)
+}
+
 export type OrderedPlace = { id: string; visit_date: string | null; position: number }
 
 // Ключ дня: null и пустая строка должны схлопываться в одно ведро «без даты»,
