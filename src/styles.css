@@ -412,8 +412,8 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .form-select-with-display-value.form-select-floating .form-control-input > select { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; flex: none; }
 .form-select-time:not(.form-select-with-display-value) select { width: auto; flex: 1 1 auto; }
 .form-select-secondary-text { flex: 0 0 auto; margin-left: auto; color: var(--color-text-secondary); white-space: nowrap; pointer-events: none; }
-.form-textarea { height: 120px; min-height: 120px; padding: 16px; align-items: stretch; }
-.form-textarea textarea { resize: vertical; min-height: 78px; }
+.form-textarea { height: auto; min-height: 120px; padding: 16px; align-items: stretch; }
+.form-textarea textarea { height: auto; min-height: 88px; overflow: hidden; resize: none; }
 .form-control input[type="url"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .form-control input:-webkit-autofill,
 .form-control input:-webkit-autofill:hover,

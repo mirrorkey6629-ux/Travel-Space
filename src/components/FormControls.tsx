@@ -1,4 +1,4 @@
-import { Children, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes, isValidElement, useEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react'
+import { Children, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes, isValidElement, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react'
 import { Icon } from './Icon'
 
 type InputBaseProps = {
@@ -100,7 +100,15 @@ type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
 }
 
 export function Textarea({ label, controlClassName = '', fieldClassName = '', ...props }: TextareaProps) {
-  const control = <span className={`form-control form-textarea${controlClassName ? ` ${controlClassName}` : ''}`}><textarea {...props} /></span>
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const resizeToContent = () => {
+    const textarea = textareaRef.current
+    if (!textarea) return
+    textarea.style.height = 'auto'
+    textarea.style.height = `${textarea.scrollHeight}px`
+  }
+  useLayoutEffect(resizeToContent, [props.value])
+  const control = <span className={`form-control form-textarea${controlClassName ? ` ${controlClassName}` : ''}`}><textarea {...props} ref={textareaRef} onChange={(event) => { resizeToContent(); props.onChange?.(event) }} /></span>
   return label ? <label className={`field${fieldClassName ? ` ${fieldClassName}` : ''}`}><span>{label}</span>{control}</label> : control
 }
 
