@@ -1196,7 +1196,7 @@ const documentMetadata = (file: TravelFile) => {
   return [file.uploadedBy, uploadedAt].filter(Boolean).join(' · ')
 }
 
-function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, readOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; onSave: (value: TransportDetails) => void; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
+function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, readOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; onSave: (value: TransportDetails) => Promise<void>; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
   const valueSignature = JSON.stringify(value)
   const [draft, setDraft] = useState<TransportDetails>(() => {
     const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
@@ -1215,7 +1215,7 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   const journeyText = draft.ticketOnSite ? TICKET_ON_SITE_PAGE_TEXT : durationLabel ?? 'Тут появится время в пути'
   const journeySummary = draft.type ? `${transportEmoji[draft.type]} ${journeyText}` : journeyText
   return (
-    <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); onSave(draft.ticketOnSite ? { ...draft, departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : draft) }}>
+    <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); void onSave(draft.ticketOnSite ? { ...draft, departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : draft) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
       <FormPanelLayout action={!readOnly && <Button type="submit">Сохранить</Button>}>
         <FormPanelGroup>
@@ -1276,12 +1276,12 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   )
 }
 
-function HotelDialog({ cityName, value, members, booking, readOnly = false, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; members: TripMember[]; booking?: TravelFile; readOnly?: boolean; onSave: (value: HotelDetails) => void; onBooking: (value: HotelDetails) => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
+function HotelDialog({ cityName, value, members, booking, readOnly = false, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; members: TripMember[]; booking?: TravelFile; readOnly?: boolean; onSave: (value: HotelDetails) => Promise<void>; onBooking: (value: HotelDetails) => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
   const valueSignature = JSON.stringify(value)
   const [draft, setDraft] = useState(value)
   useEffect(() => setDraft(value), [valueSignature])
   return (
-    <form className="transport-editor-screen trip-background setup-transition" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); onSave({ name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim(), payerIds: draft.payerIds, totalAmountRubles: draft.totalAmountRubles }) }}>
+    <form className="transport-editor-screen trip-background setup-transition" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); void onSave({ name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim(), payerIds: draft.payerIds, totalAmountRubles: draft.totalAmountRubles }) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
       <FormPanelLayout action={!readOnly && <Button type="submit">Сохранить</Button>}>
           <FormPanelHeader id="hotel-title" title={`Отель ${cityName}`} />
@@ -1317,7 +1317,7 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
   )
 }
 
-function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, initialFocusPlace, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; readOnly?: boolean; onChange: (city: City) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
+function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, initialFocusPlace, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; readOnly?: boolean; onChange: (city: City) => Promise<string | undefined>; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
   useEffect(() => {
     setDraft({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() })
@@ -1431,18 +1431,22 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
   const placesByDate = managedMapPlaces.reduce<Record<string, Place[]>>((result, place) => ({ ...result, [place.date]: [...(result[place.date] ?? []), place] }), ordinaryPlacesByDate)
   const managedPlaceIds = new Set(managedMapPlaces.map((place) => place.id))
   const pointsCount = Object.values(placesByDate).reduce((total, places) => total + places.length, 0)
-  const saveTransport = (value: TransportDetails) => {
+  const saveTransport = async (value: TransportDetails) => {
     if (!transportDirection) return
     const next = { ...draft, [transportDirection === 'in' ? 'transportIn' : 'transportOut']: value }
     setDraft(next)
-    onChange(next)
+    const savedVersion = await onChange(next)
+    if (!savedVersion) return
+    setDraft((current) => ({ ...current, updatedAt: savedVersion }))
     setTransportDirection(null)
     onPanelClose()
   }
-  const saveHotel = (hotel: HotelDetails) => {
+  const saveHotel = async (hotel: HotelDetails) => {
     const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes, hotelPayerIds: hotel.payerIds, hotelTotalAmountRubles: hotel.totalAmountRubles }
     setDraft(next)
-    onChange(next)
+    const savedVersion = await onChange(next)
+    if (!savedVersion) return
+    setDraft((current) => ({ ...current, updatedAt: savedVersion }))
     setHotelOpen(false)
     onPanelClose()
   }
@@ -1542,7 +1546,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
   )
 }
 
-function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; cacheState: CacheState; online: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => void; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
+function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; cacheState: CacheState; online: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => Promise<string | undefined>; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
   const [showPast, setShowPast] = useState(false)
   const [expensesOpen, setExpensesOpen] = useState(false)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
@@ -1576,7 +1580,11 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
             onOpenManagedPanel={(cityId, panel) => { setSelectedPlaceId(null); setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(cityId); setSelectedPanel(panel) }}
             onPanelClose={() => { setSelectedCityId(panelReturnCityId); setSelectedPanel(null) }}
             onClose={() => { setSelectedPlaceId(null); setSelectedCityId(null); setPanelReturnCityId(null); setSelectedCityDate(null); setSelectedPanel(null) }}
-            onChange={(nextCity) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onCityChange(nextCity) }}
+            onChange={async (nextCity) => {
+              const savedVersion = await onCityChange(nextCity)
+              if (savedVersion) onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? { ...nextCity, updatedAt: savedVersion } : city) })
+              return savedVersion
+            }}
             readOnly={!access.canEdit}
             onAddPlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onAddPlace(nextCity, date, place) }}
             onUpdatePlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onUpdatePlace(nextCity, date, place) }}
@@ -1917,10 +1925,14 @@ export default function App() {
 
   const updateCity = async (city: City) => {
     if (!trip?.id) return
-    try { await saveCityPayload(city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }, city.updatedAt) }
+    try {
+      const saved = await saveCityPayload(city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }, city.updatedAt)
+      return saved?.updated_at
+    }
     catch (reason) {
       if (isConflictError(reason)) setConflictMessage('В поездке появились новые данные')
       else setError(reason instanceof Error ? reason.message : 'Ошибка сохранения')
+      return undefined
     }
   }
 
@@ -2021,7 +2033,7 @@ export default function App() {
     if (!trip) return <AuthShell><div className="glass auth-modal compact"><h1>{error || 'Поездка не найдена'}</h1></div></AuthShell>
     const noop = () => undefined
     const noopAsync = async () => undefined
-    return <Dashboard trip={trip} user={null} tripCount={0} cacheState={cacheState} online={online} onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noop} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
+    return <Dashboard trip={trip} user={null} tripCount={0} cacheState={cacheState} online={online} onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noopAsync} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
   }
 
   if (screen === 'start' || screen === 'login' || screen === 'join') {
@@ -2067,7 +2079,7 @@ export default function App() {
   if (screen === 'setup') return <><SetupScreen initial={trip} user={currentUser} refreshToken={remoteRefreshToken} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={(value) => void saveTrip(value)} />{error && <p className="app-error">{error}</p>}</>
   if (!trip) return null
   if (inviteOpen) return <><InviteScreen trip={trip} onBack={() => setInviteOpen(false)} onCreate={async (hours) => (await api.createInvitation(trip.id!, hours)).invitation} onViewLink={async () => (await api.viewLink(trip.id!)).viewLink.url} onRemove={async (member) => { await api.removeMember(trip.id!, member.id); await loadTrip(trip.id!) }} />{error && <p className="app-error">{error}</p>}</>
-  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} cacheState={cacheState} online={online} onChange={setTrip} onEdit={() => { if (!trip.id) return; void loadTrip(trip.id).then(() => setScreen('setup')).catch((reason) => setError(reason instanceof Error ? reason.message : 'Не удалось обновить поездку')) }} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
+  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} cacheState={cacheState} online={online} onChange={setTrip} onEdit={() => { if (!trip.id) return; void loadTrip(trip.id).then(() => setScreen('setup')).catch((reason) => setError(reason instanceof Error ? reason.message : 'Не удалось обновить поездку')) }} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={updateCity} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
   }
 
   const updateNoticeMessage = conflictMessage || remoteUpdateNotice?.message
