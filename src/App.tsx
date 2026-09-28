@@ -66,6 +66,7 @@ type City = {
 }
 type Trip = { id?: string; updatedAt?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; timeZone: string; cities: City[]; deletedCityIds?: string[]; dayDescriptions: Record<string, string>; members?: TripMember[]; memberCount?: number; background?: TravelFile; backgroundUrl?: string; backgroundFile?: File; backgroundRemoved?: boolean; backgroundDeleteId?: string }
 type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard' | 'profile' | 'view'
+type RemoteUpdateNotice = { signature: string; message: string }
 export type { IconName } from './components/Icon'
 
 const STORAGE_KEY = 'tabi-trip-v1'
@@ -76,6 +77,19 @@ const cityPlaceholder = `${import.meta.env.BASE_URL}assets/city-placeholder.png`
 const ruMonths = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 const ruWeekdays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 const greetings = ['Привет', 'Hello', 'Hola', 'Bonjour', 'Ciao', 'Hallo', 'Olá', 'こんにちは', '안녕하세요', '你好', 'Namaste', 'Merhaba', 'Hej', 'Hei', 'Ahoj', 'Cześć', 'Γεια σου', 'Shalom', 'Marhaba', 'Sawubona']
+
+const protectedDataSignature = (source: { updated_at?: string; cities: Array<{ id: string; updated_at: string }> }) => JSON.stringify([
+  source.updated_at ?? '',
+  ...source.cities.map((city) => `${city.id}:${city.updated_at}`).sort(),
+])
+
+const hasNewerProtectedData = (remote: ApiTripDetails, localTrip: Trip, localCityVersions: Map<string, string>) => {
+  if (remote.updated_at && localTrip.updatedAt && Date.parse(remote.updated_at) > Date.parse(localTrip.updatedAt)) return true
+  return remote.cities.some((city) => {
+    const localVersion = localCityVersions.get(city.id)
+    return !localVersion || Date.parse(city.updated_at) > Date.parse(localVersion)
+  })
+}
 
 const uid = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -658,6 +672,9 @@ const assigneeOptions = (members: TripMember[]) => members.map((member) => ({ va
 
 function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: City; onSave: (city: City) => void; onClose: () => void }) {
   const [city, setCity] = useState<City>(() => initial ? { ...initial, arrivalPeriod: initial.arrivalPeriod ?? 'morning', departurePeriod: initial.departurePeriod ?? 'evening' } : emptyCity())
+  useEffect(() => {
+    if (initial) setCity({ ...initial, arrivalPeriod: initial.arrivalPeriod ?? 'morning', departurePeriod: initial.departurePeriod ?? 'evening' })
+  }, [initial?.updatedAt])
   const sameDayPeriodsValid = city.arrival !== city.departure || periodOrder[city.departurePeriod ?? 'evening'] >= periodOrder[city.arrivalPeriod ?? 'morning']
   const valid = city.name.trim() && city.arrival && city.departure && city.departure >= city.arrival && sameDayPeriodsValid
   const tripDates = dateRange(trip.startDate, trip.endDate)
@@ -705,6 +722,8 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
 
 function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (cities: City[]) => void; onClose: () => void }) {
   const [cities, setCities] = useState(() => trip.cities.map((city) => ({ ...city })))
+  const citiesSignature = trip.cities.map((city) => `${city.id}:${city.updatedAt ?? ''}`).join('|')
+  useEffect(() => setCities(trip.cities.map((city) => ({ ...city }))), [citiesSignature])
   const tripDates = dateRange(trip.startDate, trip.endDate)
   const members = trip.members ?? []
   const canAssign = trip.role === 'owner'
@@ -749,10 +768,15 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
   )
 }
 
-function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null; user: CurrentUser | null; onCreate: (trip: Trip) => void; onExit: () => void }) {
+function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initial: Trip | null; user: CurrentUser | null; refreshToken: number; onCreate: (trip: Trip) => void; onExit: () => void }) {
   const [trip, setTrip] = useState<Trip>(initial ?? { name: '', startDate: '', endDate: '', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', cities: [], dayDescriptions: {}, members: user ? [{ id: user.id, email: user.email, displayName: user.displayName, role: 'owner', hasAvatar: user.hasAvatar, avatarUrl: user.avatarUrl }] : [] })
   const [editing, setEditing] = useState<City | null | undefined>(undefined)
   const [editingAll, setEditingAll] = useState(false)
+  useEffect(() => {
+    if (!initial || refreshToken === 0) return
+    setTrip(initial)
+    setEditing((current) => current === undefined || current === null ? current : initial.cities.find((city) => city.id === current.id))
+  }, [initial, refreshToken])
   const access = useAccess()
   const datesValid = trip.startDate && trip.endDate && trip.endDate >= trip.startDate
   const tripDays = datesValid ? daysBetween(trip.startDate, trip.endDate) : 0
@@ -767,9 +791,9 @@ function SetupScreen({ initial, user, onCreate, onExit }: { initial: Trip | null
     <main className="screen trip-background setup-screen" style={tripBackgroundStyle(trip)}>
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onExit} aria-label="Назад" />
       {editingAll ? (
-          <AllCitiesEditor trip={trip} onClose={() => setEditingAll(false)} onSave={(cities) => { setTrip((current) => ({ ...current, cities: sortCitiesByDate(cities) })); setEditingAll(false) }} />
+          <AllCitiesEditor key={`all-cities:${refreshToken}`} trip={trip} onClose={() => setEditingAll(false)} onSave={(cities) => { setTrip((current) => ({ ...current, cities: sortCitiesByDate(cities) })); setEditingAll(false) }} />
         ) : editing !== undefined ? (
-          <CityEditor trip={trip} initial={editing ?? undefined} onSave={upsertCity} onClose={() => setEditing(undefined)} />
+          <CityEditor key={`city:${editing?.id ?? 'new'}:${refreshToken}`} trip={trip} initial={editing ?? undefined} onSave={upsertCity} onClose={() => setEditing(undefined)} />
         ) : (
           <FormPanelLayout className="setup-transition" action={trip.cities.length > 0 && <Button disabled={!trip.name.trim() || !access.canEdit} onClick={() => onCreate(trip)}>Сохранить поездку</Button>}>
             <FormPanelHeader title={trip.name || (initial ? 'Поездка' : 'Добавить поездку')} text={<>{datesValid && <>{formatDays(tripDays)} · </>}{formatTimeZoneOffset(trip.timeZone, trip.startDate)}</>} />
@@ -1184,10 +1208,15 @@ const documentMetadata = (file: TravelFile) => {
 }
 
 function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, readOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; onSave: (value: TransportDetails) => void; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
+  const valueSignature = JSON.stringify(value)
   const [draft, setDraft] = useState<TransportDetails>(() => {
     const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
     return { ...value, ticketOnSite, ...(ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) }
   })
+  useEffect(() => {
+    const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
+    setDraft({ ...value, ticketOnSite, ...(ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) })
+  }, [valueSignature])
   const visibleTickets = tickets.slice(0, 1)
   const legacyTicketName = visibleTickets.length === 0 ? ticketName : ''
   const ticketCount = visibleTickets.length + Number(Boolean(legacyTicketName))
@@ -1259,7 +1288,9 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
 }
 
 function HotelDialog({ cityName, value, members, booking, readOnly = false, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; members: TripMember[]; booking?: TravelFile; readOnly?: boolean; onSave: (value: HotelDetails) => void; onBooking: (value: HotelDetails) => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
+  const valueSignature = JSON.stringify(value)
   const [draft, setDraft] = useState(value)
+  useEffect(() => setDraft(value), [valueSignature])
   return (
     <form className="transport-editor-screen trip-background setup-transition" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); onSave({ name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim(), payerIds: draft.payerIds, totalAmountRubles: draft.totalAmountRubles }) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
@@ -1629,6 +1660,8 @@ export default function App() {
   const cityImageUrlsRef = useRef<string[]>([])
   const tripLoadSequenceRef = useRef(0)
   const cityVersionsRef = useRef(new Map<string, string>())
+  const tripRef = useRef<Trip | null>(null)
+  const ignoredRemoteSignatureRef = useRef('')
   const legacyTrip = useRef<Trip | null>((() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') } catch { return null }
   })())
@@ -1639,9 +1672,12 @@ export default function App() {
   const [loading, setLoading] = useState(Boolean(session.token || viewToken))
   const [error, setError] = useState('')
   const [conflictMessage, setConflictMessage] = useState('')
+  const [remoteUpdateNotice, setRemoteUpdateNotice] = useState<RemoteUpdateNotice | null>(null)
+  const [remoteRefreshToken, setRemoteRefreshToken] = useState(0)
   const [deleteTarget, setDeleteTarget] = useState<ApiTripSummary | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
   const { state: cacheState, online } = useOfflineCache(trip?.id ?? null)
+  useEffect(() => { tripRef.current = trip }, [trip])
 
   const loadCurrentUser = async () => {
     const account = await api.me()
@@ -1759,6 +1795,51 @@ export default function App() {
     return value
   }
 
+  useEffect(() => {
+    if (!trip?.id || !online || (screen !== 'dashboard' && screen !== 'setup')) return
+    let active = true
+    let checking = false
+    const checkForUpdates = async () => {
+      if (checking || document.visibilityState === 'hidden') return
+      checking = true
+      try {
+        const result = await api.trip(trip.id!)
+        const localTrip = tripRef.current
+        if (!active || !localTrip || localTrip.id !== result.trip.id) return
+        const signature = protectedDataSignature(result.trip)
+        if (hasNewerProtectedData(result.trip, localTrip, cityVersionsRef.current) && signature !== ignoredRemoteSignatureRef.current) {
+          setRemoteUpdateNotice({ signature, message: 'В поездке появились новые данны' })
+        }
+      } catch {
+        // Фоновая проверка не должна мешать работе с формой при нестабильной сети.
+      } finally {
+        checking = false
+      }
+    }
+    void checkForUpdates()
+    const timer = window.setInterval(() => void checkForUpdates(), 12_000)
+    const onFocus = () => void checkForUpdates()
+    window.addEventListener('focus', onFocus)
+    return () => {
+      active = false
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [trip?.id, online, screen])
+
+  const refreshProtectedData = async () => {
+    if (!trip?.id) return
+    try {
+      await loadTrip(trip.id)
+      setRemoteRefreshToken((value) => value + 1)
+      setRemoteUpdateNotice(null)
+      setConflictMessage('')
+      ignoredRemoteSignatureRef.current = ''
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Не удалось загрузить новые данные')
+    }
+  }
+
   const refreshTrips = async () => {
     const result = await api.trips()
     setTrips(result.trips)
@@ -1831,7 +1912,7 @@ export default function App() {
       }
       setScreen('dashboard')
     } catch (reason) {
-      if (reason instanceof ApiRequestError && reason.status === 409) setConflictMessage(reason.message)
+      if (reason instanceof ApiRequestError && reason.status === 409) setConflictMessage('В поездке появились новые данные')
       else setError(reason instanceof Error ? reason.message : 'Не удалось сохранить')
     }
   }
@@ -1848,7 +1929,7 @@ export default function App() {
     if (!trip?.id) return
     try { await saveCityPayload(city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }) }
     catch (reason) {
-      if (reason instanceof ApiRequestError && reason.status === 409) setConflictMessage(reason.message)
+      if (reason instanceof ApiRequestError && reason.status === 409) setConflictMessage('В поездке появились новые данные')
       else setError(reason instanceof Error ? reason.message : 'Ошибка сохранения')
     }
   }
@@ -1993,23 +2074,29 @@ export default function App() {
     return avatarUrl
   }} />
   if (screen === 'trips') return <><TripsScreen trips={trips} canCreate={currentUser?.email.toLowerCase() === ADMIN_EMAIL} deleteTarget={deleteTarget} onOpen={(id) => { void loadTrip(id).then(() => setScreen('dashboard')) }} onCreate={() => { setTrip(null); setScreen('setup') }} onClose={() => { setDeleteTarget(null); setScreen(trip ? 'dashboard' : 'start') }} onDelete={setDeleteTarget} onCloseDelete={() => setDeleteTarget(null)} onConfirmDelete={async () => { if (!deleteTarget) return; await api.deleteTrip(deleteTarget.id, deleteTarget.name); setDeleteTarget(null); const remaining = await refreshTrips(); if (remaining.length === 1) { await loadTrip(remaining[0].id); setScreen('dashboard') } }} onExport={async (item) => { try { const blob = await api.exportTrip(item.id); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${item.name}.travelspace`; anchor.click(); URL.revokeObjectURL(url) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось экспортировать поездку') } }} onImport={async (file) => { try { const result = await api.importTrip(file); await refreshTrips(); await loadTrip(result.trip.id); setScreen('dashboard') } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось импортировать поездку') } }} />{error && <p className="app-error">{error}</p>}</>
-  if (screen === 'setup') return <><SetupScreen initial={trip} user={currentUser} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={(value) => void saveTrip(value)} />{error && <p className="app-error">{error}</p>}</>
+  if (screen === 'setup') return <><SetupScreen initial={trip} user={currentUser} refreshToken={remoteRefreshToken} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={(value) => void saveTrip(value)} />{error && <p className="app-error">{error}</p>}</>
   if (!trip) return null
   if (inviteOpen) return <><InviteScreen trip={trip} onBack={() => setInviteOpen(false)} onCreate={async (hours) => (await api.createInvitation(trip.id!, hours)).invitation} onViewLink={async () => (await api.viewLink(trip.id!)).viewLink.url} onRemove={async (member) => { await api.removeMember(trip.id!, member.id); await loadTrip(trip.id!) }} />{error && <p className="app-error">{error}</p>}</>
   return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} cacheState={cacheState} online={online} onChange={setTrip} onEdit={() => { if (!trip.id) return; void loadTrip(trip.id).then(() => setScreen('setup')).catch((reason) => setError(reason instanceof Error ? reason.message : 'Не удалось обновить поездку')) }} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
   }
 
+  const updateNoticeMessage = conflictMessage || remoteUpdateNotice?.message
+  const closeUpdateNotice = () => {
+    if (remoteUpdateNotice) ignoredRemoteSignatureRef.current = remoteUpdateNotice.signature
+    setRemoteUpdateNotice(null)
+    setConflictMessage('')
+  }
+
   return <AccessContext.Provider value={access}>
     {renderScreen()}
-    {conflictMessage && <div className="conflict-backdrop" role="presentation">
-      <section className="glass conflict-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title">
-        <h2 id="conflict-title">Есть более новые данные</h2>
-        <p>{conflictMessage}</p>
-        <div className="conflict-dialog-actions">
-          <Button onClick={() => window.location.reload()}>Загрузить новые данные</Button>
-          <Button theme="transparent" onClick={() => setConflictMessage('')}>Закрыть</Button>
-        </div>
-      </section>
-    </div>}
+    {updateNoticeMessage && <aside className="point-card update-notification" role="status" aria-live="polite">
+      <div className="update-notification-header">
+        <p>{updateNoticeMessage}</p>
+        <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={closeUpdateNotice} aria-label="Закрыть уведомление" />
+      </div>
+      <div className="update-notification-actions">
+        <Button type="button" size="m" onClick={() => void refreshProtectedData()}>Загрузить новые данные</Button>
+      </div>
+    </aside>}
   </AccessContext.Provider>
 }
