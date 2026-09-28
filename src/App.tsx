@@ -23,7 +23,7 @@ import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
 import { AccessContext, tripAccess, useAccess } from './tripAccess'
-import { hasDifferentProtectedData, protectedDataSignature } from './remoteRevision'
+import { hasDifferentProtectedData } from './remoteRevision'
 
 type Place = { id: string; name: string; url: string; icon: PlaceIconKey; latitude?: number; longitude?: number }
 type Task = { id: string; title: string; done: boolean }
@@ -67,7 +67,7 @@ type City = {
 }
 type Trip = { id?: string; updatedAt?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; timeZone: string; cities: City[]; deletedCityIds?: string[]; dayDescriptions: Record<string, string>; members?: TripMember[]; memberCount?: number; background?: TravelFile; backgroundUrl?: string; backgroundFile?: File; backgroundRemoved?: boolean; backgroundDeleteId?: string }
 type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard' | 'profile' | 'view'
-type RemoteUpdateNotice = { signature: string; message: string }
+type RemoteUpdateNotice = { message: string }
 export type { IconName } from './components/Icon'
 
 const STORAGE_KEY = 'tabi-trip-v1'
@@ -1658,7 +1658,6 @@ export default function App() {
   const tripLoadSequenceRef = useRef(0)
   const cityVersionsRef = useRef(new Map<string, string>())
   const tripRef = useRef<Trip | null>(null)
-  const ignoredRemoteSignatureRef = useRef('')
   const legacyTrip = useRef<Trip | null>((() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') } catch { return null }
   })())
@@ -1804,9 +1803,8 @@ export default function App() {
         const localTrip = tripRef.current
         if (!active || !localTrip || localTrip.id !== result.trip.id) return
         const remoteTrip = fromApiTrip(result.trip)
-        const signature = protectedDataSignature(remoteTrip)
-        if (hasDifferentProtectedData(remoteTrip, localTrip) && signature !== ignoredRemoteSignatureRef.current) {
-          setRemoteUpdateNotice({ signature, message: 'В поездке появились новые данные' })
+        if (hasDifferentProtectedData(remoteTrip, localTrip)) {
+          setRemoteUpdateNotice({ message: 'В поездке появились новые данные' })
         }
       } catch {
         // Фоновая проверка не должна мешать работе с формой при нестабильной сети.
@@ -1832,7 +1830,6 @@ export default function App() {
       setRemoteRefreshToken((value) => value + 1)
       setRemoteUpdateNotice(null)
       setConflictMessage('')
-      ignoredRemoteSignatureRef.current = ''
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось загрузить новые данные')
     }
@@ -2083,18 +2080,11 @@ export default function App() {
   }
 
   const updateNoticeMessage = conflictMessage || remoteUpdateNotice?.message
-  const closeUpdateNotice = () => {
-    if (remoteUpdateNotice) ignoredRemoteSignatureRef.current = remoteUpdateNotice.signature
-    setRemoteUpdateNotice(null)
-    setConflictMessage('')
-  }
-
   return <AccessContext.Provider value={access}>
     {renderScreen()}
     {updateNoticeMessage && <aside className="point-card update-notification" role="status" aria-live="polite">
       <div className="update-notification-header">
         <p>{updateNoticeMessage}</p>
-        <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={closeUpdateNotice} aria-label="Закрыть уведомление" />
       </div>
       <div className="update-notification-actions">
         <Button type="button" size="m" onClick={() => void refreshProtectedData()}>Загрузить новые данные</Button>
