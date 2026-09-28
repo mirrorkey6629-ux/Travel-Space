@@ -53,6 +53,24 @@ const base64Pattern = /^[A-Za-z0-9+/]*={0,2}$/
 const isBase64 = (value: string) => value.length % 4 === 0 && base64Pattern.test(value)
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode })
 
+const changed = (before: Record<string, unknown>, after: Record<string, unknown>, fields: string[]) => fields.some((field) => {
+  const normalize = (value: unknown) => value instanceof Date ? value.toISOString() : value
+  return JSON.stringify(normalize(before[field])) !== JSON.stringify(normalize(after[field]))
+})
+const sameIds = (left: unknown, right: unknown) => {
+  const normalize = (value: unknown) => Array.isArray(value) ? value.map(String).sort() : []
+  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right))
+}
+
+const recordTripChange = async (tripId: string, actorId: string, entityType: 'trip' | 'city', entityId: string | null, sections: string[], cityName?: string) => {
+  if (!sections.length) return
+  await db.query(
+    `INSERT INTO trip_change_events(trip_id,actor_id,entity_type,entity_id,sections,city_name)
+     VALUES ($1,$2,$3,$4,$5,$6)`,
+    [tripId, actorId, entityType, entityId, sections, cityName ?? null],
+  )
+}
+
 async function assertVisitDateInCity(tripId: string, cityId: string, visitDate: string) {
   const city = (await db.query<{ arrival_date: string; departure_date: string }>(
     'SELECT arrival_date::text, departure_date::text FROM cities WHERE id=$1 AND trip_id=$2', [cityId, tripId])).rows[0]
@@ -372,7 +390,7 @@ app.get(`${apiPrefix}/trips/:tripId`, async (request) => {
   const user = await requireUser(request)
   const { tripId } = request.params as { tripId: string }
   const role = await requireTripRole(tripId, user.id)
-  const [tripResult, cities, places, tasks, dayNotes, documents, members] = await Promise.all([
+  const [tripResult, cities, places, tasks, dayNotes, documents, members, latestChange] = await Promise.all([
     db.query('SELECT id, name, start_date, end_date, time_zone, owner_id, background_removed, created_at, updated_at FROM trips WHERE id = $1', [tripId]),
     db.query('SELECT * FROM cities WHERE trip_id = $1 ORDER BY position', [tripId]),
     db.query('SELECT * FROM places WHERE trip_id = $1 ORDER BY city_id, visit_date NULLS FIRST, position', [tripId]),
@@ -380,10 +398,16 @@ app.get(`${apiPrefix}/trips/:tripId`, async (request) => {
     db.query('SELECT trip_id,day_date,description FROM trip_day_notes WHERE trip_id = $1 ORDER BY day_date', [tripId]),
     db.query('SELECT d.id, d.trip_id, d.city_id, d.category, d.original_name, d.mime_type, d.size_bytes, d.created_by, d.created_at, u.display_name AS created_by_name FROM documents d JOIN users u ON u.id = d.created_by WHERE d.trip_id = $1 ORDER BY d.created_at', [tripId]),
     db.query(`SELECT u.id, u.email, u.display_name, (u.avatar_storage_key IS NOT NULL) AS has_avatar, tm.role, tm.joined_at FROM trip_members tm JOIN users u ON u.id = tm.user_id WHERE tm.trip_id = $1`, [tripId]),
+    db.query(`SELECT e.id::text,e.entity_type,e.entity_id::text,e.sections,e.city_name,e.created_at,
+                     u.id::text AS actor_id,u.display_name AS actor_name
+                FROM trip_change_events e
+                JOIN users u ON u.id=e.actor_id
+               WHERE e.trip_id=$1
+               ORDER BY e.id DESC LIMIT 1`, [tripId]),
   ])
   const trip = tripResult.rows[0]
   if (!trip) throw httpError(404, 'Поездка не найдена')
-  return { trip: { ...trip, role, cities: cities.rows, places: places.rows, tasks: tasks.rows, day_notes: dayNotes.rows, documents: documents.rows, members: members.rows } }
+  return { trip: { ...trip, role, cities: cities.rows, places: places.rows, tasks: tasks.rows, day_notes: dayNotes.rows, documents: documents.rows, members: members.rows, last_change: latestChange.rows[0] ?? null } }
 })
 
 app.put(`${apiPrefix}/trips/:tripId/days/:date`, async (request) => {
@@ -477,6 +501,9 @@ app.patch(`${apiPrefix}/trips/:tripId`, async (request) => {
     [tripId, name, startDate, endDate, timeZone, backgroundRemoved, expectedUpdatedAt],
   )
   if (!result.rowCount) throw httpError(409, 'Поездку уже изменил другой пользователь. Обновите страницу — ваши данные не были перезаписаны')
+  if (changed(current, result.rows[0], ['name', 'start_date', 'end_date', 'time_zone', 'background_removed'])) {
+    await recordTripChange(tripId, user.id, 'trip', tripId, ['trip'])
+  }
   return { trip: result.rows[0] }
 })
 
@@ -646,7 +673,7 @@ app.post(`${apiPrefix}/trips/:tripId/cities`, async (request, reply) => {
 app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
   const user = await requireUser(request)
   const { tripId, cityId } = request.params as { tripId: string; cityId: string }
-  await requireTripRole(tripId, user.id, true)
+  const role = await requireTripRole(tripId, user.id)
   const current = (await db.query('SELECT * FROM cities WHERE id = $1 AND trip_id = $2', [cityId, tripId])).rows[0]
   if (!current) throw httpError(404, 'Город не найден')
   const body = bodyOf(request.body)
@@ -662,6 +689,20 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
     arrivalPeriod: optionalText(body.arrivalPeriod) ?? current.arrival_period,
     departurePeriod: optionalText(body.departurePeriod) ?? current.departure_period,
   })
+  if (role !== 'owner' && (
+    input.name !== current.name
+    || input.arrivalDate !== String(current.arrival_date).slice(0, 10)
+    || input.departureDate !== String(current.departure_date).slice(0, 10)
+    || input.arrivalPeriod !== current.arrival_period
+    || input.departurePeriod !== current.departure_period
+    || ('transportInDepartureDate' in body && (optionalText(body.transportInDepartureDate) ?? '') !== (current.transport_in_departure_date ? String(current.transport_in_departure_date).slice(0, 10) : ''))
+    || ('transportInArrivalDate' in body && (optionalText(body.transportInArrivalDate) ?? '') !== (current.transport_in_arrival_date ? String(current.transport_in_arrival_date).slice(0, 10) : ''))
+    || ('transportOutDepartureDate' in body && (optionalText(body.transportOutDepartureDate) ?? '') !== (current.transport_out_departure_date ? String(current.transport_out_departure_date).slice(0, 10) : ''))
+    || ('transportOutArrivalDate' in body && (optionalText(body.transportOutArrivalDate) ?? '') !== (current.transport_out_arrival_date ? String(current.transport_out_arrival_date).slice(0, 10) : ''))
+    || (assignees.ticketAssigneeIds !== undefined && !sameIds(assignees.ticketAssigneeIds, current.ticket_assignee_ids))
+    || (assignees.hotelAssigneeIds !== undefined && !sameIds(assignees.hotelAssigneeIds, current.hotel_assignee_ids))
+    || (assignees.planAssigneeIds !== undefined && !sameIds(assignees.planAssigneeIds, current.plan_assignee_ids))
+  )) throw httpError(403, 'Изменять маршрут и назначать ответственных может только владелец')
   const result = await db.query(
     `UPDATE cities SET name=$3, arrival_date=$4, departure_date=$5, arrival_period=$6, departure_period=$7, hotel_not_needed=$8,
        hotel=coalesce($9,hotel), train_in=coalesce($10,train_in), train_out=coalesce($11,train_out),
@@ -677,8 +718,16 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
        transport_in_ticket_on_site=coalesce($32,transport_in_ticket_on_site), transport_out_ticket_on_site=coalesce($33,transport_out_ticket_on_site),
        ticket_assignee_ids=$34, hotel_assignee_ids=$35, plan_assignee_ids=$36,
        hotel_payer_ids=$37, hotel_total_amount_rubles=coalesce($38,hotel_total_amount_rubles),
-       google_maps_url=coalesce($39,google_maps_url), updated_at=now()
-     WHERE id=$1 AND trip_id=$2 AND date_trunc('milliseconds', updated_at)=date_trunc('milliseconds', $40::timestamptz) RETURNING *`,
+       google_maps_url=coalesce($39,google_maps_url),
+       transport_in_departure_date=coalesce($40,transport_in_departure_date), transport_in_arrival_date=coalesce($41,transport_in_arrival_date),
+       transport_in_departure_time_zone=coalesce($42,transport_in_departure_time_zone), transport_in_arrival_time_zone=coalesce($43,transport_in_arrival_time_zone),
+       transport_out_departure_date=coalesce($44,transport_out_departure_date), transport_out_arrival_date=coalesce($45,transport_out_arrival_date),
+       transport_out_departure_time_zone=coalesce($46,transport_out_departure_time_zone), transport_out_arrival_time_zone=coalesce($47,transport_out_arrival_time_zone),
+       transport_in_name=coalesce($48,transport_in_name), transport_out_name=coalesce($49,transport_out_name),
+       transport_in_payer_ids=$50, transport_out_payer_ids=$51,
+       transport_in_total_amount_rubles=coalesce($52,transport_in_total_amount_rubles),
+       transport_out_total_amount_rubles=coalesce($53,transport_out_total_amount_rubles), updated_at=now()
+     WHERE id=$1 AND trip_id=$2 AND date_trunc('milliseconds', updated_at)=date_trunc('milliseconds', $54::timestamptz) RETURNING *`,
     [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut),
       optionalText(body.transportInType), optionalText(body.transportOutType), optionalText(body.transportInDepartureTime), optionalText(body.transportInArrivalTime),
       optionalText(body.transportOutDepartureTime), optionalText(body.transportOutArrivalTime), optionalText(body.transportInDepartureStation), optionalText(body.transportInDepartureStationUrl),
@@ -691,26 +740,23 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
       (typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed) ? [] : assignees.hotelAssigneeIds === undefined ? current.hotel_assignee_ids : assignees.hotelAssigneeIds,
       assignees.planAssigneeIds === undefined ? current.plan_assignee_ids : assignees.planAssigneeIds,
       assignees.hotelPayerIds === undefined ? current.hotel_payer_ids : assignees.hotelPayerIds,
-      optionalRubles(body.hotelTotalAmountRubles), optionalText(body.googleMapsUrl), expectedUpdatedAt],
-  )
-  if (!result.rowCount) throw httpError(409, 'Этот город уже изменили в другой сессии. Обновите страницу — ваши данные не были перезаписаны')
-  const scheduled = await db.query(
-    `UPDATE cities SET
-       transport_in_departure_date=coalesce($3,transport_in_departure_date), transport_in_arrival_date=coalesce($4,transport_in_arrival_date),
-       transport_in_departure_time_zone=coalesce($5,transport_in_departure_time_zone), transport_in_arrival_time_zone=coalesce($6,transport_in_arrival_time_zone),
-       transport_out_departure_date=coalesce($7,transport_out_departure_date), transport_out_arrival_date=coalesce($8,transport_out_arrival_date),
-       transport_out_departure_time_zone=coalesce($9,transport_out_departure_time_zone), transport_out_arrival_time_zone=coalesce($10,transport_out_arrival_time_zone),
-       transport_in_name=coalesce($11,transport_in_name), transport_out_name=coalesce($12,transport_out_name),
-       transport_in_payer_ids=$13, transport_out_payer_ids=$14,
-       transport_in_total_amount_rubles=coalesce($15,transport_in_total_amount_rubles),
-       transport_out_total_amount_rubles=coalesce($16,transport_out_total_amount_rubles)
-     WHERE id=$1 AND trip_id=$2 RETURNING *`,
-    [cityId, tripId, optionalText(body.transportInDepartureDate), optionalText(body.transportInArrivalDate), optionalText(body.transportInDepartureTimeZone), optionalText(body.transportInArrivalTimeZone), optionalText(body.transportOutDepartureDate), optionalText(body.transportOutArrivalDate), optionalText(body.transportOutDepartureTimeZone), optionalText(body.transportOutArrivalTimeZone), optionalText(body.transportInName), optionalText(body.transportOutName),
+      optionalRubles(body.hotelTotalAmountRubles), optionalText(body.googleMapsUrl),
+      optionalText(body.transportInDepartureDate), optionalText(body.transportInArrivalDate), optionalText(body.transportInDepartureTimeZone), optionalText(body.transportInArrivalTimeZone),
+      optionalText(body.transportOutDepartureDate), optionalText(body.transportOutArrivalDate), optionalText(body.transportOutDepartureTimeZone), optionalText(body.transportOutArrivalTimeZone),
+      optionalText(body.transportInName), optionalText(body.transportOutName),
       assignees.transportInPayerIds === undefined ? current.transport_in_payer_ids : assignees.transportInPayerIds,
       assignees.transportOutPayerIds === undefined ? current.transport_out_payer_ids : assignees.transportOutPayerIds,
-      optionalRubles(body.transportInTotalAmountRubles), optionalRubles(body.transportOutTotalAmountRubles)],
+      optionalRubles(body.transportInTotalAmountRubles), optionalRubles(body.transportOutTotalAmountRubles), expectedUpdatedAt],
   )
-  return { city: scheduled.rows[0] ?? result.rows[0] }
+  if (!result.rowCount) throw httpError(409, 'Этот город уже изменили в другой сессии. Обновите страницу — ваши данные не были перезаписаны')
+  const saved = result.rows[0]
+  const sections: string[] = []
+  if (changed(current, saved, ['hotel_not_needed', 'hotel', 'hotel_url', 'hotel_check_in_time', 'hotel_check_out_time', 'hotel_notes', 'hotel_payer_ids', 'hotel_total_amount_rubles'])) sections.push('hotel')
+  if (changed(current, saved, ['transport_in_type', 'transport_in_name', 'transport_in_departure_date', 'transport_in_arrival_date', 'transport_in_departure_time', 'transport_in_arrival_time', 'transport_in_departure_time_zone', 'transport_in_arrival_time_zone', 'transport_in_departure_station', 'transport_in_departure_station_url', 'transport_in_arrival_station', 'transport_in_arrival_station_url', 'transport_in_notes', 'transport_in_ticket_on_site', 'transport_in_payer_ids', 'transport_in_total_amount_rubles'])) sections.push('transport-in')
+  if (changed(current, saved, ['transport_out_type', 'transport_out_name', 'transport_out_departure_date', 'transport_out_arrival_date', 'transport_out_departure_time', 'transport_out_arrival_time', 'transport_out_departure_time_zone', 'transport_out_arrival_time_zone', 'transport_out_departure_station', 'transport_out_departure_station_url', 'transport_out_arrival_station', 'transport_out_arrival_station_url', 'transport_out_notes', 'transport_out_ticket_on_site', 'transport_out_payer_ids', 'transport_out_total_amount_rubles'])) sections.push('transport-out')
+  if (changed(current, saved, ['name', 'arrival_date', 'departure_date', 'arrival_period', 'departure_period', 'google_maps_url', 'ticket_assignee_ids', 'hotel_assignee_ids', 'plan_assignee_ids'])) sections.push('city')
+  await recordTripChange(tripId, user.id, 'city', cityId, sections, saved.name)
+  return { city: saved }
 })
 
 app.delete(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request, reply) => {

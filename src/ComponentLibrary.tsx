@@ -15,27 +15,37 @@ import { TextareaList } from './components/TextareaList'
 import { FormPanel, FormPanelGroup, FormPanelHeader, FormPanelNote } from './components/FormPanel'
 import { ComponentContentPreview } from './ComponentContentPreview'
 import { PointCard } from './components/PointCard'
+import { UpdateNotification } from './components/UpdateNotification'
+import { AuthPanel } from './components/AuthPanel'
 import { PLACE_ICON_OPTIONS, placeIconUrl } from './placeIcons'
 import './component-library.css'
 
-const icons: IconName[] = ['add-plus', 'arrow-back', 'arrow-down', 'attractions', 'barefoot', 'calendar-month', 'cannabis', 'casino', 'checkbox-empty', 'checkbox-filled', 'close', 'content-copy', 'delete-forever', 'docs', 'done-indicator', 'download', 'edit', 'email', 'encrypted', 'face', 'footprint', 'foundation', 'hotel', 'link', 'money-bag', 'pin', 'pin-add', 'pin-home', 'pin-transport', 'plane', 'planet', 'public', 'refresh', 'sailing', 'soup-kitchen', 'ticket', 'time', 'train']
+const icons: IconName[] = ['add-plus', 'arrow-back', 'arrow-down', 'attractions', 'barefoot', 'cached', 'calendar-month', 'cannabis', 'casino', 'checkbox-empty', 'checkbox-filled', 'close', 'content-copy', 'delete-forever', 'docs', 'done-indicator', 'download', 'edit', 'email', 'encrypted', 'face', 'footprint', 'foundation', 'hotel', 'link', 'money-bag', 'pin', 'pin-add', 'pin-home', 'pin-transport', 'plane', 'planet', 'public', 'refresh', 'sailing', 'soup-kitchen', 'ticket', 'time', 'train']
 
-const colorTokens = [
-  { title: 'Основной текст', token: '--color-text-primary', value: '#FFFFFF', swatch: 'kit-color-swatch-primary' },
-  { title: 'Второстепенный текст', token: '--color-text-secondary', value: 'White 60%', swatch: 'kit-color-swatch-secondary' },
-  { title: 'Недоступный текст', token: '--color-text-disabled', value: 'White 30%', swatch: 'kit-color-swatch-disabled' },
-  { title: 'Основная иконка', token: '--color-icon-primary', value: 'White 100%', swatch: 'kit-color-swatch-icon-primary' },
-  { title: 'Второстепенная иконка', token: '--color-icon-secondary', value: 'White 60%', swatch: 'kit-color-swatch-icon-secondary' },
-  { title: 'Недоступная иконка', token: '--color-icon-disabled', value: 'White 30%', swatch: 'kit-color-swatch-icon-disabled' },
-  { title: 'Основной фон', token: '--color-background-primary', value: '#FFFFFF', swatch: 'kit-background-swatch-primary' },
-  { title: 'Второстепенный фон', token: '--color-background-secondary', value: 'White 12%', swatch: 'kit-background-swatch-secondary' },
-  { title: 'Стеклянный фон', token: '--color-background-glass', value: 'White 16%', swatch: 'kit-background-swatch-glass' },
-  { title: 'Затемнённое стекло', token: '--glass-point-card', value: 'Glass + Black 30%', swatch: 'kit-background-swatch-point-card' },
-  { title: 'Фон при наведении', token: '--color-background-hover', value: 'White 20%', swatch: 'kit-background-swatch-hover' },
+const colorGroups = [
+  { title: 'Текст', colors: [
+    { title: 'Основной текст', token: '--color-text-primary', value: '#FFFFFF', swatch: 'kit-color-swatch-primary' },
+    { title: 'Второстепенный текст', token: '--color-text-secondary', value: 'White 60%', swatch: 'kit-color-swatch-secondary' },
+    { title: 'Недоступный текст', token: '--color-text-disabled', value: 'White 30%', swatch: 'kit-color-swatch-disabled' },
+  ] },
+  { title: 'Иконки', colors: [
+    { title: 'Основная иконка', token: '--color-icon-primary', value: 'White 100%', swatch: 'kit-color-swatch-icon-primary' },
+    { title: 'Второстепенная иконка', token: '--color-icon-secondary', value: 'White 60%', swatch: 'kit-color-swatch-icon-secondary' },
+    { title: 'Недоступная иконка', token: '--color-icon-disabled', value: 'White 30%', swatch: 'kit-color-swatch-icon-disabled' },
+  ] },
+  { title: 'Фоны', colors: [
+    { title: 'Основной фон', token: '--color-background-primary', value: '#FFFFFF', swatch: 'kit-background-swatch-primary' },
+    { title: 'Второстепенный фон', token: '--color-background-secondary', value: 'White 12%', swatch: 'kit-background-swatch-secondary' },
+    { title: 'Затемнённое стекло', token: '--glass-point-card', value: 'Glass + Black 30%', swatch: 'kit-background-swatch-point-card' },
+    { title: 'Фон при наведении', token: '--color-background-hover', value: 'White 20%', swatch: 'kit-background-swatch-hover' },
+  ] },
+  { title: 'Эффекты', colors: [
+    { title: 'Эффект стекла', token: '.glass', value: 'Blur 50px + Saturation 115% + Stroke 1px White 12%', swatch: 'kit-effect-swatch-glass' },
+  ] },
 ]
 
 const navigation = [
-  { id: 'colors', label: 'Цвета' },
+  { id: 'colors', label: 'Цвета и эффекты' },
   { id: 'typography', label: 'Типографика' },
   { id: 'icons', label: 'Иконки' },
   { id: 'typography-groups', label: 'Группы текста' },
@@ -43,9 +53,9 @@ const navigation = [
   { id: 'fields', label: 'Контролы формы' },
   { id: 'visual-elements', label: 'Аватары' },
   { id: 'point-details', label: 'Точки на карте' },
+  { id: 'notifications', label: 'Уведомления' },
   { id: 'rows', label: 'Плашки' },
   { id: 'lists', label: 'Списки' },
-  { id: 'states', label: 'Чекбоксы и состояния' },
   { id: 'glass', label: 'Контейнеры' },
 ]
 
@@ -55,6 +65,10 @@ function Specimen({ name, children, className = '' }: { name: string; children: 
 
 function Variant({ label, wide = false, children }: { label?: React.ReactNode; wide?: boolean; children: React.ReactNode }) {
   return <div className={`kit-variant${wide ? ' kit-variant-wide' : ''}`}>{label && <span className="kit-variant-label">{label}</span>}<div className="kit-variant-example">{children}</div></div>
+}
+
+function TypeMetrics({ size, weight, lineHeight, letterSpacing }: { size: number; weight: number; lineHeight: number; letterSpacing: number | string }) {
+  return <span className="kit-type-metrics"><span>Size: {size}</span><span>Weight: {weight}</span><span>Linehight: {lineHeight}</span><span>Letter spacing: {letterSpacing}</span></span>
 }
 
 function PropertySelect({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void; disabled?: boolean }) {
@@ -89,6 +103,8 @@ function Section({ id, title, description, className = '', children }: { id: str
 export default function ComponentLibrary() {
   const view = new URLSearchParams(window.location.search).get('view') === 'content' ? 'content' : 'components'
   const [checked, setChecked] = useState(true)
+  const [iconSize, setIconSize] = useState<16 | 24 | 32>(24)
+  const [iconTone, setIconTone] = useState<'primary' | 'secondary' | 'disabled'>('primary')
   const [buttonIcons, setButtonIcons] = useState(false)
   const [iconButtonIndicator, setIconButtonIndicator] = useState(false)
   const [inputType, setInputType] = useState<'default' | 'money'>('default')
@@ -105,6 +121,7 @@ export default function ComponentLibrary() {
   const [infoRowActionTheme, setInfoRowActionTheme] = useState<'primary' | 'secondary' | 'transparent'>('transparent')
   const [infoRowHoverEffect, setInfoRowHoverEffect] = useState(false)
   const [infoRowActionIndicators, setInfoRowActionIndicators] = useState(false)
+  const [infoRowTitleStyle, setInfoRowTitleStyle] = useState<'head-m' | 'text'>('head-m')
   const [avatarHoverEffect, setAvatarHoverEffect] = useState(false)
   const [pointDetailsActionCount, setPointDetailsActionCount] = useState<1 | 2>(2)
   const [textRowIcon, setTextRowIcon] = useState(true)
@@ -117,6 +134,7 @@ export default function ComponentLibrary() {
   const [infoRowListText, setInfoRowListText] = useState(false)
   const [itemListHeadline, setItemListHeadline] = useState(false)
   const [textareaListHeadline, setTextareaListHeadline] = useState(false)
+  const [notificationShakeKey, setNotificationShakeKey] = useState(0)
   const [assignees, setAssignees] = useState<string[]>(['torch'])
   const [emptyMoney, setEmptyMoney] = useState(0)
   const [money, setMoney] = useState(3500)
@@ -125,8 +143,8 @@ export default function ComponentLibrary() {
     trailingIcon: inputRightIcon ? <Icon name="content-copy" /> : undefined,
   }
   const infoRowPreview = (title: string, subtitle: string) => infoRowRightContent === 'text'
-    ? <InfoRow theme={infoRowTheme} image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title={title} subtitle={subtitle} trailing="54 000 ₽" hoverEffect={infoRowHoverEffect} />
-    : <InfoRow theme={infoRowTheme} image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title={title} subtitle={subtitle} actionTheme={infoRowActionTheme} hoverEffect={infoRowHoverEffect} showActionIndicators={infoRowActionIndicators} actions={infoRowRightContent === 'actions' ? [{ icon: <Icon name="download" />, label: 'Экспортировать', complete: true }, ...(infoRowActionCount === 2 ? [{ icon: <Icon name="delete-forever" />, label: 'Удалить', complete: true }] : [])] : []} />
+    ? <InfoRow theme={infoRowTheme} image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title={title} titleStyle={infoRowTitleStyle} subtitle={subtitle} trailing="54 000 ₽" hoverEffect={infoRowHoverEffect} />
+    : <InfoRow theme={infoRowTheme} image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title={title} titleStyle={infoRowTitleStyle} subtitle={subtitle} actionTheme={infoRowActionTheme} hoverEffect={infoRowHoverEffect} showActionIndicators={infoRowActionIndicators} actions={infoRowRightContent === 'actions' ? [{ icon: <Icon name="download" />, label: 'Экспортировать', complete: true }, ...(infoRowActionCount === 2 ? [{ icon: <Icon name="delete-forever" />, label: 'Удалить', complete: true }] : [])] : []} />
   const textRowPreview = (label: string, icon: IconName = 'train') => !textRowIcon
     ? <TextRow showIcon={false} hoverEffect={textRowHoverEffect}>{label}</TextRow>
     : textRowIconType === 'icon'
@@ -159,32 +177,52 @@ export default function ComponentLibrary() {
 
         <div className="kit-content">
         {view === 'content' ? <ComponentContentPreview /> : <>
-        <Section id="colors" title="Цвета" description="Семантические цвета текста и фонов компонентов" className="kit-colors-section">
-          {colorTokens.map((color) => <figure className="kit-color-card" key={color.token}>
-            <div className="kit-color-preview"><span className={`kit-color-swatch ${color.swatch}`} /></div>
-            <figcaption><strong>{color.title}</strong><code>{color.token}{color.value}</code></figcaption>
-          </figure>)}
+        <Section id="colors" title="Цвета и эффекты" description="Семантические токены интерфейса" className="kit-colors-section">
+          {colorGroups.map((group) => <div className="kit-color-group" key={group.title}>
+            <p className="kit-color-group-label type-text-s">{group.title}</p>
+            <div className="kit-color-group-cards">{group.colors.map((color) => <figure className="kit-color-card" key={color.token}>
+              <div className="kit-color-preview"><span className={`kit-color-swatch ${color.swatch}`} /></div>
+              <figcaption><span className="kit-color-title type-head-m">{color.title}</span><span className="kit-token-details type-text-s"><span>Token: {color.token}</span><span>Value: {color.value}</span></span></figcaption>
+            </figure>)}</div>
+          </div>)}
         </Section>
 
         <Section id="typography" title="Типографика" description="Единая шкала текста проекта" className="kit-typography-section">
-          <Specimen name="Head L"><Variant label="32px · Medium"><p className="type-head-l kit-type-line">Название поездки</p></Variant></Specimen>
-          <Specimen name="Head M"><Variant label="20px · Medium"><p className="type-head-m kit-type-line">Название города</p></Variant></Specimen>
-          <Specimen name="Text"><Variant label="15px · Regular · Абзацы 12px"><div className="type-text-paragraphs kit-type-line"><p>Первый абзац основного текста</p><p>Второй абзац с отступом 12px</p></div></Variant></Specimen>
-          <Specimen name="Text S"><Variant label="13px · Regular"><p className="type-text-s kit-type-line">Вспомогательный текст</p></Variant></Specimen>
+          <div className="kit-type-group">
+            <p className="kit-type-group-label type-text-s">Заголовки</p>
+            <div className="kit-type-group-cards">
+              <Specimen name="Head L"><Variant label={<TypeMetrics size={32} weight={600} lineHeight={32} letterSpacing="1%" />}><p className="type-head-l kit-type-line">Название поездки</p></Variant></Specimen>
+              <Specimen name="Head M"><Variant label={<TypeMetrics size={22} weight={500} lineHeight={22} letterSpacing="2%" />}><p className="type-head-m kit-type-line">Название города</p></Variant></Specimen>
+            </div>
+          </div>
+          <div className="kit-type-group">
+            <p className="kit-type-group-label type-text-s">Текст</p>
+            <div className="kit-type-group-cards">
+              <Specimen name="Text"><Variant label={<TypeMetrics size={15} weight={400} lineHeight={20} letterSpacing={0} />}><div className="type-text-paragraphs kit-type-line"><p>Первый абзац основного текста</p><p>Второй абзац с отступом 12px</p></div></Variant></Specimen>
+              <Specimen name="Text S"><Variant label={<TypeMetrics size={13} weight={400} lineHeight={15.6} letterSpacing={0} />}><p className="type-text-s kit-type-line">Вспомогательный текст</p></Variant></Specimen>
+            </div>
+          </div>
         </Section>
 
         <Section id="icons" title="Иконки" description={`${icons.length} иконок · белый цвет · базовый размер 24px`}>
-          <div className="kit-icons">{icons.map((name) => <div className="kit-icon-item" key={name}><span><Icon name={name} /></span><code>{name}</code></div>)}</div>
+          <div className="kit-icons-layout">
+            <div className="kit-icons">{icons.map((name) => <div className="kit-icon-item" key={name}><span><Icon name={name} size={iconSize} tone={iconTone} /></span><code className="type-text-s">{name}</code></div>)}</div>
+            <div className="kit-icons-controls">
+              <PropertySelect label="Size" value={String(iconSize)} options={[{ value: '16', label: '16' }, { value: '24', label: '24' }, { value: '32', label: '32' }]} onChange={(value) => setIconSize(Number(value) as 16 | 24 | 32)} />
+              <PropertySelect label="Tone" value={iconTone} options={[{ value: 'primary', label: 'Primary' }, { value: 'secondary', label: 'Secondary' }, { value: 'disabled', label: 'Disabled' }]} onChange={(value) => setIconTone(value as 'primary' | 'secondary' | 'disabled')} />
+            </div>
+          </div>
         </Section>
 
         <Section id="typography-groups" title="Группы текста" description="Готовые сочетания заголовков и поясняющего текста" className="kit-typography-groups-section">
-          <Specimen name="Head L + Text"><Variant label="Gap 8"><TypographyGroup title="Название поездки" text="4–15 октября · 12 дней" /></Variant></Specimen>
-          <Specimen name="Head M + Text"><Variant label="Gap 2"><TypographyGroup variant="head-m-text" headingLevel="h3" title="Осака" text="Прибытие" /></Variant></Specimen>
+          <Specimen name="Head L + Text"><Variant label="Gap 6"><TypographyGroup title="Название поездки" text="4–15 октября · 12 дней" /></Variant></Specimen>
+          <Specimen name="Head M + Text"><Variant label="Gap 4"><TypographyGroup variant="head-m-text" headingLevel="h3" title="Осака" text="Прибытие" /></Variant></Specimen>
+          <Specimen name="Text + Text"><Variant label="Gap 2"><TypographyGroup variant="text-text" headingLevel="h3" title="Название города" text="Осака" /></Variant></Specimen>
         </Section>
 
         <Section id="buttons" title="Кнопки" description="Основные действия и компактные контролы">
-          <Specimen name="Button"><div className="kit-button-showcase"><label className="kit-toggle"><span>Иконка</span><input type="checkbox" checked={buttonIcons} onChange={(event) => setButtonIcons(event.target.checked)} /><i aria-hidden="true" /></label><div className="kit-button-matrix kit-button-matrix-text"><span /><b>L</b><b>M</b><span>Primary · Default</span><Button icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><Button size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><span>Primary · Disabled</span><Button icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><Button size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><span>Secondary · Default</span><Button theme="secondary" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><Button theme="secondary" size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><span>Secondary · Disabled</span><Button theme="secondary" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><Button theme="secondary" size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button></div></div></Specimen>
-          <Specimen name="Icon button"><div className="kit-button-showcase"><PropertyToggle label="Indicator" checked={iconButtonIndicator} onChange={setIconButtonIndicator} /><div className="kit-button-matrix kit-button-matrix-icon"><span /><b>L</b><b>M</b><b>S</b><span>Primary · Default</span><IconButton theme="primary" size="l" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Primary L" /><IconButton theme="primary" size="m" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Primary M" /><IconButton theme="primary" size="s" icon={<Icon name="add-plus" size={16} />} indicator={iconButtonIndicator} aria-label="Primary S" /><span>Primary · Disabled</span><IconButton theme="primary" size="l" icon={<Icon name="add-plus" />} aria-label="Primary L disabled" disabled /><IconButton theme="primary" size="m" icon={<Icon name="add-plus" />} aria-label="Primary M disabled" disabled /><IconButton theme="primary" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Primary S disabled" disabled /><span>Secondary · Default</span><IconButton size="l" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Secondary L" /><IconButton size="m" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Secondary M" /><IconButton size="s" icon={<Icon name="add-plus" size={16} />} indicator={iconButtonIndicator} aria-label="Secondary S" /><span>Secondary · Disabled</span><IconButton size="l" icon={<Icon name="add-plus" />} aria-label="Secondary L disabled" disabled /><IconButton size="m" icon={<Icon name="add-plus" />} aria-label="Secondary M disabled" disabled /><IconButton size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Secondary S disabled" disabled /><span>Transparent · Default</span><IconButton theme="transparent" size="l" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Transparent L" /><IconButton theme="transparent" size="m" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Transparent M" /><IconButton theme="transparent" size="s" icon={<Icon name="add-plus" size={16} />} indicator={iconButtonIndicator} aria-label="Transparent S" /><span>Transparent · Disabled</span><IconButton theme="transparent" size="l" icon={<Icon name="add-plus" />} aria-label="Transparent L disabled" disabled /><IconButton theme="transparent" size="m" icon={<Icon name="add-plus" />} aria-label="Transparent M disabled" disabled /><IconButton theme="transparent" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Transparent S disabled" disabled /></div></div></Specimen>
+          <Specimen name="Button"><div className="kit-button-config-layout"><div className="kit-button-matrix kit-button-matrix-text"><span /><b>L</b><b>M</b><span>Primary · Default</span><Button icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><Button size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><span>Primary · Disabled</span><Button icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><Button size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><span>Secondary · Default</span><Button theme="secondary" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><Button theme="secondary" size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><span>Secondary · Disabled</span><Button theme="secondary" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><Button theme="secondary" size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><span>Transparent · Default</span><Button theme="transparent" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><Button theme="transparent" size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined}>Сохранить</Button><span>Transparent · Disabled</span><Button theme="transparent" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button><Button theme="transparent" size="m" icon={buttonIcons ? <Icon name="arrow-back" /> : undefined} disabled>Сохранить</Button></div><div className="kit-button-controls"><PropertyToggle label="Icon" checked={buttonIcons} onChange={setButtonIcons} /></div></div></Specimen>
+          <Specimen name="Icon button"><div className="kit-button-config-layout"><div className="kit-button-matrix kit-button-matrix-icon"><span /><b>L</b><b>M</b><b>S</b><span>Primary · Default</span><IconButton theme="primary" size="l" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Primary L" /><IconButton theme="primary" size="m" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Primary M" /><IconButton theme="primary" size="s" icon={<Icon name="add-plus" size={16} />} indicator={iconButtonIndicator} aria-label="Primary S" /><span>Primary · Disabled</span><IconButton theme="primary" size="l" icon={<Icon name="add-plus" />} aria-label="Primary L disabled" disabled /><IconButton theme="primary" size="m" icon={<Icon name="add-plus" />} aria-label="Primary M disabled" disabled /><IconButton theme="primary" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Primary S disabled" disabled /><span>Secondary · Default</span><IconButton size="l" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Secondary L" /><IconButton size="m" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Secondary M" /><IconButton size="s" icon={<Icon name="add-plus" size={16} />} indicator={iconButtonIndicator} aria-label="Secondary S" /><span>Secondary · Disabled</span><IconButton size="l" icon={<Icon name="add-plus" />} aria-label="Secondary L disabled" disabled /><IconButton size="m" icon={<Icon name="add-plus" />} aria-label="Secondary M disabled" disabled /><IconButton size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Secondary S disabled" disabled /><span>Transparent · Default</span><IconButton theme="transparent" size="l" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Transparent L" /><IconButton theme="transparent" size="m" icon={<Icon name="add-plus" />} indicator={iconButtonIndicator} aria-label="Transparent M" /><IconButton theme="transparent" size="s" icon={<Icon name="add-plus" size={16} />} indicator={iconButtonIndicator} aria-label="Transparent S" /><span>Transparent · Disabled</span><IconButton theme="transparent" size="l" icon={<Icon name="add-plus" />} aria-label="Transparent L disabled" disabled /><IconButton theme="transparent" size="m" icon={<Icon name="add-plus" />} aria-label="Transparent M disabled" disabled /><IconButton theme="transparent" size="s" icon={<Icon name="add-plus" size={16} />} aria-label="Transparent S disabled" disabled /></div><div className="kit-button-controls"><PropertyToggle label="Indicator" checked={iconButtonIndicator} onChange={setIconButtonIndicator} /></div></div></Specimen>
         </Section>
 
         <Section id="fields" title="Контролы формы" description="Поля ввода, селекты и многострочные контролы формы" className="kit-fields-section">
@@ -292,6 +330,19 @@ export default function ComponentLibrary() {
           </div>
         </Section>
 
+        <Section id="notifications" title="Уведомления" description="Системные сообщения поверх текущего экрана" className="kit-notifications-section">
+          <Specimen name="Update notification">
+            <div className="kit-notification-layout">
+              <div className="kit-notification-preview">
+                <UpdateNotification key={notificationShakeKey} message="Максим · Отель · Токио" shake={Boolean(notificationShakeKey)} onRefresh={() => undefined} />
+              </div>
+              <div className="kit-notification-controls">
+                <Button size="m" theme="secondary" onClick={() => setNotificationShakeKey((value) => value + 1)}>Анимация</Button>
+              </div>
+            </div>
+          </Specimen>
+        </Section>
+
         <Section id="lists" title="Списки" description="Группы однотипных элементов" className="kit-lists-section">
           <Specimen name="Form control list" className="kit-form-control-list-specimen">
             <div className="kit-info-row-layout">
@@ -340,15 +391,15 @@ export default function ComponentLibrary() {
             <div className="kit-info-row-layout">
               <div className="kit-info-row-controls"><PropertyToggle label="Headline" checked={infoRowListHeadline} onChange={setInfoRowListHeadline} /><PropertyToggle label="Text" checked={infoRowListText} onChange={setInfoRowListText} /></div>
               <div className="kit-info-row-list-examples">
-                <Variant label="Color · Gap 4">
-                  <InfoRowList gap={4} headline={infoRowListHeadline ? 'Маршрут' : undefined} text={infoRowListText ? 'Три города' : undefined}>
+                <Variant label="Color · Gap 8">
+                  <InfoRowList headline={infoRowListHeadline ? 'Маршрут' : undefined} text={infoRowListText ? 'Три города' : undefined}>
                     <InfoRow title="Осака" subtitle="4–7 окт · 2,5 дня" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Осака" />
                     <InfoRow title="Нара" subtitle="7 окт · 1 день" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Нара" />
                     <InfoRow title="Киото" subtitle="7–10 окт · 2 дня" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Киото" />
                   </InfoRowList>
                 </Variant>
                 <Variant label="Transparent · Gap 4">
-                  <InfoRowList gap={4} headline={infoRowListHeadline ? 'Маршрут' : undefined} text={infoRowListText ? 'Три города' : undefined}>
+                  <InfoRowList rowTheme="transparent" headline={infoRowListHeadline ? 'Маршрут' : undefined} text={infoRowListText ? 'Три города' : undefined}>
                     <InfoRow theme="transparent" title="Осака" subtitle="4–7 окт · 2,5 дня" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Осака" />
                     <InfoRow theme="transparent" title="Нара" subtitle="7 окт · 1 день" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Нара" />
                     <InfoRow theme="transparent" title="Киото" subtitle="7–10 окт · 2 дня" image={`${import.meta.env.BASE_URL}assets/autumn-garden.jpg`} imageAlt="Киото" />
@@ -387,6 +438,7 @@ export default function ComponentLibrary() {
             <div className="kit-info-row-layout">
               <div className="kit-info-row-controls">
                 <PropertySelect label="Theme" value={infoRowTheme} options={[{ value: 'background', label: 'Color' }, { value: 'transparent', label: 'Transperent' }]} onChange={(value) => setInfoRowTheme(value as 'background' | 'transparent')} />
+                <PropertySelect label="Title" value={infoRowTitleStyle} options={[{ value: 'head-m', label: 'Head M' }, { value: 'text', label: 'Text' }]} onChange={(value) => setInfoRowTitleStyle(value as 'head-m' | 'text')} />
                 <PropertyToggle label="Hover Effect" checked={infoRowHoverEffect} onChange={setInfoRowHoverEffect} />
                 <PropertyToggle label="Image" checked={infoRowImage} onChange={setInfoRowImage} />
                 <PropertySelect label="Image Type" value={infoRowImageShape} options={[{ value: 'square', label: 'Square' }, { value: 'circle', label: 'Circle' }]} onChange={(value) => setInfoRowImageShape(value as 'square' | 'circle')} disabled={!infoRowImage} />
@@ -400,7 +452,7 @@ export default function ComponentLibrary() {
                   {infoRowPreview('Аниме Тур', 'Владелец · 4–15 октября')}
                   <div className="kit-info-row-list-preview">
                     <span className="kit-variant-label">List</span>
-                    <InfoRowList gap={4}>
+                    <InfoRowList rowTheme={infoRowTheme}>
                       {infoRowPreview('Осака', '4–7 окт · 2,5 дня')}
                       {infoRowPreview('Нара', '7 окт · 1 день')}
                       {infoRowPreview('Киото', '7–10 окт · 2 дня')}
@@ -413,11 +465,22 @@ export default function ComponentLibrary() {
           <Specimen name="Add row"><Variant label="Default" wide><AddRow icon={<Icon name="add-plus" />} aria-label="Добавить" /></Variant><Variant label="Disabled" wide><AddRow icon={<Icon name="add-plus" />} aria-label="Добавить" disabled /></Variant></Specimen>
         </Section>
 
-        <Section id="states" title="Чекбоксы и состояния" className="kit-states-section">
-          <Specimen name="Status text"><Variant label="Default"><span>Основной текст</span></Variant><Variant label="Muted"><span className="kit-muted">Вспомогательный текст</span></Variant><Variant label="Error"><span className="app-error kit-inline-error">Текст ошибки</span></Variant></Specimen>
-        </Section>
-
         <Section id="glass" title="Контейнеры" description="Основные уровни вложенности" className="kit-containers-section">
+          <Specimen name="Auth panel">
+            <Variant label={<>Width: 500<br />Padding: 48<br />Gap: 32</>} wide>
+              <div className="kit-auth-panel-preview">
+                <AuthPanel>
+                  <h1>Добро пожаловать</h1>
+                  <FormControlList>
+                    <FormControlRow><Input icon={<Icon name="email" />} placeholder="Email" /></FormControlRow>
+                    <FormControlRow><Input icon={<Icon name="encrypted" />} type="password" placeholder="Пароль — минимум 8 символов" /></FormControlRow>
+                  </FormControlList>
+                  <Button>Войти</Button>
+                  <Button size="m" theme="transparent">Нет аккаунта? Зарегистрироваться</Button>
+                </AuthPanel>
+              </div>
+            </Variant>
+          </Specimen>
           <Specimen name="Form panel">
             <Variant label={<>680px<br />Padding 48px<br />Group gap 32px</>} wide>
               <FormPanel>
@@ -445,8 +508,6 @@ export default function ComponentLibrary() {
               </FormPanel>
             </Variant>
           </Specimen>
-          <Specimen name="Main glass"><Variant label="Default" wide><div className="glass kit-glass-card"><h3>Основная карточка</h3><p>Blur 50px, основной стеклянный фон</p></div></Variant></Specimen>
-          <Specimen name="Soft glass"><Variant label="Default" wide><div className="kit-soft-card"><h3>Вложенная плашка</h3><p>Используется внутри карточек</p></div></Variant></Specimen>
           <Specimen name="Divider"><Variant label="Default" wide><div className="divider" /></Variant></Specimen>
         </Section>
 

@@ -137,7 +137,7 @@ export function ComponentContentPreview() {
     <Group id="content-default-images" title="Дефолтные изображения" description="Системные изображения, которые интерфейс подставляет автоматически" className="kit-default-images-section">
       {defaultImages.map((item) => <figure className="kit-default-image-card" key={item.file}>
         <div className={`kit-default-image-preview kit-default-image-${item.shape}`}><img src={`${import.meta.env.BASE_URL}assets/${item.file}`} alt={item.title} /></div>
-        <figcaption><strong>{item.title}</strong><span>{item.usage}</span><code>{item.file}</code></figcaption>
+        <figcaption><span className="kit-default-image-title type-text">{item.title}</span><span className="type-text">{item.usage}</span><code className="type-text">{item.file}</code></figcaption>
       </figure>)}
     </Group>
   </div>

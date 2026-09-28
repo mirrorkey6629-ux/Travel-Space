@@ -14,8 +14,8 @@ type InfoRowAction = {
 
 type InfoRowProps = {
   title: ReactNode
+  titleStyle?: 'head-m' | 'text'
   subtitle?: ReactNode
-  metadata?: ReactNode
   image?: string
   imageAlt?: string
   imageFallback?: string
@@ -35,8 +35,8 @@ type InfoRowProps = {
 
 export function InfoRow({
   title,
+  titleStyle = 'head-m',
   subtitle,
-  metadata,
   trailing,
   image,
   imageAlt = '',
@@ -53,7 +53,7 @@ export function InfoRow({
   disabled = false,
 }: InfoRowProps) {
   const hasTrailing = trailing !== undefined && trailing !== null && trailing !== ''
-  const copy = <div className="info-row-copy"><TypographyGroup variant="head-m-text" headingLevel="h3" title={title} text={subtitle} />{metadata !== undefined && metadata !== null && metadata !== '' && <small className="info-row-metadata">{metadata}</small>}</div>
+  const copy = <div className="info-row-copy"><TypographyGroup variant={titleStyle === 'text' ? 'text-text' : 'head-m-text'} headingLevel="h3" title={title} text={subtitle} /></div>
   const content = <>{image && <Avatar className={`info-row-image${imageDimmed ? ' info-row-image-dimmed' : ''}`} src={image} alt={imageAlt} fallback={imageFallback} shape={imageShape} size={theme === 'background' ? 48 : 56} />}{copy}</>
 
   return <div className={`info-row info-row-${theme}${image ? ' info-row-with-image' : ' info-row-without-image'}${hasTrailing ? ' info-row-with-trailing' : ''}${hoverEffect ? ' info-row-hover-effect' : ''}${disabled ? ' info-row-disabled' : ''} ${className}`.trim()} aria-disabled={disabled || undefined}>

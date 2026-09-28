@@ -44,7 +44,7 @@ export function Input(props: InputProps) {
   const control = (
     <span className={`form-control${floatingLabel ? ' form-control-floating' : ''}${showIcon && resolvedIcon ? ' form-control-with-icon' : ''}${trailingIcon ? ' form-control-with-trailing-icon' : ''}${resolvedControlClassName ? ` ${resolvedControlClassName}` : ''}`}>
       {showIcon && resolvedIcon && <span className="form-control-icon">{resolvedIcon}</span>}
-      <span className="form-control-input">
+      <span className="form-control-input typography-group typography-group-text-text">
         {floatingLabel && <span className="form-control-floating-label">{floatingLabel}</span>}
         <input {...resolvedInputProps} placeholder={floatingPlaceholder} />
       </span>
@@ -70,7 +70,7 @@ export function DateInput({ icon, label, displayValue, disabled, ...props }: Dat
     if (!inputRef.current?.disabled) inputRef.current?.showPicker()
   }}>
     {icon && <span className="form-control-icon">{icon}</span>}
-    <span className="form-control-copy"><span className="form-control-copy-label">{label}</span><span>{displayValue}</span></span>
+    <span className="form-control-copy typography-group typography-group-text-text"><span className="form-control-copy-label">{label}</span><span>{displayValue}</span></span>
     <input ref={inputRef} {...props} disabled={disabled} type="date" />
   </label>
 }
@@ -88,7 +88,7 @@ type TimeZoneInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & 
 export function TimeZoneInput({ icon, label, secondaryText, secondaryLabel, secondaryValue, secondaryOptions, onSecondaryChange, disabled, ...props }: TimeZoneInputProps) {
   return <label className="form-control form-time-zone-input">
     {icon && <span className="form-control-icon">{icon}</span>}
-    <span className="form-control-copy"><span className="form-control-copy-label">{label}</span><input {...props} disabled={disabled} type="time" /></span>
+    <span className="form-control-copy typography-group typography-group-text-text"><span className="form-control-copy-label">{label}</span><input {...props} disabled={disabled} type="time" /></span>
     <span className="form-control-secondary-select"><span>{secondaryText}</span><select aria-label={secondaryLabel} disabled={disabled} value={secondaryValue} onChange={(event) => onSecondaryChange(event.target.value)}>{secondaryOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></span>
   </label>
 }
@@ -169,7 +169,7 @@ function AssigneeSelect({ label, showLabel = true, icon, options, value, emptyLa
   return <div className={`assignee-select${open ? ' open' : ''}`} ref={containerRef}>
     <button className={`form-control${floatingLabel ? ' form-control-floating' : ''} assignee-select-trigger`} type="button" data-filled={floatingLabel && selectedLabels.length > 0 || undefined} disabled={disabled} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
       {icon && <span className="form-control-icon">{icon}</span>}
-      <span className="form-control-input">
+      <span className="form-control-input typography-group typography-group-text-text">
         {floatingLabel && <span className="form-control-floating-label">{floatingLabel}</span>}
         <span className="assignee-select-value">{selectedLabels.length > 0 ? selectedLabels.join(', ') : floatingLabel ? '\u00a0' : emptyLabel}</span>
       </span>
@@ -224,7 +224,7 @@ function NativeSelect(props: NativeSelectProps) {
     <div ref={containerRef} className={`native-select${open ? ' open' : ''}`}>
       <button type="button" className={`form-control form-select form-select-${type}${floatingLabel ? ' form-select-floating' : ''}${icon ? ' form-control-with-icon' : ''}${visibleValue !== undefined ? ' form-select-with-display-value' : ''}${controlClassName ? ` ${controlClassName}` : ''}`} data-filled={floatingLabel && hasValue || undefined} data-placeholder={floatingLabel && !hasValue && placeholder !== undefined || undefined} disabled={selectProps.disabled} aria-label={selectProps['aria-label']} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
         {icon && <span className="form-control-icon">{icon}</span>}
-        <span className="form-control-input">
+        <span className="form-control-input typography-group typography-group-text-text">
           {floatingLabel && <span className="form-control-floating-label">{floatingLabel}</span>}
           {visibleValue !== undefined && <span className="form-select-display-value">{visibleValue}</span>}
         </span>

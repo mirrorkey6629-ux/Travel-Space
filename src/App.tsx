@@ -1,11 +1,12 @@
 import { CSSProperties, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { api, ApiTripDetails, ApiTripSummary, isConflictError, session, TransportType } from './api'
+import { api, ApiTripChange, ApiTripDetails, ApiTripSummary, isConflictError, session, TransportType } from './api'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
 import { DateInput, Input, Select, Textarea, TimeZoneInput } from './components/FormControls'
 import { InfoRow } from './components/InfoRow'
 import { InfoRowList } from './components/InfoRowList'
 import { TypographyGroup } from './components/TypographyGroup'
+import { UpdateNotification } from './components/UpdateNotification'
 import { Icon, type IconName } from './components/Icon'
 import { UNSCHEDULED_KEY } from './places'
 import { PlacesMap } from './components/PlacesMap'
@@ -19,6 +20,7 @@ import { TextareaList } from './components/TextareaList'
 import { FormPanelGroup, FormPanelHeader, FormPanelLayout, FormPanelNote } from './components/FormPanel'
 import { FilePicker, ImageFilePicker } from './components/ImageFilePicker'
 import { Avatar } from './components/Avatar'
+import { AuthPanel } from './components/AuthPanel'
 import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
@@ -142,6 +144,17 @@ const cityInLocative = (value: string) => {
   if ('оеёуыию'.includes(ending)) return name
   return `${name}е`
 }
+const tripChangeMessage = (change?: ApiTripChange | null) => {
+  if (!change) return 'В поездке появились новые данные'
+  const actor = change.actor_name || 'Другой участник'
+  const city = change.city_name?.trim()
+  const sections = new Set(change.sections)
+  if (sections.size === 1 && sections.has('hotel')) return [actor, 'Отель', city].filter(Boolean).join(' · ')
+  if (sections.size === 1 && (sections.has('transport-in') || sections.has('transport-out'))) return [actor, 'Транспорт', city].filter(Boolean).join(' · ')
+  if (sections.size === 1 && sections.has('city')) return [actor, 'Город', city].filter(Boolean).join(' · ')
+  if (sections.has('trip')) return `${actor} · Поездка`
+  return [actor, 'Несколько разделов', city].filter(Boolean).join(' · ')
+}
 const formatDate = (value: string) => {
   const date = parseDate(value)
   return `${date.getDate()} ${ruMonths[date.getMonth()]}`
@@ -222,7 +235,36 @@ const dateRange = (from: string, to: string) => {
   return result
 }
 
-const tripBackgroundStyle = (trip: Trip): CSSProperties => ({ '--trip-background-image': trip.backgroundRemoved ? 'none' : `url("${trip.backgroundUrl || defaultTripBackground}")` } as CSSProperties)
+const tripBackgroundSource = (trip: Trip) => trip.backgroundRemoved ? '' : trip.backgroundUrl || defaultTripBackground
+const tripBackgroundStyle = (trip: Trip): CSSProperties => ({ '--trip-background-image': trip.backgroundRemoved ? 'none' : `url("${tripBackgroundSource(trip)}")` } as CSSProperties)
+const decodedTripBackgrounds = new Set<string>()
+
+function useTripBackgroundReady(trip: Trip) {
+  const source = tripBackgroundSource(trip)
+  const [readySource, setReadySource] = useState(() => decodedTripBackgrounds.has(source) ? source : '')
+  const ready = !source || decodedTripBackgrounds.has(source) || readySource === source
+  useEffect(() => {
+    if (!source || decodedTripBackgrounds.has(source)) {
+      setReadySource(source)
+      return
+    }
+    let cancelled = false
+    const image = new Image()
+    const reveal = () => {
+      if (cancelled) return
+      decodedTripBackgrounds.add(source)
+      requestAnimationFrame(() => requestAnimationFrame(() => { if (!cancelled) setReadySource(source) }))
+    }
+    image.onload = reveal
+    image.onerror = reveal
+    image.src = source
+    if (image.decode) void image.decode().then(reveal, () => undefined)
+    return () => { cancelled = true }
+  }, [source])
+  return ready
+}
+
+const tripBackgroundClassName = (className: string, ready: boolean) => `${className} trip-background-${ready ? 'ready' : 'loading'}`
 
 
 const fromApiTrip = (source: ApiTripDetails): Trip => {
@@ -412,7 +454,7 @@ function LoginScreen({ onSubmit }: { onSubmit: () => Promise<void> }) {
     finally { setBusy(false) }
   }
   return (
-    <form className="glass auth-modal compact" onSubmit={submit}>
+    <AuthPanel as="form" onSubmit={submit}>
       {mode === 'login' ? <RandomGreetingTitle defaultTitle="И снова здравствуйте" /> : <h1>Регистрация</h1>}
       <div className="form-stack tight">
         <FormControlList>
@@ -422,11 +464,11 @@ function LoginScreen({ onSubmit }: { onSubmit: () => Promise<void> }) {
         </FormControlList>
         <Button type="submit" disabled={busy || !email.trim() || password.length < 8 || (mode === 'register' && !name.trim())}>{busy ? 'Подожди…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}</Button>
       </div>
-      <button className="auth-mode-switch" type="button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}>
+      <Button size="m" theme="transparent" type="button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}>
         {mode === 'login' ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
-      </button>
+      </Button>
       {error && <p className="form-hint">{error}</p>}
-    </form>
+    </AuthPanel>
   )
 }
 
@@ -438,7 +480,7 @@ function JoinScreen({ onSubmit, initialLink = '' }: { onSubmit: (link: string, n
   const [password, setPassword] = useState('')
   const valid = link.trim() && email.trim() && password.length >= 8 && (mode === 'login' || name.trim())
   return (
-    <form className="glass auth-modal join-modal" onSubmit={async (event) => { event.preventDefault(); if (valid) await onSubmit(link, name, email, password, mode) }}>
+    <AuthPanel as="form" offset onSubmit={async (event) => { event.preventDefault(); if (valid) await onSubmit(link, name, email, password, mode) }}>
       <RandomGreetingTitle defaultTitle="Добро пожаловать" />
       <div className="form-stack">
         <FormControlList>
@@ -449,10 +491,10 @@ function JoinScreen({ onSubmit, initialLink = '' }: { onSubmit: (link: string, n
         </FormControlList>
         <Button type="submit" disabled={!valid}>Я в деле</Button>
       </div>
-      <button className="auth-mode-switch" type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+      <Button size="m" theme="transparent" type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
         {mode === 'login' ? 'Создать новый аккаунт' : 'У меня уже есть аккаунт'}
-      </button>
-    </form>
+      </Button>
+    </AuthPanel>
   )
 }
 
@@ -581,6 +623,7 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
   const access = useAccess()
   const [viewLink, setViewLink] = useState('')
   const [busy, setBusy] = useState(false)
+  const backgroundReady = useTripBackgroundReady(trip)
   // Список участников читается из кэша поездки, поэтому экран полезен и оффлайн.
   // Ссылки же создаются только на сервере — без сети их блок просто не нужен.
   const isOwner = trip.role === 'owner' && access.canEdit
@@ -589,7 +632,7 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
     return left.role === 'owner' ? -1 : 1
   })
   useEffect(() => { if (isOwner) void onViewLink().then(setViewLink).catch(() => setViewLink('')) }, [isOwner, onViewLink])
-  return <main className="screen trip-background setup-screen" style={tripBackgroundStyle(trip)}>
+  return <main className={tripBackgroundClassName('screen trip-background setup-screen', backgroundReady)} style={tripBackgroundStyle(trip)}>
     <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
     <FormPanelLayout className="setup-transition">
       <FormPanelHeader title={`Участники «${trip.name}»`} />
@@ -761,6 +804,7 @@ function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initia
   const [trip, setTrip] = useState<Trip>(initial ?? { name: '', startDate: '', endDate: '', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', cities: [], dayDescriptions: {}, members: user ? [{ id: user.id, email: user.email, displayName: user.displayName, role: 'owner', hasAvatar: user.hasAvatar, avatarUrl: user.avatarUrl }] : [] })
   const [editing, setEditing] = useState<City | null | undefined>(undefined)
   const [editingAll, setEditingAll] = useState(false)
+  const backgroundReady = useTripBackgroundReady(trip)
   useEffect(() => {
     if (!initial || refreshToken === 0) return
     setTrip(initial)
@@ -777,7 +821,7 @@ function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initia
     setEditing(undefined)
   }
   return (
-    <main className="screen trip-background setup-screen" style={tripBackgroundStyle(trip)}>
+    <main className={tripBackgroundClassName('screen trip-background setup-screen', backgroundReady)} style={tripBackgroundStyle(trip)}>
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onExit} aria-label="Назад" />
       {editingAll ? (
           <AllCitiesEditor key={`all-cities:${refreshToken}`} trip={trip} onClose={() => setEditingAll(false)} onSave={(cities) => { setTrip((current) => ({ ...current, cities: sortCitiesByDate(cities) })); setEditingAll(false) }} />
@@ -867,7 +911,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
     <aside className="sidebar">
       <section className="glass sidebar-card trip-summary">
         <TypographyGroup title={<><CacheIndicator state={cacheState} online={online} />{trip.name}</>} text={<>{formatLongRange(trip.startDate, trip.endDate)} · {formatDays(daysBetween(trip.startDate, trip.endDate) + 1)} · {!access.canBrowse ? <span>{formatParticipants(Math.max(1, trip.memberCount ?? 0))}</span> : <button type="button" className="participants-link" onClick={onInvite}>{formatParticipants(Math.max(1, trip.members?.length ?? 0))}</button>}</>} />
-        <InfoRowList gap={4}>{trip.cities.map((city, index) => {
+        <InfoRowList rowTheme="transparent">{trip.cities.map((city, index) => {
           const previousCity = trip.cities[index - 1]
           const ticketComplete = previousCity
             ? isTransportComplete(previousCity.transportOut, previousCity.trainOut) || isTransportComplete(city.transportIn, city.trainIn)
@@ -922,7 +966,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
           {isAdmin && <Button size="m" theme="secondary" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}components`)}>Компоненты</Button>}
           {isAdmin && <Button size="m" theme="secondary" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}components?view=content`)}>Контент</Button>}
         </div>}
-        {isAdmin && <p className="profile-card-version">Версия {appVersion}</p>}
+        {isAdmin && <p className="profile-card-version type-text-s">Версия {appVersion}</p>}
       </section>}
     </aside>
   )
@@ -953,6 +997,7 @@ function tripExpenses(trip: Trip): { hotels: TripExpense[]; transport: TripExpen
 }
 
 function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
+  const backgroundReady = useTripBackgroundReady(trip)
   const expenses = tripExpenses(trip)
   const members = trip.members ?? []
   const allExpenses = [...expenses.hotels, ...expenses.transport]
@@ -975,7 +1020,7 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
     return <InfoRow key={expense.id} title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} subtitle={paymentText} trailing={formatRubles(expense.totalAmountRubles)} />
   }
   return (
-    <main className="transport-editor-screen trip-background setup-transition" style={tripBackgroundStyle(trip)}>
+    <main className={tripBackgroundClassName('transport-editor-screen trip-background setup-transition', backgroundReady)} style={tripBackgroundStyle(trip)}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
       <FormPanelLayout>
         <FormPanelHeader title="Траты" text={`Всего ${formatRubles(allExpenses.reduce((sum, expense) => sum + expense.totalAmountRubles, 0))}`} />
@@ -1130,7 +1175,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
         <div className="day-date-column"><h2>{day.getDate()} {ruMonths[day.getMonth()].slice(0, 3)}</h2><p>{ruWeekdays[day.getDay()]}</p></div>
         <div className="day-panels">
           <label className={`day-column day-description${access.canEdit ? '' : ' read-only'}`}>
-            <span>Заметки</span>
+            <h3>Заметки</h3>
             <textarea ref={descriptionRef} value={descriptionDraft} placeholder={access.canEdit ? 'Короткое описание дня' : ''} readOnly={!access.canEdit} onChange={(event) => setDescriptionDraft(event.target.value)} onBlur={() => { if (access.canEdit && descriptionDraft !== description) onDescriptionChange(descriptionDraft) }} />
           </label>
           <section className="day-column day-schedule" aria-label="События и локации дня">
@@ -1196,7 +1241,7 @@ const documentMetadata = (file: TravelFile) => {
   return [file.uploadedBy, uploadedAt].filter(Boolean).join(' · ')
 }
 
-function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, readOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; onSave: (value: TransportDetails) => Promise<void>; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
+function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, readOnly = false, routeReadOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; routeReadOnly?: boolean; onSave: (value: TransportDetails) => Promise<void>; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
   const valueSignature = JSON.stringify(value)
   const [draft, setDraft] = useState<TransportDetails>(() => {
     const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
@@ -1242,8 +1287,8 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
               <FormPanelHeader title={`${departureLabel} – ${arrivalLabel}`} text={journeySummary} />
               <FormControlList>
                 <FormControlRow columns={2}>
-                  <DateInput label="Уедем" icon={<Icon name="calendar-month" />} displayValue={formatCompactNumericDate(draft.departureDate)} aria-label="Дата отъезда" value={draft.departureDate} onChange={(event) => setDraft({ ...draft, departureDate: event.target.value })} />
-                  <DateInput label="Приедем" icon={<Icon name="calendar-month" />} displayValue={formatCompactNumericDate(draft.arrivalDate)} aria-label="Дата приезда" value={draft.arrivalDate} onChange={(event) => setDraft({ ...draft, arrivalDate: event.target.value })} />
+                  <DateInput label="Уедем" icon={<Icon name="calendar-month" />} displayValue={formatCompactNumericDate(draft.departureDate)} aria-label="Дата отъезда" value={draft.departureDate} disabled={routeReadOnly} onChange={(event) => setDraft({ ...draft, departureDate: event.target.value })} />
+                  <DateInput label="Приедем" icon={<Icon name="calendar-month" />} displayValue={formatCompactNumericDate(draft.arrivalDate)} aria-label="Дата приезда" value={draft.arrivalDate} disabled={routeReadOnly} onChange={(event) => setDraft({ ...draft, arrivalDate: event.target.value })} />
                 </FormControlRow>
                 <FormControlRow columns={2}>
                   <TimeZoneInput label="Время отъезда" icon={<Icon name="time" />} aria-label="Время отъезда" disabled={draft.ticketOnSite} value={draft.departureTime} onChange={(event) => setDraft({ ...draft, departureTime: event.target.value })} secondaryText={formatTimeZoneOffset(departureTimeZone, draft.departureDate)} secondaryLabel="Часовой пояс отправления" secondaryValue={draft.departureTimeZone} secondaryOptions={[{ value: '', label: `По часовому поясу поездки — ${formatTimeZoneOption(defaultTimeZone, draft.departureDate)}` }, ...timeZones.map((zone) => ({ value: zone, label: formatTimeZoneOption(zone, draft.departureDate) }))]} onSecondaryChange={(departureTimeZone) => setDraft({ ...draft, departureTimeZone })} />
@@ -1317,7 +1362,7 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
   )
 }
 
-function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, initialFocusPlace, readOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; readOnly?: boolean; onChange: (city: City) => Promise<string | undefined>; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
+function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, initialFocusPlace, readOnly, routeReadOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; readOnly?: boolean; routeReadOnly?: boolean; onChange: (city: City) => Promise<string | undefined>; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
   useEffect(() => {
     setDraft({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() })
@@ -1433,7 +1478,11 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
   const pointsCount = Object.values(placesByDate).reduce((total, places) => total + places.length, 0)
   const saveTransport = async (value: TransportDetails) => {
     if (!transportDirection) return
-    const next = { ...draft, [transportDirection === 'in' ? 'transportIn' : 'transportOut']: value }
+    const currentTransport = transportDirection === 'in' ? draft.transportIn : draft.transportOut
+    const permittedValue = routeReadOnly
+      ? { ...value, departureDate: currentTransport.departureDate, arrivalDate: currentTransport.arrivalDate }
+      : value
+    const next = { ...draft, [transportDirection === 'in' ? 'transportIn' : 'transportOut']: permittedValue }
     setDraft(next)
     const savedVersion = await onChange(next)
     if (!savedVersion) return
@@ -1540,7 +1589,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
           </div>
         </div>
       </section>
-      {transportDirection && <TransportDialog readOnly={readOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} – ${draft.name}` : `Дом – ${draft.name}`) : (nextCity ? `${draft.name} – ${nextCity.name}` : `${draft.name} – Дом`)} departureLabel={transportDirection === 'in' ? previousCity?.name || 'Дом' : draft.name} arrivalLabel={transportDirection === 'in' ? draft.name : nextCity?.name || 'Дом'} defaultTimeZone={tripTimeZone} members={members} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
+      {transportDirection && <TransportDialog readOnly={readOnly} routeReadOnly={routeReadOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} – ${draft.name}` : `Дом – ${draft.name}`) : (nextCity ? `${draft.name} – ${nextCity.name}` : `${draft.name} – Дом`)} departureLabel={transportDirection === 'in' ? previousCity?.name || 'Дом' : draft.name} arrivalLabel={transportDirection === 'in' ? draft.name : nextCity?.name || 'Дом'} defaultTimeZone={tripTimeZone} members={members} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
       {hotelOpen && <HotelDialog readOnly={readOnly} cityName={draft.name} members={members} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes, payerIds: draft.hotelPayerIds, totalAmountRubles: draft.hotelTotalAmountRubles }} booking={hotelDocument} onBooking={(hotel) => { pendingHotelDraftRef.current = hotel; hotelFileRef.current?.click() }} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={saveHotel} />}
     </>
   )
@@ -1553,6 +1602,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
   const [selectedPanel, setSelectedPanel] = useState<'hotel' | 'in' | 'out' | null>(null)
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
   const [panelReturnCityId, setPanelReturnCityId] = useState<string | null>(null)
+  const backgroundReady = useTripBackgroundReady(trip)
   const access = useAccess()
   const [selectedCityDate, setSelectedCityDate] = useState<string | null>(null)
   const today = isoDate(new Date())
@@ -1562,7 +1612,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
   const selectedCityIndex = selectedCity ? trip.cities.findIndex((city) => city.id === selectedCity.id) : -1
   if (expensesOpen) return <ExpensesScreen trip={trip} onBack={() => setExpensesOpen(false)} />
   return (
-    <main className="screen trip-background dashboard" style={tripBackgroundStyle(trip)}>
+    <main className={tripBackgroundClassName('screen trip-background dashboard', backgroundReady)} style={tripBackgroundStyle(trip)}>
       <TripSidebar trip={trip} user={user} tripCount={tripCount} cacheState={cacheState} online={online} selectedCityId={selectedCityId} onCity={(city) => { setSelectedPlaceId(null); setSelectedCityId(city.id); setPanelReturnCityId(city.id); setSelectedCityDate(null); setSelectedPanel(null) }} onHotel={(city) => { setSelectedPlaceId(null); setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel('hotel') }} onTransport={(city, direction) => { setSelectedPlaceId(null); setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(city.id); setSelectedPanel(direction) }} onExpenses={() => setExpensesOpen(true)} onEdit={onEdit} onInvite={onInvite} onTrips={onTrips} onProfile={onProfile} />
       <section className={`calendar-column${selectedCity ? ' city-active' : ''}`}>
         {selectedCity ? (
@@ -1586,6 +1636,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
               return savedVersion
             }}
             readOnly={!access.canEdit}
+            routeReadOnly={!access.canManageTrip}
             onAddPlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onAddPlace(nextCity, date, place) }}
             onUpdatePlace={(nextCity, date, place) => { onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? nextCity : city) }); onUpdatePlace(nextCity, date, place) }}
             onDeletePlace={onDeletePlace}
@@ -1805,7 +1856,7 @@ export default function App() {
         if (!active || !localTrip || localTrip.id !== result.trip.id) return
         const remoteTrip = fromApiTrip(result.trip)
         if (hasDifferentProtectedData(remoteTrip, localTrip)) {
-          setRemoteUpdateNotice({ message: 'В поездке появились новые данные' })
+          setRemoteUpdateNotice({ message: tripChangeMessage(result.trip.last_change) })
         }
       } catch {
         // Фоновая проверка не должна мешать работе с формой при нестабильной сети.
@@ -1844,9 +1895,18 @@ export default function App() {
     return result.trips
   }
 
-  const showConflictNotice = () => {
+  const showConflictNotice = async () => {
     if (conflictMessage || remoteUpdateNotice) setUpdateNoticeShakeKey((value) => value + 1)
-    setConflictMessage('В поездке появились новые данные')
+    if (remoteUpdateNotice) {
+      setConflictMessage(remoteUpdateNotice.message)
+      return
+    }
+    try {
+      const result = trip?.id ? await api.freshTrip(trip.id) : null
+      setConflictMessage(tripChangeMessage(result?.trip.last_change))
+    } catch {
+      setConflictMessage('В поездке появились новые данные')
+    }
   }
 
   const createFromDraft = async (draft: Trip) => {
@@ -1914,7 +1974,7 @@ export default function App() {
       }
       setScreen('dashboard')
     } catch (reason) {
-      if (isConflictError(reason)) showConflictNotice()
+      if (isConflictError(reason)) await showConflictNotice()
       else setError(reason instanceof Error ? reason.message : 'Не удалось сохранить')
     }
   }
@@ -1934,7 +1994,7 @@ export default function App() {
       return saved?.updated_at
     }
     catch (reason) {
-      if (isConflictError(reason)) showConflictNotice()
+      if (isConflictError(reason)) await showConflictNotice()
       else setError(reason instanceof Error ? reason.message : 'Ошибка сохранения')
       return undefined
     }
@@ -2031,10 +2091,10 @@ export default function App() {
   )
 
   const renderScreen = () => {
-  if (loading) return <AuthShell><div className="glass auth-modal compact"><h1>Загружаем поездку…</h1></div></AuthShell>
+  if (loading) return <AuthShell><AuthPanel><h1>Загружаем поездку…</h1></AuthPanel></AuthShell>
 
   if (screen === 'view') {
-    if (!trip) return <AuthShell><div className="glass auth-modal compact"><h1>{error || 'Поездка не найдена'}</h1></div></AuthShell>
+    if (!trip) return <AuthShell><AuthPanel><h1>{error || 'Поездка не найдена'}</h1></AuthPanel></AuthShell>
     const noop = () => undefined
     const noopAsync = async () => undefined
     return <Dashboard trip={trip} user={null} tripCount={0} cacheState={cacheState} online={online} onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noopAsync} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
@@ -2089,13 +2149,6 @@ export default function App() {
   const updateNoticeMessage = conflictMessage || remoteUpdateNotice?.message
   return <AccessContext.Provider value={access}>
     {renderScreen()}
-    {updateNoticeMessage && <aside key={updateNoticeShakeKey} className={`point-card update-notification${updateNoticeShakeKey ? ' update-notification-shake' : ''}`} role="status" aria-live="polite">
-      <div className="update-notification-header">
-        <p>{updateNoticeMessage}</p>
-      </div>
-      <div className="update-notification-actions">
-        <Button type="button" size="m" onClick={() => void refreshProtectedData()}>Загрузить новые данные</Button>
-      </div>
-    </aside>}
+    {updateNoticeMessage && <UpdateNotification key={updateNoticeShakeKey} message={updateNoticeMessage} shake={Boolean(updateNoticeShakeKey)} onRefresh={() => void refreshProtectedData()} />}
   </AccessContext.Provider>
 }

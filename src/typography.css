@@ -6,18 +6,36 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: 'Fira Sans Extra Condensed';
+  src: url('/assets/fonts/FiraSansExtraCondensed-SemiBold.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Fira Sans Extra Condensed';
+  src: url('/assets/fonts/FiraSansExtraCondensed-Medium.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
 :root {
   --font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-head-l: 'Fira Sans Extra Condensed', Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-family-head-m: 'Fira Sans Extra Condensed', Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
   --type-head-l-size: 32px;
-  --type-head-l-weight: 500;
+  --type-head-l-weight: 600;
   --type-head-l-line-height: 1;
-  --type-head-l-letter-spacing: -0.96px;
+  --type-head-l-letter-spacing: 0.01em;
 
-  --type-head-m-size: 20px;
+  --type-head-m-size: 22px;
   --type-head-m-weight: 500;
-  --type-head-m-line-height: 1.2;
-  --type-head-m-letter-spacing: 0;
+  --type-head-m-line-height: 22px;
+  --type-head-m-letter-spacing: 0.02em;
 
   --type-text-size: 15px;
   --type-text-weight: 400;
@@ -32,7 +50,7 @@
 }
 
 .type-head-l {
-  font-family: var(--font-family);
+  font-family: var(--font-family-head-l);
   font-size: var(--type-head-l-size);
   font-weight: var(--type-head-l-weight);
   line-height: var(--type-head-l-line-height);
@@ -40,7 +58,7 @@
 }
 
 .type-head-m {
-  font-family: var(--font-family);
+  font-family: var(--font-family-head-m);
   font-size: var(--type-head-m-size);
   font-weight: var(--type-head-m-weight);
   line-height: var(--type-head-m-line-height);

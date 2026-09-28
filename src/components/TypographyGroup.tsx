@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
 type HeadingLevel = 'h1' | 'h2' | 'h3'
-type TypographyGroupVariant = 'head-l-text' | 'head-m-text'
+type TypographyGroupVariant = 'head-l-text' | 'head-m-text' | 'text-text'
 
 export function TypographyGroup({
   title,

@@ -135,6 +135,17 @@ export type ApiMember = {
   has_avatar: boolean
 }
 
+export type ApiTripChange = {
+  id: string
+  entity_type: 'trip' | 'city'
+  entity_id: string | null
+  sections: string[]
+  city_name: string | null
+  created_at: string
+  actor_id: string
+  actor_name: string
+}
+
 export type ApiTripDetails = ApiTripSummary & {
   owner_id: string
   cities: ApiCity[]
@@ -144,6 +155,7 @@ export type ApiTripDetails = ApiTripSummary & {
   documents: ApiDocument[]
   members: ApiMember[]
   member_count?: number
+  last_change?: ApiTripChange | null
 }
 
 export type ApiTripRevision = {

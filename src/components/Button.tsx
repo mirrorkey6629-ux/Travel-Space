@@ -14,7 +14,7 @@ export function Button({
   children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & { theme?: ButtonTheme; size?: ButtonSize; icon?: ReactNode }) {
-  return <button className={`ui-button ui-button-${theme} ui-button-${size} ${theme} ${className}`.trim()} {...props}>{icon && <span className="ui-button-icon">{icon}</span>}{children}</button>
+  return <button className={`ui-button ui-button-${theme} ui-button-${size} ${size === 'l' ? 'type-head-m' : 'type-text'} ${theme} ${className}`.trim()} {...props}>{icon && <span className="ui-button-icon">{icon}</span>}{children}</button>
 }
 
 export function IconButton({
