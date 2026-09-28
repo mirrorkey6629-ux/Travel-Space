@@ -142,6 +142,17 @@ export type ApiTripDetails = ApiTripSummary & {
   member_count?: number
 }
 
+export type ApiTripRevision = {
+  id: string
+  name: string
+  start_date: string
+  end_date: string
+  time_zone: string
+  background_removed: boolean
+  updated_at: string
+  cities: Array<{ id: string; updated_at: string }>
+}
+
 export const session = {
   get token() { return localStorage.getItem(TOKEN_KEY) ?? '' },
   set token(value: string) { value ? localStorage.setItem(TOKEN_KEY, value) : localStorage.removeItem(TOKEN_KEY) },
@@ -182,6 +193,7 @@ export const api = {
   downloadAvatar: () => checkedResponse('/me/avatar').then((response) => response.blob()),
   trips: () => request<{ trips: ApiTripSummary[] }>('/trips'),
   trip: (id: string) => request<{ trip: ApiTripDetails }>(`/trips/${id}`),
+  tripRevision: (id: string) => request<{ revision: ApiTripRevision }>(`/trips/${id}/revision`),
   createTrip: (value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>('/trips', json('POST', value)),
   updateTrip: (id: string, value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean; expectedUpdatedAt?: string }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),
   deleteTrip: (id: string, confirmation: string) => request<void>(`/trips/${id}`, json('DELETE', { confirmation })),

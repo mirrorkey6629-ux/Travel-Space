@@ -23,6 +23,7 @@ import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
 import { AccessContext, tripAccess, useAccess } from './tripAccess'
+import { hasNewerProtectedData, protectedDataSignature } from './remoteRevision'
 
 type Place = { id: string; name: string; url: string; icon: PlaceIconKey; latitude?: number; longitude?: number }
 type Task = { id: string; title: string; done: boolean }
@@ -78,18 +79,6 @@ const ruMonths = ['января', 'февраля', 'марта', 'апреля'
 const ruWeekdays = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
 const greetings = ['Привет', 'Hello', 'Hola', 'Bonjour', 'Ciao', 'Hallo', 'Olá', 'こんにちは', '안녕하세요', '你好', 'Namaste', 'Merhaba', 'Hej', 'Hei', 'Ahoj', 'Cześć', 'Γεια σου', 'Shalom', 'Marhaba', 'Sawubona']
 
-const protectedDataSignature = (source: { updated_at?: string; cities: Array<{ id: string; updated_at: string }> }) => JSON.stringify([
-  source.updated_at ?? '',
-  ...source.cities.map((city) => `${city.id}:${city.updated_at}`).sort(),
-])
-
-const hasNewerProtectedData = (remote: ApiTripDetails, localTrip: Trip, localCityVersions: Map<string, string>) => {
-  if (remote.updated_at && localTrip.updatedAt && Date.parse(remote.updated_at) > Date.parse(localTrip.updatedAt)) return true
-  return remote.cities.some((city) => {
-    const localVersion = localCityVersions.get(city.id)
-    return !localVersion || Date.parse(city.updated_at) > Date.parse(localVersion)
-  })
-}
 
 const uid = () => {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
@@ -1803,11 +1792,11 @@ export default function App() {
       if (checking || document.visibilityState === 'hidden') return
       checking = true
       try {
-        const result = await api.trip(trip.id!)
+        const result = await api.tripRevision(trip.id!)
         const localTrip = tripRef.current
-        if (!active || !localTrip || localTrip.id !== result.trip.id) return
-        const signature = protectedDataSignature(result.trip)
-        if (hasNewerProtectedData(result.trip, localTrip, cityVersionsRef.current) && signature !== ignoredRemoteSignatureRef.current) {
+        if (!active || !localTrip || localTrip.id !== result.revision.id) return
+        const signature = protectedDataSignature(result.revision)
+        if (hasNewerProtectedData(result.revision, { ...localTrip, cityVersions: cityVersionsRef.current }) && signature !== ignoredRemoteSignatureRef.current) {
           setRemoteUpdateNotice({ signature, message: 'В поездке появились новые данны' })
         }
       } catch {

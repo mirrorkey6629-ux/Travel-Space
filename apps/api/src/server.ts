@@ -355,6 +355,19 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
   }
 })
 
+app.get(`${apiPrefix}/trips/:tripId/revision`, async (request) => {
+  const user = await requireUser(request)
+  const { tripId } = request.params as { tripId: string }
+  await requireTripRole(tripId, user.id)
+  const [tripResult, cities] = await Promise.all([
+    db.query('SELECT id,name,start_date,end_date,time_zone,background_removed,updated_at FROM trips WHERE id=$1', [tripId]),
+    db.query('SELECT id,updated_at FROM cities WHERE trip_id=$1 ORDER BY id', [tripId]),
+  ])
+  const trip = tripResult.rows[0]
+  if (!trip) throw httpError(404, 'Поездка не найдена')
+  return { revision: { ...trip, cities: cities.rows } }
+})
+
 app.get(`${apiPrefix}/trips/:tripId`, async (request) => {
   const user = await requireUser(request)
   const { tripId } = request.params as { tripId: string }
