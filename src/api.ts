@@ -193,6 +193,7 @@ export const api = {
   downloadAvatar: () => checkedResponse('/me/avatar').then((response) => response.blob()),
   trips: () => request<{ trips: ApiTripSummary[] }>('/trips'),
   trip: (id: string) => request<{ trip: ApiTripDetails }>(`/trips/${id}`),
+  freshTrip: (id: string) => request<{ trip: ApiTripDetails }>(`/trips/${id}?revisionCheck=${Date.now()}`, { cache: 'no-store' }),
   tripRevision: (id: string) => request<{ revision: ApiTripRevision }>(`/trips/${id}/revision`),
   createTrip: (value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>('/trips', json('POST', value)),
   updateTrip: (id: string, value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean; expectedUpdatedAt?: string }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),

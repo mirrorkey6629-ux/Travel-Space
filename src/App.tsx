@@ -23,7 +23,7 @@ import { tripResourceUrls, tripsListResourceUrls } from './offline/resources'
 import { clearPrivateCaches, keepStorage, requestPrefetch, useOfflineCache } from './offline/useOfflineCache'
 import type { CacheState } from './offline/cacheState'
 import { AccessContext, tripAccess, useAccess } from './tripAccess'
-import { hasNewerProtectedData, protectedDataSignature } from './remoteRevision'
+import { hasDifferentProtectedData, protectedDataSignature } from './remoteRevision'
 
 type Place = { id: string; name: string; url: string; icon: PlaceIconKey; latitude?: number; longitude?: number }
 type Task = { id: string; title: string; done: boolean }
@@ -1792,11 +1792,12 @@ export default function App() {
       if (checking || document.visibilityState === 'hidden') return
       checking = true
       try {
-        const result = await api.tripRevision(trip.id!)
+        const result = await api.freshTrip(trip.id!)
         const localTrip = tripRef.current
-        if (!active || !localTrip || localTrip.id !== result.revision.id) return
-        const signature = protectedDataSignature(result.revision)
-        if (hasNewerProtectedData(result.revision, { ...localTrip, cityVersions: cityVersionsRef.current }) && signature !== ignoredRemoteSignatureRef.current) {
+        if (!active || !localTrip || localTrip.id !== result.trip.id) return
+        const remoteTrip = fromApiTrip(result.trip)
+        const signature = protectedDataSignature(remoteTrip)
+        if (hasDifferentProtectedData(remoteTrip, localTrip) && signature !== ignoredRemoteSignatureRef.current) {
           setRemoteUpdateNotice({ signature, message: 'В поездке появились новые данны' })
         }
       } catch {
@@ -1846,7 +1847,7 @@ export default function App() {
       })
       cityIds.set(city.id, result.city.id)
       if (city.imageFile) await api.uploadDocument(created.trip.id, result.city.id, 'city-image', city.imageFile)
-      if (city.hotel || city.hotelUrl || city.hotelCheckInTime || city.hotelCheckOutTime) await api.updateCity(created.trip.id, result.city.id, hotelPayload(city))
+      if (city.hotel || city.hotelUrl || city.hotelCheckInTime || city.hotelCheckOutTime) await api.updateCity(created.trip.id, result.city.id, { ...hotelPayload(city), expectedUpdatedAt: result.city.updated_at })
       for (const [date, places] of Object.entries(city.places)) {
         for (const place of places) await api.createPlace(created.trip.id, result.city.id, { name: place.name, googleMapsUrl: place.url, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
       }
@@ -1906,9 +1907,9 @@ export default function App() {
     }
   }
 
-  const saveCityPayload = async (cityId: string, payload: Record<string, unknown>) => {
+  const saveCityPayload = async (cityId: string, payload: Record<string, unknown>, expectedUpdatedAt?: string) => {
     if (!trip?.id) return
-    const result = await api.updateCity(trip.id, cityId, { ...payload, expectedUpdatedAt: cityVersionsRef.current.get(cityId) })
+    const result = await api.updateCity(trip.id, cityId, { ...payload, expectedUpdatedAt: expectedUpdatedAt ?? cityVersionsRef.current.get(cityId) })
     cityVersionsRef.current.set(cityId, result.city.updated_at)
     setTrip((current) => current ? { ...current, cities: current.cities.map((city) => city.id === cityId ? { ...city, updatedAt: result.city.updated_at } : city) } : current)
     return result.city
@@ -1916,7 +1917,7 @@ export default function App() {
 
   const updateCity = async (city: City) => {
     if (!trip?.id) return
-    try { await saveCityPayload(city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }) }
+    try { await saveCityPayload(city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }, city.updatedAt) }
     catch (reason) {
       if (reason instanceof ApiRequestError && reason.status === 409) setConflictMessage('В поездке появились новые данные')
       else setError(reason instanceof Error ? reason.message : 'Ошибка сохранения')
@@ -1986,7 +1987,7 @@ export default function App() {
   const uploadHotel = async (city: City, file: File): Promise<TravelFile | undefined> => {
     if (!trip?.id) return
     try {
-      await saveCityPayload(city.id, hotelPayload(city))
+      await saveCityPayload(city.id, hotelPayload(city), city.updatedAt)
       const uploaded = await api.uploadDocument(trip.id, city.id, 'hotel-booking', file)
       await loadTrip(trip.id)
       return { id: uploaded.document.id, name: uploaded.document.original_name, category: uploaded.document.category, uploadedBy: uploaded.document.created_by_name, uploadedAt: uploaded.document.created_at }
