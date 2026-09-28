@@ -531,10 +531,18 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .update-notification-header p { min-width: 0; flex: 1; margin: 7px 0 20px 12px; color: var(--color-text-primary); font-family: var(--font-family); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); letter-spacing: var(--type-text-letter-spacing); }
 .update-notification-header .icon-button { margin: -8px -4px 0 0; flex: 0 0 auto; }
 .update-notification-actions .ui-button { width: 100%; }
+.update-notification-shake { animation: update-notification-shake .42s cubic-bezier(.36,.07,.19,.97) both; }
 @keyframes update-notification-in {
   from { opacity: 0; transform: translate3d(calc(100% + 28px), -10px, 0) scale(.94); }
   70% { opacity: 1; transform: translate3d(-5px, 0, 0) scale(1.01); }
   to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+@keyframes update-notification-shake {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  20% { transform: translate3d(-10px, 0, 0); }
+  40% { transform: translate3d(8px, 0, 0); }
+  60% { transform: translate3d(-6px, 0, 0); }
+  80% { transform: translate3d(3px, 0, 0); }
 }
 @media (prefers-reduced-motion: reduce) { .update-notification { animation: none; } }
 @media (max-width: 560px) { .update-notification { top: 12px; right: 12px; width: calc(100vw - 24px); } }

@@ -1669,6 +1669,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [conflictMessage, setConflictMessage] = useState('')
   const [remoteUpdateNotice, setRemoteUpdateNotice] = useState<RemoteUpdateNotice | null>(null)
+  const [updateNoticeShakeKey, setUpdateNoticeShakeKey] = useState(0)
   const [remoteRefreshToken, setRemoteRefreshToken] = useState(0)
   const [deleteTarget, setDeleteTarget] = useState<ApiTripSummary | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -1830,6 +1831,7 @@ export default function App() {
       setRemoteRefreshToken((value) => value + 1)
       setRemoteUpdateNotice(null)
       setConflictMessage('')
+      setUpdateNoticeShakeKey(0)
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Не удалось загрузить новые данные')
     }
@@ -1840,6 +1842,11 @@ export default function App() {
     setTrips(result.trips)
     if (!trip) void requestPrefetch(null, tripsListResourceUrls(result.trips, import.meta.env.BASE_URL))
     return result.trips
+  }
+
+  const showConflictNotice = () => {
+    if (conflictMessage || remoteUpdateNotice) setUpdateNoticeShakeKey((value) => value + 1)
+    setConflictMessage('В поездке появились новые данные')
   }
 
   const createFromDraft = async (draft: Trip) => {
@@ -1907,7 +1914,7 @@ export default function App() {
       }
       setScreen('dashboard')
     } catch (reason) {
-      if (isConflictError(reason)) setConflictMessage('В поездке появились новые данные')
+      if (isConflictError(reason)) showConflictNotice()
       else setError(reason instanceof Error ? reason.message : 'Не удалось сохранить')
     }
   }
@@ -1927,7 +1934,7 @@ export default function App() {
       return saved?.updated_at
     }
     catch (reason) {
-      if (isConflictError(reason)) setConflictMessage('В поездке появились новые данные')
+      if (isConflictError(reason)) showConflictNotice()
       else setError(reason instanceof Error ? reason.message : 'Ошибка сохранения')
       return undefined
     }
@@ -2082,7 +2089,7 @@ export default function App() {
   const updateNoticeMessage = conflictMessage || remoteUpdateNotice?.message
   return <AccessContext.Provider value={access}>
     {renderScreen()}
-    {updateNoticeMessage && <aside className="point-card update-notification" role="status" aria-live="polite">
+    {updateNoticeMessage && <aside key={updateNoticeShakeKey} className={`point-card update-notification${updateNoticeShakeKey ? ' update-notification-shake' : ''}`} role="status" aria-live="polite">
       <div className="update-notification-header">
         <p>{updateNoticeMessage}</p>
       </div>
