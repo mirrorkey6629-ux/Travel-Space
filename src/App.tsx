@@ -1,5 +1,5 @@
 import { CSSProperties, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { api, ApiTripDetails, ApiTripSummary, session, TransportType } from './api'
+import { api, ApiRequestError, ApiTripDetails, ApiTripSummary, session, TransportType } from './api'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
 import { DateInput, Input, Select, Textarea, TimeZoneInput } from './components/FormControls'
@@ -1628,6 +1628,7 @@ export default function App() {
   const memberAvatarUrlsRef = useRef<string[]>([])
   const cityImageUrlsRef = useRef<string[]>([])
   const tripLoadSequenceRef = useRef(0)
+  const cityVersionsRef = useRef(new Map<string, string>())
   const legacyTrip = useRef<Trip | null>((() => {
     try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null') } catch { return null }
   })())
@@ -1637,6 +1638,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>(viewToken ? 'view' : invitationLink ? 'join' : 'start')
   const [loading, setLoading] = useState(Boolean(session.token || viewToken))
   const [error, setError] = useState('')
+  const [conflictMessage, setConflictMessage] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<ApiTripSummary | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
   const { state: cacheState, online } = useOfflineCache(trip?.id ?? null)
@@ -1685,6 +1687,7 @@ export default function App() {
   const loadPublicTrip = async (token: string) => {
     const result = await api.publicTrip(token)
     const value = fromApiTrip(result.trip)
+    cityVersionsRef.current = new Map(value.cities.flatMap((city) => city.updatedAt ? [[city.id, city.updatedAt]] : []))
     const imageUrls: string[] = []
     const loadImage = async (document: TravelFile) => {
       const blob = await api.downloadPublicDocument(token, document.id)
@@ -1707,6 +1710,7 @@ export default function App() {
     const loadSequence = ++tripLoadSequenceRef.current
     const result = await api.trip(id)
     const value = fromApiTrip(result.trip)
+    cityVersionsRef.current = new Map(value.cities.flatMap((city) => city.updatedAt ? [[city.id, city.updatedAt]] : []))
     const previousCityImageUrls = cityImageUrlsRef.current
     const nextCityImageUrls: string[] = []
     memberAvatarUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
@@ -1817,7 +1821,7 @@ export default function App() {
         for (const [position, city] of draft.cities.entries()) {
           const payload = { name: city.name, position, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }
           const cityId = existingIds.has(city.id) ? city.id : (await api.createCity(draft.id, payload)).city.id
-          if (existingIds.has(city.id)) await api.updateCity(draft.id, city.id, payload)
+          if (existingIds.has(city.id)) await api.updateCity(draft.id, city.id, { ...payload, expectedUpdatedAt: city.updatedAt })
           if (city.imageDeleteId) await api.deleteDocument(city.imageDeleteId)
           if (city.imageFile) await api.uploadDocument(draft.id, cityId, 'city-image', city.imageFile)
         }
@@ -1826,13 +1830,27 @@ export default function App() {
         await loadTrip(draft.id)
       }
       setScreen('dashboard')
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить') }
+    } catch (reason) {
+      if (reason instanceof ApiRequestError && reason.status === 409) setConflictMessage(reason.message)
+      else setError(reason instanceof Error ? reason.message : 'Не удалось сохранить')
+    }
+  }
+
+  const saveCityPayload = async (cityId: string, payload: Record<string, unknown>) => {
+    if (!trip?.id) return
+    const result = await api.updateCity(trip.id, cityId, { ...payload, expectedUpdatedAt: cityVersionsRef.current.get(cityId) })
+    cityVersionsRef.current.set(cityId, result.city.updated_at)
+    setTrip((current) => current ? { ...current, cities: current.cities.map((city) => city.id === cityId ? { ...city, updatedAt: result.city.updated_at } : city) } : current)
+    return result.city
   }
 
   const updateCity = async (city: City) => {
     if (!trip?.id) return
-    try { await api.updateCity(trip.id, city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }) }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка сохранения') }
+    try { await saveCityPayload(city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }) }
+    catch (reason) {
+      if (reason instanceof ApiRequestError && reason.status === 409) setConflictMessage(reason.message)
+      else setError(reason instanceof Error ? reason.message : 'Ошибка сохранения')
+    }
   }
 
   const addPlace = async (city: City, date: string, place: Place) => {
@@ -1898,7 +1916,7 @@ export default function App() {
   const uploadHotel = async (city: City, file: File): Promise<TravelFile | undefined> => {
     if (!trip?.id) return
     try {
-      await api.updateCity(trip.id, city.id, hotelPayload(city))
+      await saveCityPayload(city.id, hotelPayload(city))
       const uploaded = await api.uploadDocument(trip.id, city.id, 'hotel-booking', file)
       await loadTrip(trip.id)
       return { id: uploaded.document.id, name: uploaded.document.original_name, category: uploaded.document.category, uploadedBy: uploaded.document.created_by_name, uploadedAt: uploaded.document.created_at }
@@ -1981,5 +1999,18 @@ export default function App() {
   return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} cacheState={cacheState} online={online} onChange={setTrip} onEdit={() => { if (!trip.id) return; void loadTrip(trip.id).then(() => setScreen('setup')).catch((reason) => setError(reason instanceof Error ? reason.message : 'Не удалось обновить поездку')) }} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={(city) => void updateCity(city)} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
   }
 
-  return <AccessContext.Provider value={access}>{renderScreen()}</AccessContext.Provider>
+  return <AccessContext.Provider value={access}>
+    {renderScreen()}
+    {conflictMessage && <div className="conflict-backdrop" role="presentation">
+      <section className="glass conflict-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title">
+        <h2 id="conflict-title">Есть более новые данные</h2>
+        <p>{conflictMessage}</p>
+        <p>Ваши изменения не были сохранены и не перезаписали более новые данные.</p>
+        <div className="conflict-dialog-actions">
+          <Button onClick={() => window.location.reload()}>Загрузить новые данные</Button>
+          <Button theme="transparent" onClick={() => setConflictMessage('')}>Закрыть</Button>
+        </div>
+      </section>
+    </div>}
+  </AccessContext.Provider>
 }

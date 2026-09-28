@@ -5,6 +5,13 @@ import type { PlaceIconKey } from './placeIcons'
 const API_BASE = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/api`
 const TOKEN_KEY = 'travel-api-token'
 
+export class ApiRequestError extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message)
+    this.name = 'ApiRequestError'
+  }
+}
+
 export type ApiRole = 'owner' | 'member'
 
 export type ApiTripSummary = {
@@ -147,7 +154,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { ...init, headers })
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: string }
-    throw new Error(payload.error || `Ошибка сервера (${response.status})`)
+    throw new ApiRequestError(payload.error || `Ошибка сервера (${response.status})`, response.status)
   }
   if (response.status === 204) return undefined as T
   return response.json() as Promise<T>
@@ -159,7 +166,7 @@ async function checkedResponse(path: string, init: RequestInit = {}) {
   const response = await fetch(`${API_BASE}${path}`, { ...init, headers })
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: string }
-    throw new Error(payload.error || `Ошибка сервера (${response.status})`)
+    throw new ApiRequestError(payload.error || `Ошибка сервера (${response.status})`, response.status)
   }
   return response
 }

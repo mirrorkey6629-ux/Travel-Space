@@ -636,6 +636,7 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
   const current = (await db.query('SELECT * FROM cities WHERE id = $1 AND trip_id = $2', [cityId, tripId])).rows[0]
   if (!current) throw httpError(404, 'Город не найден')
   const body = bodyOf(request.body)
+  const expectedUpdatedAt = optionalText(body.expectedUpdatedAt)
   const assignees = await validatedCityAssignees(tripId, body)
   const transportTypes = [body.transportInType, body.transportOutType].filter((value) => value !== undefined)
   if (transportTypes.some((value) => typeof value !== 'string' || !['train', 'plane', 'bus', 'ship'].includes(value))) throw httpError(400, 'Некорректный тип транспорта')
@@ -662,7 +663,7 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
        ticket_assignee_ids=$34, hotel_assignee_ids=$35, plan_assignee_ids=$36,
        hotel_payer_ids=$37, hotel_total_amount_rubles=coalesce($38,hotel_total_amount_rubles),
        google_maps_url=coalesce($39,google_maps_url), updated_at=now()
-     WHERE id=$1 AND trip_id=$2 RETURNING *`,
+     WHERE id=$1 AND trip_id=$2 AND ($40::timestamptz IS NULL OR updated_at=$40::timestamptz) RETURNING *`,
     [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut),
       optionalText(body.transportInType), optionalText(body.transportOutType), optionalText(body.transportInDepartureTime), optionalText(body.transportInArrivalTime),
       optionalText(body.transportOutDepartureTime), optionalText(body.transportOutArrivalTime), optionalText(body.transportInDepartureStation), optionalText(body.transportInDepartureStationUrl),
@@ -675,8 +676,9 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
       (typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed) ? [] : assignees.hotelAssigneeIds === undefined ? current.hotel_assignee_ids : assignees.hotelAssigneeIds,
       assignees.planAssigneeIds === undefined ? current.plan_assignee_ids : assignees.planAssigneeIds,
       assignees.hotelPayerIds === undefined ? current.hotel_payer_ids : assignees.hotelPayerIds,
-      optionalRubles(body.hotelTotalAmountRubles), optionalText(body.googleMapsUrl)],
+      optionalRubles(body.hotelTotalAmountRubles), optionalText(body.googleMapsUrl), expectedUpdatedAt || null],
   )
+  if (!result.rowCount) throw httpError(409, 'Этот город уже изменили в другой сессии. Обновите страницу — ваши данные не были перезаписаны')
   const scheduled = await db.query(
     `UPDATE cities SET
        transport_in_departure_date=coalesce($3,transport_in_departure_date), transport_in_arrival_date=coalesce($4,transport_in_arrival_date),
