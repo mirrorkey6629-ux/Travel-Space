@@ -526,7 +526,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .profile-card-actions { display: flex; flex-direction: column; gap: 8px; }
 .profile-card .ui-button { width: 100%; }
 .profile-card-version { margin: -4px 0 0; color: var(--color-text-secondary); font-size: var(--type-caption-size, 12px); line-height: 1.4; text-align: center; }
-.update-notification { position: fixed; z-index: 1000; top: 20px; right: 20px; width: min(420px, calc(100vw - 40px)); padding: 20px 16px 16px; background: var(--color-background-glass); animation: update-notification-in .46s cubic-bezier(.2,.9,.25,1.12) both; }
+.point-card.update-notification { position: fixed; z-index: 1000; top: 20px; right: 20px; width: min(420px, calc(100vw - 40px)); padding: 20px 16px 16px; background: var(--color-background-glass); animation: update-notification-in .46s cubic-bezier(.2,.9,.25,1.12) both; }
 .update-notification-header { min-height: 48px; display: flex; align-items: flex-start; gap: 12px; }
 .update-notification-header p { min-width: 0; flex: 1; margin: 7px 0 20px 12px; color: var(--color-text-primary); font-size: var(--type-head-s-size, 18px); font-weight: 650; line-height: 1.35; }
 .update-notification-header .icon-button { margin: -8px -4px 0 0; flex: 0 0 auto; }
