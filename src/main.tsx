@@ -9,10 +9,21 @@ import './styles.css'
 const isComponentLibrary = window.location.pathname.replace(/\/$/, '').endsWith('/components')
 
 if (import.meta.env.PROD) {
-  // immediate: false — новый worker ставится в очередь и активируется при
-  // следующем холодном старте. Перезагружать страницу под руками у пользователя
-  // нельзя: в форме города могут быть несохранённые правки.
-  registerSW({ immediate: false })
+  let updateSW: (reloadPage?: boolean) => Promise<void>
+  updateSW = registerSW({
+    immediate: true,
+    // Reload не всегда закрывает старый client, поэтом waiting-worker мог
+    // бесконечно оставаться в очереди. Активируем его и один раз перезагружаемся.
+    onNeedRefresh: () => { void updateSW(true) },
+    onRegisteredSW: (_url, registration) => {
+      if (!registration) return
+      const check = () => { if (navigator.onLine) void registration.update().catch(() => undefined) }
+      check()
+      window.addEventListener('online', check)
+      window.addEventListener('focus', check)
+      window.setInterval(check, 60 * 60 * 1_000)
+    },
+  })
 } else if ('serviceWorker' in navigator) {
   // Старый production-worker не должен перехватывать локальную разработку:
   // иначе Vite обновляет код, а браузер продолжает показывать закэшированные

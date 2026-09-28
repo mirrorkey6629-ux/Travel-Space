@@ -178,7 +178,10 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers)
   if (session.token) headers.set('Authorization', `Bearer ${session.token}`)
   if (init.body && !(init.body instanceof FormData)) headers.set('Content-Type', 'application/json')
-  const response = await fetch(`${API_BASE}${path}`, { ...init, headers })
+  // Офлайн-фолбэк делает Cache Storage в worker-е. HTTP-кэш браузера не должен
+  // скрывать обновления сервера, когда сеть есть.
+  const cache = init.cache ?? (!init.method || init.method === 'GET' ? 'no-store' : undefined)
+  const response = await fetch(`${API_BASE}${path}`, { ...init, cache, headers })
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: string }
     throw new ApiRequestError(payload.error || `Ошибка сервера (${response.status})`, response.status)

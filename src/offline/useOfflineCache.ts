@@ -42,14 +42,23 @@ export function keepStorage() {
 export function useOfflineCache(tripId: string | null) {
   const [state, setState] = useState<CacheState>({ kind: 'idle' })
   const [online, setOnline] = useState(() => typeof navigator === 'undefined' || navigator.onLine)
+  const [reconnectVersion, setReconnectVersion] = useState(0)
+  const [freshDataVersion, setFreshDataVersion] = useState(0)
+  const onlineRef = useRef(online)
   const tripIdRef = useRef(tripId)
   tripIdRef.current = tripId
+
+  const reportOnline = (value: boolean) => {
+    if (value && !onlineRef.current) setReconnectVersion((current) => current + 1)
+    onlineRef.current = value
+    setOnline(value)
+  }
 
   // Два источника намеренно: события окна реагируют мгновенно на выключенный
   // Wi-Fi, а сообщения worker-а ловят случай «сеть есть, интернета нет».
   useEffect(() => {
-    const goOnline = () => setOnline(true)
-    const goOffline = () => setOnline(false)
+    const goOnline = () => reportOnline(true)
+    const goOffline = () => reportOnline(false)
     window.addEventListener('online', goOnline)
     window.addEventListener('offline', goOffline)
     return () => {
@@ -61,9 +70,10 @@ export function useOfflineCache(tripId: string | null) {
   useEffect(() => {
     if (!supported()) return
     const onMessage = (event: MessageEvent) => {
-      const data = event.data as (CacheMessage | { type: 'network'; online: boolean }) | null
+      const data = event.data as (CacheMessage | { type: 'network'; online: boolean } | { type: 'fresh-data' }) | null
       if (!data || typeof data !== 'object') return
-      if (data.type === 'network') { setOnline(data.online); return }
+      if (data.type === 'network') { reportOnline(data.online); return }
+      if (data.type === 'fresh-data') { setFreshDataVersion((current) => current + 1); return }
       setState((current) => cacheStateReducer(current, data, tripIdRef.current))
     }
     navigator.serviceWorker.addEventListener('message', onMessage)
@@ -83,7 +93,7 @@ export function useOfflineCache(tripId: string | null) {
         // /api/health намеренно не кэшируется, иначе ответ приходил бы из кэша
         // и проверка всегда говорила бы «связь есть».
         const response = await fetch(`${import.meta.env.BASE_URL}api/health`, { cache: 'no-store' })
-        if (!cancelled && response.ok) setOnline(true)
+        if (!cancelled && response.ok) reportOnline(true)
       } catch {
         // Всё ещё оффлайн — ждём следующей попытки.
       }
@@ -106,5 +116,5 @@ export function useOfflineCache(tripId: string | null) {
   // Смена поездки обнуляет индикатор: прогресс прошлой к новой отношения не имеет.
   useEffect(() => { setState({ kind: 'idle' }) }, [tripId])
 
-  return { state, online }
+  return { state, online, reconnectVersion, freshDataVersion }
 }

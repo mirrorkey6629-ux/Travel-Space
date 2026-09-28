@@ -634,7 +634,7 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
   useEffect(() => { if (isOwner) void onViewLink().then(setViewLink).catch(() => setViewLink('')) }, [isOwner, onViewLink])
   return <main className={tripBackgroundClassName('screen trip-background setup-screen', backgroundReady)} style={tripBackgroundStyle(trip)}>
     <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
-    <FormPanelLayout className="setup-transition">
+    <FormPanelLayout className="setup-transition" contentHeight>
       <FormPanelHeader title={`Участники «${trip.name}»`} />
       <FormPanelGroup>
         {members.length > 0
@@ -646,7 +646,6 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
           <FormControlList headline="Ссылка-приглашение" text="Действует 24 часа, при повторном создании прошлая ссылка сбросится">
           {invite && <>
             <FormControlRow><Input aria-label="Активная ссылка приглашения" icon={<Icon name="link" />} type="url" readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /></FormControlRow>
-            <FormPanelNote>Действует до {new Date(invite.expiresAt).toLocaleString('ru-RU')}</FormPanelNote>
           </>}
           <FormControlRow><Button size="l" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(24)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button></FormControlRow>
           </FormControlList>
@@ -866,8 +865,6 @@ function DocumentStatus({ checked, children, onClick }: { checked: boolean; chil
 const isTransportComplete = (details: TransportDetails | undefined, ticketName: string) => Boolean(
   details
   && (ticketName.trim() || (details.type !== 'plane' && details.ticketOnSite))
-  && details.departureDate.trim()
-  && details.arrivalDate.trim()
   && (details.ticketOnSite || (details.departureTime.trim() && details.arrivalTime.trim())),
 )
 
@@ -1724,7 +1721,7 @@ export default function App() {
   const [remoteRefreshToken, setRemoteRefreshToken] = useState(0)
   const [deleteTarget, setDeleteTarget] = useState<ApiTripSummary | null>(null)
   const [inviteOpen, setInviteOpen] = useState(false)
-  const { state: cacheState, online } = useOfflineCache(trip?.id ?? null)
+  const { state: cacheState, online, reconnectVersion, freshDataVersion } = useOfflineCache(trip?.id ?? null)
   useEffect(() => { tripRef.current = trip }, [trip])
 
   const loadCurrentUser = async () => {
@@ -1842,6 +1839,13 @@ export default function App() {
     window.setTimeout(() => previousCityImageUrls.forEach((url) => URL.revokeObjectURL(url)), 1_000)
     return value
   }
+
+  // После реального возврата сети не оставляем на экране офлайн-снимок.
+  useEffect(() => {
+    if ((!reconnectVersion && !freshDataVersion) || !trip?.id) return
+    const refresh = screen === 'view' && viewToken ? loadPublicTrip(viewToken) : loadTrip(trip.id)
+    void refresh.catch((reason) => setError(reason instanceof Error ? reason.message : 'Не удалось обновить данные'))
+  }, [reconnectVersion, freshDataVersion])
 
   useEffect(() => {
     if (!trip?.id || !online || (screen !== 'dashboard' && screen !== 'setup')) return

@@ -27,10 +27,10 @@ const KNOWN_CACHES = new Set<string>(Object.values(CACHES))
 // неуправляемой до конца своей жизни: перехвата нет, и переключение в оффлайн
 // без перезагрузки ломает любой ещё не скачанный ресурс.
 //
-// Здесь это безопасно именно потому, что skipWaiting не вызывается: новый
-// worker активируется только когда старых вкладок не осталось, поэтому
-// захватывать страницу с чужой версией бандла ему не придётся. А при самой
-// первой установке чужой версии просто нет.
+// Новая версия не должна застревать в waiting: обычная перезагрузка не всегда
+// закрывает старый client, особенно в standalone PWA. Это также выводит из старой
+// версии клиентов, в которой ещё не было автообновления.
+self.skipWaiting()
 clientsClaim()
 
 precacheAndRoute(self.__WB_MANIFEST)
@@ -62,14 +62,26 @@ const networkSignal: WorkboxPlugin = {
   fetchDidFail: async () => { setOnline(false) },
 }
 
+const freshDataSignal: WorkboxPlugin = {
+  cacheDidUpdate: async ({ oldResponse, newResponse }) => {
+    // Если медленная сеть не уложилась в timeout, NetworkFirst уже отдал кэш,
+    // но позже всё равно сохранит ответ сервера. Сообщаем клиенту только о
+    // реальном изменении, чтобы не создать цикл перезапросов.
+    if (!oldResponse) return
+    const [oldBody, newBody] = await Promise.all([oldResponse.clone().text(), newResponse.clone().text()])
+    if (oldBody !== newBody) await broadcast({ type: 'fresh-data' })
+  },
+}
+
 const strategies: Record<CacheKind, Strategy> = {
   asset: new CacheFirst({ cacheName: CACHES.asset }),
   // Документ по id неизменяем: правка создаёт новую строку с новым id.
   media: new CacheFirst({ cacheName: CACHES.media }),
   // Аватар меняется по тому же URL, поэтому отдаём кэш и обновляем следом.
   avatar: new StaleWhileRevalidate({ cacheName: CACHES.avatar }),
-  // Свежесть данных важнее кэша, но на плохой сети поездка всё равно откроется.
-  data: new NetworkFirst({ cacheName: CACHES.data, networkTimeoutSeconds: 4, plugins: [networkSignal] }),
+  // До четырёх секунд ждём свежие данные, затем быстро отдаём офлайн-кэш.
+  // Запоздавший свежий ответ всё равно обновит кэш и экран через freshDataSignal.
+  data: new NetworkFirst({ cacheName: CACHES.data, networkTimeoutSeconds: 4, plugins: [networkSignal, freshDataSignal] }),
 }
 
 // Прямой заход на /travel/view/<token> должен открываться и оффлайн: сервер на
