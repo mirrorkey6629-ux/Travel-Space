@@ -2005,7 +2005,6 @@ export default function App() {
       <section className="glass conflict-dialog" role="alertdialog" aria-modal="true" aria-labelledby="conflict-title">
         <h2 id="conflict-title">Есть более новые данные</h2>
         <p>{conflictMessage}</p>
-        <p>Ваши изменения не были сохранены и не перезаписали более новые данные.</p>
         <div className="conflict-dialog-actions">
           <Button onClick={() => window.location.reload()}>Загрузить новые данные</Button>
           <Button theme="transparent" onClick={() => setConflictMessage('')}>Закрыть</Button>

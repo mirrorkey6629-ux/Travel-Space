@@ -459,7 +459,7 @@ app.patch(`${apiPrefix}/trips/:tripId`, async (request) => {
   if (outside.rowCount) throw httpError(409, 'Сначала перенесите даты городов внутрь нового диапазона')
   const result = await db.query(
     `UPDATE trips SET name=$2,start_date=$3,end_date=$4,time_zone=$5,background_removed=$6,updated_at=now()
-      WHERE id=$1 AND ($7::timestamptz IS NULL OR updated_at=$7::timestamptz) RETURNING *`,
+      WHERE id=$1 AND ($7::timestamptz IS NULL OR date_trunc('milliseconds', updated_at)=date_trunc('milliseconds', $7::timestamptz)) RETURNING *`,
     [tripId, name, startDate, endDate, timeZone, backgroundRemoved, expectedUpdatedAt || null],
   )
   if (!result.rowCount) throw httpError(409, 'Поездку уже изменил другой пользователь. Обновите страницу — ваши данные не были перезаписаны')
@@ -663,7 +663,7 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
        ticket_assignee_ids=$34, hotel_assignee_ids=$35, plan_assignee_ids=$36,
        hotel_payer_ids=$37, hotel_total_amount_rubles=coalesce($38,hotel_total_amount_rubles),
        google_maps_url=coalesce($39,google_maps_url), updated_at=now()
-     WHERE id=$1 AND trip_id=$2 AND ($40::timestamptz IS NULL OR updated_at=$40::timestamptz) RETURNING *`,
+     WHERE id=$1 AND trip_id=$2 AND ($40::timestamptz IS NULL OR date_trunc('milliseconds', updated_at)=date_trunc('milliseconds', $40::timestamptz)) RETURNING *`,
     [cityId, tripId, input.name, input.arrivalDate, input.departureDate, input.arrivalPeriod, input.departurePeriod, typeof body.hotelNotNeeded === 'boolean' ? body.hotelNotNeeded : current.hotel_not_needed, optionalText(body.hotel), optionalText(body.trainIn), optionalText(body.trainOut),
       optionalText(body.transportInType), optionalText(body.transportOutType), optionalText(body.transportInDepartureTime), optionalText(body.transportInArrivalTime),
       optionalText(body.transportOutDepartureTime), optionalText(body.transportOutArrivalTime), optionalText(body.transportInDepartureStation), optionalText(body.transportInDepartureStationUrl),
