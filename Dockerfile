@@ -34,9 +34,11 @@ ARG BASE_PATH
 # ограничением по HTTP-referer в Google Cloud, а не секретностью.
 ARG VITE_GOOGLE_MAPS_API_KEY=AIzaSyAXgPq2m7QuefxS1zSkjPr-NLeld0OJz00
 ARG VITE_GOOGLE_MAPS_MAP_ID=a906a0e6ca962cd2c1e96f72
+ARG VITE_APP_VERSION=dev
 ENV BASE_PATH=${BASE_PATH}
 ENV VITE_GOOGLE_MAPS_API_KEY=${VITE_GOOGLE_MAPS_API_KEY}
 ENV VITE_GOOGLE_MAPS_MAP_ID=${VITE_GOOGLE_MAPS_MAP_ID}
+ENV VITE_APP_VERSION=${VITE_APP_VERSION}
 COPY . .
 # tsc -b внутри pnpm build падает на любой ошибке типов, поэтому непроходящий
 # typecheck не даст собрать образ.

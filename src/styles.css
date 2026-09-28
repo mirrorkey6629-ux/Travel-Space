@@ -525,6 +525,7 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .profile-card .profile-info-row .info-row-content { width: 100%; }
 .profile-card-actions { display: flex; flex-direction: column; gap: 8px; }
 .profile-card .ui-button { width: 100%; }
+.profile-card-version { margin: -4px 0 0; color: var(--color-text-secondary); font-size: var(--type-caption-size, 12px); line-height: 1.4; text-align: center; }
 .document-row { width: 100%; min-height: 24px; margin: 0; padding: 0; display: flex; align-items: center; gap: 9px; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; }
 .document-row:hover .text-row, .document-row:focus-visible .text-row { color: var(--color-text-primary); }
 .document-check { position: relative; width: 17px; height: 17px; flex: 0 0 17px; border: 1.5px solid rgba(255,255,255,.72); border-radius: 4px; }

@@ -70,6 +70,7 @@ export type { IconName } from './components/Icon'
 
 const STORAGE_KEY = 'tabi-trip-v1'
 const ADMIN_EMAIL = 'mirrorkey6629@gmail.com'
+const appVersion = (import.meta.env.VITE_APP_VERSION || 'dev').slice(0, 7)
 const defaultTripBackground = `${import.meta.env.BASE_URL}assets/autumn-garden.jpg`
 const cityPlaceholder = `${import.meta.env.BASE_URL}assets/city-placeholder.png`
 const ruMonths = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
@@ -908,6 +909,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
           {isAdmin && <Button size="m" theme="secondary" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}components`)}>Компоненты</Button>}
           {isAdmin && <Button size="m" theme="secondary" onClick={() => window.location.assign(`${import.meta.env.BASE_URL}components?view=content`)}>Контент</Button>}
         </div>}
+        {isAdmin && <p className="profile-card-version">Версия {appVersion}</p>}
       </section>}
     </aside>
   )
