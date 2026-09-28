@@ -353,7 +353,7 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .floating-field { gap: 0; }
 .field.span-2 { grid-column: span 2; }
 .field input, .field select { min-width: 0; height: 68px; padding: 0 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-soft); color: var(--color-text-primary); color-scheme: dark; }
-.form-control { min-width: 0; width: 100%; height: 68px; padding: 0 16px; border: 1px solid transparent; border-radius: 16px; background: var(--glass-soft); display: flex; align-items: center; gap: 12px; color: var(--color-text-primary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); letter-spacing: var(--type-text-letter-spacing); transition: border-color .15s, background .15s; }
+.form-control { min-width: 0; width: 100%; height: 68px; padding: 0 16px; border: 1px solid transparent; border-radius: 16px; background: var(--glass-soft); display: flex; align-items: center; gap: 10px; color: var(--color-text-primary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); letter-spacing: var(--type-text-letter-spacing); transition: border-color .15s, background .15s; }
 .form-control-icon { width: 24px; height: 24px; flex: 0 0 24px; display: grid; place-items: center; }
 .form-control-icon .ui-icon { width: 24px; height: 24px; filter: brightness(0) invert(1); opacity: 1; }
 .form-control-copy { min-width: 0; height: 100%; flex: 1 1 auto; display: flex; flex-direction: column; justify-content: center; }

@@ -1,5 +1,5 @@
 import { CSSProperties, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { api, ApiTripChange, ApiTripDetails, ApiTripSummary, isConflictError, session, TransportType } from './api'
+import { api, ApiRequestError, ApiTripChange, ApiTripDetails, ApiTripSummary, isConflictError, session, TransportType } from './api'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
 import { DateInput, Input, Select, Textarea, TimeZoneInput } from './components/FormControls'
@@ -1271,10 +1271,10 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
               </FormControlRow></FormControlList>
             </FormPanelGroup>
             <FormPanelGroup gap={8}>
-            <InfoRowList>
-              {visibleTickets.map((ticket) => <InfoRow key={ticket.id} disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={ticket.name} subtitle={documentMetadata(ticket)} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }])]} />)}
-              {legacyTicketName && <InfoRow disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={legacyTicketName} />}
-              {ticketCount < 1 && !readOnly && <InfoRow disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" imageDimmed title="Прикрепить билет" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
+            <InfoRowList headline="Билет">
+              {visibleTickets.map((ticket) => <InfoRow key={ticket.id} disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={ticket.name} titleStyle="text" subtitle={documentMetadata(ticket)} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }])]} />)}
+              {legacyTicketName && <InfoRow disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={legacyTicketName} titleStyle="text" />}
+              {ticketCount < 1 && !readOnly && <InfoRow disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" imageDimmed title="Прикрепить билет" titleStyle="text" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
             </InfoRowList>
             <CheckboxTextRow checked={draft.ticketOnSite} disabled={readOnly || draft.type === 'plane'} onClick={() => setDraft({ ...draft, ticketOnSite: !draft.ticketOnSite, ...(!draft.ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) })}>{TICKET_ON_SITE_PAGE_TEXT}</CheckboxTextRow>
             </FormPanelGroup>
@@ -1342,7 +1342,7 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
               </FormControlRow>
             </FormControlList>
           </FormPanelGroup>
-          {(booking || !readOnly) && <InfoRow image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" imageDimmed={!booking} title={booking ? booking.name : 'Прикрепить бронь'} subtitle={booking ? documentMetadata(booking) : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : () => onBooking(draft)} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }])] : readOnly ? [] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: () => onBooking(draft) }]} />}
+          {(booking || !readOnly) && <InfoRowList headline="Бронь"><InfoRow image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" imageDimmed={!booking} title={booking ? booking.name : 'Прикрепить бронь'} titleStyle="text" subtitle={booking ? documentMetadata(booking) : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : () => onBooking(draft)} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }])] : readOnly ? [] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: () => onBooking(draft) }]} /></InfoRowList>}
           </FormPanelGroup>
           <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
               <TextareaList headline="Что стоит помнить"><Textarea aria-label="Заметки об отеле" placeholder="Места, ориентиры и важная информация" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></TextareaList>
@@ -1755,14 +1755,29 @@ export default function App() {
       const token = invitationLink.split('/join/').at(-1)?.trim()
       if (token) {
         void api.acceptInvitation(token).then(async ({ tripId }) => {
-          window.history.replaceState({}, '', '/')
+          window.history.replaceState({}, '', import.meta.env.BASE_URL)
           await loadCurrentUser()
           await refreshTrips(); await loadTrip(tripId); setScreen('dashboard'); setLoading(false)
-        }).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось принять приглашение'); setLoading(false) })
+        }).catch(async (reason) => {
+          if (reason instanceof ApiRequestError && reason.status === 404) {
+            window.history.replaceState({}, '', import.meta.env.BASE_URL)
+            setError('')
+            try { await openAccount() }
+            catch (accountReason) { setError(accountReason instanceof Error ? accountReason.message : 'Не удалось открыть аккаунт') }
+            finally { setLoading(false) }
+            return
+          }
+          setError(reason instanceof Error ? reason.message : 'Не удалось принять приглашение')
+          setLoading(false)
+        })
         return
       }
     }
-    void openAccount().catch(() => { session.token = ''; setLoading(false) })
+    void openAccount().catch((reason) => {
+      if (reason instanceof ApiRequestError && reason.status === 401) session.token = ''
+      else setError(reason instanceof Error ? reason.message : 'Не удалось открыть аккаунт')
+      setLoading(false)
+    })
   }, [])
 
   const loadPublicTrip = async (token: string) => {
@@ -2082,7 +2097,7 @@ export default function App() {
       session.token = auth.token
       await loadCurrentUser()
       const accepted = await api.acceptInvitation(token)
-      window.history.replaceState({}, '', '/')
+      window.history.replaceState({}, '', import.meta.env.BASE_URL)
       await refreshTrips(); await loadTrip(accepted.tripId); setScreen('dashboard')
     } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось присоединиться') }
   }
