@@ -9,6 +9,8 @@ React/Vite-клиент и Fastify/PostgreSQL API для совместного 
 в [`docs/design-system.md`](docs/design-system.md).
 Каталог продуктовых текстов, иконок, состояний и системных изображений находится
 в [`docs/component-content-catalog.md`](docs/component-content-catalog.md).
+Сводный контекст решений рабочей дизайн-сессии находится в
+[`docs/conversation-decisions.md`](docs/conversation-decisions.md).
 
 Приложение публикуется под базовым путём `/travel`, API — под `/travel/api`.
 Префикс задаётся переменной `BASE_PATH` и вшивается в клиентский бандл на этапе
@@ -21,7 +23,7 @@ pnpm install
 pnpm dev
 ```
 
-Интерфейс: `http://127.0.0.1:4173/travel/` или по локальному IP компьютера на
+Интерфейс: `http://localhost:4173/travel/` или по локальному IP компьютера на
 порту `4173`. Открытие корня `/` вернёт 404 — приложение живёт под префиксом.
 
 ## Локальный запуск backend
@@ -36,10 +38,10 @@ pnpm db:migrate
 pnpm dev:api
 ```
 
-API работает на `http://127.0.0.1:3000/travel/api`. Проверка:
+API работает на `http://localhost:3000/travel/api`. Проверка:
 
 ```bash
-curl http://127.0.0.1:3000/travel/api/health
+curl http://localhost:3000/travel/api/health
 ```
 
 Vite проксирует `/travel/api` на локальный API, поэтому клиент сможет обращаться к API относительным URL без CORS и без хардкода хоста.
@@ -86,7 +88,7 @@ PostgreSQL является источником истины для поезд�
 docker compose up -d --build
 ```
 
-Приложение: `http://127.0.0.1:8080/travel/`.
+Приложение: `http://localhost:8080/travel/`.
 
 Это же — обязательная проверка перед push в `main`, см. «Публикация изменений»
 в `AGENTS.md`.

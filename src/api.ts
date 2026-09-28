@@ -16,6 +16,7 @@ export type ApiTripSummary = {
   role: ApiRole
   background_removed?: boolean
   background_document_id?: string | null
+  updated_at?: string
 }
 
 export type ApiCity = {
@@ -73,6 +74,7 @@ export type ApiCity = {
   ticket_assignee_ids: string[]
   hotel_assignee_ids: string[]
   plan_assignee_ids: string[]
+  updated_at: string
 }
 
 export type TransportType = 'train' | 'plane' | 'bus' | 'ship'
@@ -87,6 +89,7 @@ export type ApiPlace = {
   longitude: number | null
   position: number
   icon: PlaceIconKey
+  updated_at: string
 }
 
 export type ApiTask = {
@@ -173,7 +176,7 @@ export const api = {
   trips: () => request<{ trips: ApiTripSummary[] }>('/trips'),
   trip: (id: string) => request<{ trip: ApiTripDetails }>(`/trips/${id}`),
   createTrip: (value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>('/trips', json('POST', value)),
-  updateTrip: (id: string, value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),
+  updateTrip: (id: string, value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean; expectedUpdatedAt?: string }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),
   deleteTrip: (id: string, confirmation: string) => request<void>(`/trips/${id}`, json('DELETE', { confirmation })),
   createInvitation: (id: string, expiresInHours: number) => request<{ invitation: { id: string; url: string; expiresAt: string } }>(`/trips/${id}/invitations`, json('POST', { expiresInHours })),
   viewLink: (id: string) => request<{ viewLink: { url: string } }>(`/trips/${id}/view-link`),

@@ -453,10 +453,16 @@ app.patch(`${apiPrefix}/trips/:tripId`, async (request) => {
   const endDate = optionalText(body.endDate) ?? current.end_date
   const timeZone = optionalText(body.timeZone) ?? current.time_zone
   const backgroundRemoved = typeof body.backgroundRemoved === 'boolean' ? body.backgroundRemoved : current.background_removed
+  const expectedUpdatedAt = optionalText(body.expectedUpdatedAt)
   if (!name || !datePattern.test(startDate) || !datePattern.test(endDate) || endDate < startDate || !validTimeZone(timeZone)) throw httpError(400, 'Некорректные даты или часовой пояс поездки')
   const outside = await db.query('SELECT 1 FROM cities WHERE trip_id = $1 AND (arrival_date < $2 OR departure_date > $3) LIMIT 1', [tripId, startDate, endDate])
   if (outside.rowCount) throw httpError(409, 'Сначала перенесите даты городов внутрь нового диапазона')
-  const result = await db.query('UPDATE trips SET name = $2, start_date = $3, end_date = $4, time_zone = $5, background_removed = $6, updated_at = now() WHERE id = $1 RETURNING *', [tripId, name, startDate, endDate, timeZone, backgroundRemoved])
+  const result = await db.query(
+    `UPDATE trips SET name=$2,start_date=$3,end_date=$4,time_zone=$5,background_removed=$6,updated_at=now()
+      WHERE id=$1 AND ($7::timestamptz IS NULL OR updated_at=$7::timestamptz) RETURNING *`,
+    [tripId, name, startDate, endDate, timeZone, backgroundRemoved, expectedUpdatedAt || null],
+  )
+  if (!result.rowCount) throw httpError(409, 'Поездку уже изменил другой пользователь. Обновите страницу — ваши данные не были перезаписаны')
   return { trip: result.rows[0] }
 })
 
@@ -845,23 +851,27 @@ app.post(`${apiPrefix}/documents`, async (request, reply) => {
   upload.file.on('data', (chunk: Buffer) => { size += chunk.length })
   await pipeline(upload.file, createWriteStream(target, { flags: 'wx' }))
   try {
-    const result = await db.query(
-      `INSERT INTO documents(id,trip_id,city_id,category,original_name,storage_key,mime_type,size_bytes,created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,trip_id,city_id,category,original_name,mime_type,size_bytes,created_by,created_at`,
-      [id, tripId, text(query.cityId) || null, category, upload.filename, storageKey, upload.mimetype, size, user.id],
-    )
-    if (category === 'trip-background') {
-      const previous = await db.query<{ storage_key: string }>("DELETE FROM documents WHERE trip_id=$1 AND category='trip-background' AND id<>$2 RETURNING storage_key", [tripId, id])
-      await db.query('UPDATE trips SET background_removed=false,updated_at=now() WHERE id=$1', [tripId])
-      await Promise.all(previous.rows.map((item) => unlink(path.join(config.uploadDir, item.storage_key)).catch(() => undefined)))
-    }
-    if (category === 'city-image') {
-      const cityId = text(query.cityId)
-      const previous = await db.query<{ storage_key: string }>("DELETE FROM documents WHERE trip_id=$1 AND city_id=$2 AND category='city-image' AND id<>$3 RETURNING storage_key", [tripId, cityId, id])
-      await Promise.all(previous.rows.map((item) => unlink(path.join(config.uploadDir, item.storage_key)).catch(() => undefined)))
-    }
+    const saved = await transaction(async (client) => {
+      // Блокировка поездки сериализует одновременную замену одного изображения:
+      // два запроса больше не смогут удалить только что загруженные файлы друг друга.
+      await client.query('SELECT id FROM trips WHERE id=$1 FOR UPDATE', [tripId])
+      const result = await client.query(
+        `INSERT INTO documents(id,trip_id,city_id,category,original_name,storage_key,mime_type,size_bytes,created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id,trip_id,city_id,category,original_name,mime_type,size_bytes,created_by,created_at`,
+        [id, tripId, text(query.cityId) || null, category, upload.filename, storageKey, upload.mimetype, size, user.id],
+      )
+      let previous: { storage_key: string }[] = []
+      if (category === 'trip-background') {
+        previous = (await client.query<{ storage_key: string }>("DELETE FROM documents WHERE trip_id=$1 AND category='trip-background' AND id<>$2 RETURNING storage_key", [tripId, id])).rows
+        await client.query('UPDATE trips SET background_removed=false,updated_at=now() WHERE id=$1', [tripId])
+      } else if (category === 'city-image') {
+        previous = (await client.query<{ storage_key: string }>("DELETE FROM documents WHERE trip_id=$1 AND city_id=$2 AND category='city-image' AND id<>$3 RETURNING storage_key", [tripId, text(query.cityId), id])).rows
+      }
+      return { document: result.rows[0], previous }
+    })
+    await Promise.all(saved.previous.map((item) => unlink(path.join(config.uploadDir, item.storage_key)).catch(() => undefined)))
     reply.code(201)
-    return { document: { ...result.rows[0], created_by_name: user.displayName } }
+    return { document: { ...saved.document, created_by_name: user.displayName } }
   } catch (error) {
     await unlink(target).catch(() => undefined)
     throw error
