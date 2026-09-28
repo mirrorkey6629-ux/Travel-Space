@@ -24,6 +24,7 @@ export type ApiTripSummary = {
   start_date: string
   end_date: string
   time_zone: string
+  accent_color?: string
   role: ApiRole
   background_removed?: boolean
   background_document_id?: string | null
@@ -164,6 +165,7 @@ export type ApiTripRevision = {
   start_date: string
   end_date: string
   time_zone: string
+  accent_color: string
   background_removed: boolean
   updated_at: string
   cities: Array<{ id: string; updated_at: string }>
@@ -214,8 +216,8 @@ export const api = {
   trip: (id: string) => request<{ trip: ApiTripDetails }>(`/trips/${id}`),
   freshTrip: (id: string) => request<{ trip: ApiTripDetails }>(`/trips/${id}?revisionCheck=${Date.now()}`, { cache: 'no-store' }),
   tripRevision: (id: string) => request<{ revision: ApiTripRevision }>(`/trips/${id}/revision`),
-  createTrip: (value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>('/trips', json('POST', value)),
-  updateTrip: (id: string, value: { name: string; startDate: string; endDate: string; timeZone: string; backgroundRemoved?: boolean; expectedUpdatedAt?: string }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),
+  createTrip: (value: { name: string; startDate: string; endDate: string; timeZone: string; accentColor: string; backgroundRemoved?: boolean }) => request<{ trip: ApiTripSummary }>('/trips', json('POST', value)),
+  updateTrip: (id: string, value: { name: string; startDate: string; endDate: string; timeZone: string; accentColor: string; backgroundRemoved?: boolean; expectedUpdatedAt?: string }) => request<{ trip: ApiTripSummary }>(`/trips/${id}`, json('PATCH', value)),
   deleteTrip: (id: string, confirmation: string) => request<void>(`/trips/${id}`, json('DELETE', { confirmation })),
   createInvitation: (id: string, expiresInHours: number) => request<{ invitation: { id: string; url: string; expiresAt: string } }>(`/trips/${id}/invitations`, json('POST', { expiresInHours })),
   viewLink: (id: string) => request<{ viewLink: { url: string } }>(`/trips/${id}/view-link`),

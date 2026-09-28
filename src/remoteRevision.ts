@@ -16,6 +16,7 @@ export type ProtectedTripState = {
   startDate: string
   endDate: string
   timeZone: string
+  accentColor?: string
   backgroundRemoved?: boolean
   cities: ProtectedCity[]
 }
@@ -25,6 +26,7 @@ export const protectedDataSignature = (source: ProtectedTripState) => JSON.strin
   source.startDate,
   source.endDate,
   source.timeZone,
+  source.accentColor,
   Boolean(source.backgroundRemoved),
   ...source.cities.map((city) => {
     const { updatedAt: _updatedAt, places: _places, tasks: _tasks, files: _files, image: _image, imageUrl: _imageUrl, imageFile: _imageFile, imageDeleteId: _imageDeleteId, ...protectedFields } = city

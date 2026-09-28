@@ -1,4 +1,5 @@
 import { CSSProperties, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { api, ApiRequestError, ApiTripChange, ApiTripDetails, ApiTripSummary, isConflictError, session, TransportType } from './api'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
@@ -67,7 +68,7 @@ type City = {
   imageFile?: File
   imageDeleteId?: string
 }
-type Trip = { id?: string; updatedAt?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; timeZone: string; cities: City[]; deletedCityIds?: string[]; dayDescriptions: Record<string, string>; members?: TripMember[]; memberCount?: number; background?: TravelFile; backgroundUrl?: string; backgroundFile?: File; backgroundRemoved?: boolean; backgroundDeleteId?: string }
+type Trip = { id?: string; updatedAt?: string; role?: 'owner' | 'member'; name: string; startDate: string; endDate: string; timeZone: string; accentColor: string; cities: City[]; deletedCityIds?: string[]; dayDescriptions: Record<string, string>; members?: TripMember[]; memberCount?: number; background?: TravelFile; backgroundUrl?: string; backgroundFile?: File; backgroundRemoved?: boolean; backgroundDeleteId?: string }
 type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard' | 'profile' | 'view'
 type RemoteUpdateNotice = { message: string }
 export type { IconName } from './components/Icon'
@@ -134,6 +135,12 @@ const formatLocations = (value: number) => {
   const word = mod100 >= 11 && mod100 <= 14 ? 'локаций' : mod10 === 1 ? 'локация' : mod10 >= 2 && mod10 <= 4 ? 'локации' : 'локаций'
   return `${value} ${word}`
 }
+const DEFAULT_TRIP_ACCENT_COLOR = '#4D4FAB'
+const TRIP_ACCENT_COLORS = [
+  '#FA6B61', '#F78B2D', '#F5C30F', '#5AC840', '#36C976', '#26C4B4', '#56B2FF', '#A89BFF', '#EC82C1', '#F66591',
+  '#E73F3E', '#D35F00', '#CFA53F', '#369E44', '#489E5F', '#46978E', '#3188DF', '#7869FA', '#BC58A0', '#CE4D7B',
+  '#8C2B24', '#853618', '#A87A2D', '#33652E', '#33623E', '#2E5F59', '#2352A0', '#4D4FAB', '#793568', '#88294B',
+]
 const cityInLocative = (value: string) => {
   const name = value.trim()
   const ending = name.at(-1)?.toLowerCase()
@@ -309,7 +316,7 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
       image: imageDocument ? { id: imageDocument.id, name: imageDocument.original_name, category: imageDocument.category, uploadedBy: imageDocument.created_by_name, uploadedAt: imageDocument.created_at } : undefined,
     }
   }).sort(compareCitiesByDate)
-  return { id: source.id, updatedAt: source.updated_at, role: source.role, name: source.name, startDate: source.start_date.slice(0, 10), endDate: source.end_date.slice(0, 10), timeZone: source.time_zone || 'UTC', cities, deletedCityIds: [], dayDescriptions: Object.fromEntries(source.day_notes.map((note) => [note.day_date.slice(0, 10), note.description])), members: source.members.map((member) => ({ id: member.id, email: member.email, displayName: member.display_name, role: member.role, hasAvatar: member.has_avatar })), memberCount: source.member_count ?? source.members.length, background: backgroundDocument ? { id: backgroundDocument.id, name: backgroundDocument.original_name, category: backgroundDocument.category } : undefined, backgroundUrl: source.background_removed ? undefined : defaultTripBackground, backgroundRemoved: Boolean(source.background_removed) }
+  return { id: source.id, updatedAt: source.updated_at, role: source.role, name: source.name, startDate: source.start_date.slice(0, 10), endDate: source.end_date.slice(0, 10), timeZone: source.time_zone || 'UTC', accentColor: source.accent_color || DEFAULT_TRIP_ACCENT_COLOR, cities, deletedCityIds: [], dayDescriptions: Object.fromEntries(source.day_notes.map((note) => [note.day_date.slice(0, 10), note.description])), members: source.members.map((member) => ({ id: member.id, email: member.email, displayName: member.display_name, role: member.role, hasAvatar: member.has_avatar })), memberCount: source.member_count ?? source.members.length, background: backgroundDocument ? { id: backgroundDocument.id, name: backgroundDocument.original_name, category: backgroundDocument.category } : undefined, backgroundUrl: source.background_removed ? undefined : defaultTripBackground, backgroundRemoved: Boolean(source.background_removed) }
 }
 
 // BASE_URL — это vite base, всегда со слэшем на конце. Строки, которые JS собирает
@@ -507,6 +514,7 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const saved = message === 'Изменения сохранены'
   const profileChanged = displayName.trim() !== user.displayName || email.trim().toLowerCase() !== user.email.toLowerCase() || Boolean(password)
   const changed = profileChanged || Boolean(avatarFile)
   const valid = displayName.trim() && /^\S+@\S+\.\S+$/.test(email.trim()) && (!password || password.length >= 8)
@@ -535,8 +543,8 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
       <GalaxyBackground />
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
       <form className="profile-form" onSubmit={submit}>
-        <FormPanelLayout className="setup-transition" action={<><Button type="submit" disabled={busy || !changed || !valid || !access.canEdit}>{busy ? 'Сохраняем…' : 'Сохранить'}</Button><Button type="button" theme="transparent" onClick={onLogout}>Выйти из аккаунта</Button></>}>
-          <FormPanelHeader title="Профиль" />
+        <FormPanelLayout className="setup-transition" contentHeight action={<Button type="submit" disabled={busy || !changed || !valid || !access.canEdit}>{busy ? 'Сохраняем…' : saved ? 'Изменения сохранены' : 'Сохранить'}</Button>}>
+          <FormPanelHeader title="Профиль" action={<IconButton type="button" icon={<Icon name="door-open" />} onClick={onLogout} aria-label="Выйти из аккаунта" title="Выйти из аккаунта" />} />
           <FormPanelGroup className="profile-avatar-group">
             <ImageFilePicker disabled={!access.canEdit} onSelect={(file, previewUrl) => { setAvatarUrl(previewUrl); setAvatarFile(file); setMessage('') }}>
               {({ open }) => <Avatar src={avatarUrl} alt="Аватар профиля" shape="circle" size={200} hoverEffect onClick={open} disabled={!access.canEdit} actionLabel="Загрузить новый аватар" />}
@@ -549,7 +557,7 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
               <FormControlRow><Input icon={<Icon name="encrypted" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" /></FormControlRow>
             </FormControlList>
           </FormPanelGroup>
-          {message && <FormPanelNote centered>{message}</FormPanelNote>}
+          {message && !saved && <FormPanelNote centered>{message}</FormPanelNote>}
         </FormPanelLayout>
       </form>
     </main>
@@ -800,7 +808,11 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
 }
 
 function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initial: Trip | null; user: CurrentUser | null; refreshToken: number; onCreate: (trip: Trip) => void; onExit: () => void }) {
-  const [trip, setTrip] = useState<Trip>(initial ?? { name: '', startDate: '', endDate: '', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', cities: [], dayDescriptions: {}, members: user ? [{ id: user.id, email: user.email, displayName: user.displayName, role: 'owner', hasAvatar: user.hasAvatar, avatarUrl: user.avatarUrl }] : [] })
+  const [trip, setTrip] = useState<Trip>(initial ?? { name: '', startDate: '', endDate: '', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', accentColor: DEFAULT_TRIP_ACCENT_COLOR, cities: [], dayDescriptions: {}, members: user ? [{ id: user.id, email: user.email, displayName: user.displayName, role: 'owner', hasAvatar: user.hasAvatar, avatarUrl: user.avatarUrl }] : [] })
+  const accentColor = trip.accentColor || DEFAULT_TRIP_ACCENT_COLOR
+  const [accentPaletteOpen, setAccentPaletteOpen] = useState(false)
+  const [accentPalettePosition, setAccentPalettePosition] = useState({ right: 0, bottom: 0 })
+  const accentPaletteRef = useRef<HTMLDivElement>(null)
   const [editing, setEditing] = useState<City | null | undefined>(undefined)
   const [editingAll, setEditingAll] = useState(false)
   const backgroundReady = useTripBackgroundReady(trip)
@@ -809,6 +821,14 @@ function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initia
     setTrip(initial)
     setEditing((current) => current === undefined || current === null ? current : initial.cities.find((city) => city.id === current.id))
   }, [initial, refreshToken])
+  useEffect(() => {
+    if (!accentPaletteOpen) return
+    const close = (event: PointerEvent) => {
+      if (!accentPaletteRef.current?.contains(event.target as Node)) setAccentPaletteOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    return () => document.removeEventListener('pointerdown', close)
+  }, [accentPaletteOpen])
   const access = useAccess()
   const datesValid = trip.startDate && trip.endDate && trip.endDate >= trip.startDate
   const tripDays = datesValid ? daysBetween(trip.startDate, trip.endDate) : 0
@@ -829,9 +849,6 @@ function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initia
         ) : (
           <FormPanelLayout className="setup-transition" action={trip.cities.length > 0 && <Button disabled={!trip.name.trim() || !access.canEdit} onClick={() => onCreate(trip)}>Сохранить поездку</Button>}>
             <FormPanelHeader title={trip.name || (initial ? 'Поездка' : 'Добавить поездку')} text={<>{datesValid && <>{formatDays(tripDays)} · </>}{formatTimeZoneOffset(trip.timeZone, trip.startDate)}</>} />
-            <ImageFilePicker onSelect={(file, previewUrl) => setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: previewUrl, backgroundRemoved: false }))}>
-              {({ open, clearPreview }) => <InfoRow image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'В хорошем качестве'} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: open }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => { clearPreview(); setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) } }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: open }]} />}
-            </ImageFilePicker>
             <FormPanelGroup>
               <FormControlList headline="О поездке">
                 <FormControlRow><Input label="Название поездки" icon={<Icon name="book" />} value={trip.name} onChange={(event) => setTrip((current) => ({ ...current, name: event.target.value }))} placeholder="Например, Аниме Тур" /></FormControlRow>
@@ -852,6 +869,13 @@ function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initia
                 <FormControlRow><Select type="time" icon={<Icon name="time" />} aria-label="Основной часовой пояс поездки" value={trip.timeZone} displayValue={formatTimeZoneOffset(trip.timeZone, trip.startDate)} onChange={(event) => setTrip((current) => ({ ...current, timeZone: event.target.value }))}>{timeZones.map((zone) => <option key={zone} value={zone}>{formatTimeZoneOption(zone, trip.startDate)}</option>)}</Select></FormControlRow>
               </FormControlList>
             </FormPanelGroup>
+            <InfoRowList className="trip-appearance-rows" headline="Оформление">
+              <ImageFilePicker onSelect={(file, previewUrl) => setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: previewUrl, backgroundRemoved: false }))}>
+                {({ open, clearPreview }) => <InfoRow image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} titleStyle="text" subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'В хорошем качестве'} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: open }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => { clearPreview(); setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) } }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: open }]} />}
+              </ImageFilePicker>
+              <InfoRow image={`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="24" fill="${accentColor}"/><g transform="translate(12 12)"><circle cx="12" cy="12" r="9" fill="none" stroke="white" stroke-width="2"/><path d="M9.66667 16H9C8.44772 16 8 15.5523 8 15V10.2019C8 9.8675 8.1671 9.55527 8.4453 9.3698L11.4453 7.3698C11.7812 7.14587 12.2188 7.14587 12.5547 7.3698L15.5547 9.3698C15.8329 9.55527 16 9.8675 16 10.2019V15C16 15.5523 15.5523 16 15 16H14.3333C13.781 16 13.3333 15.5523 13.3333 15V12.5C13.3333 12.2239 13.1095 12 12.8333 12H11.1667C10.8905 12 10.6667 12.2239 10.6667 12.5V15C10.6667 15.5523 10.219 16 9.66667 16Z" fill="white"/></g></svg>`)}`} imageAlt={`Цвет ${accentColor}`} imageShape="circle" title="Цвет поездки" titleStyle="text" subtitle="Будет применяться к точкам на карте и галочкам" actionTheme="secondary" actions={[{ icon: <Icon name="edit" />, label: 'Изменить цвет поездки', onClick: (event) => { const rect = event.currentTarget.getBoundingClientRect(); setAccentPalettePosition({ right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.top + 4 }); setAccentPaletteOpen((open) => !open) } }, { icon: <Icon name="delete-forever" />, label: 'Сбросить цвет поездки', onClick: () => { setTrip((current) => ({ ...current, accentColor: DEFAULT_TRIP_ACCENT_COLOR })); setAccentPaletteOpen(false) } }]} />
+            </InfoRowList>
+            {accentPaletteOpen && createPortal(<div ref={accentPaletteRef} className="trip-color-palette glass" style={accentPalettePosition} role="listbox" aria-label="Цвет поездки">{TRIP_ACCENT_COLORS.map((color) => <button key={color} type="button" role="option" aria-selected={color === accentColor} aria-label={color} style={{ backgroundColor: color }} onClick={() => setTrip((current) => ({ ...current, accentColor: color }))} />)}</div>, document.body)}
           </FormPanelLayout>
         )}
     </main>
@@ -937,7 +961,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
         })}</InfoRowList>
         {access.canManageTrip && <div className="trip-summary-actions">
           <Button size="m" onClick={onEdit}>Редактировать</Button>
-          <Button size="m" theme="secondary" onClick={onInvite}>Пригласить</Button>
+          <Button size="m" theme="secondary" onClick={onInvite}>Участники и шеринг</Button>
         </div>}
       </section>
       {access.canBrowse && <section className="glass sidebar-card links-card">
@@ -1359,7 +1383,7 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
   )
 }
 
-function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, initialPanel, initialDate, initialFocusPlace, readOnly, routeReadOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; readOnly?: boolean; routeReadOnly?: boolean; onChange: (city: City) => Promise<string | undefined>; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
+function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, tripAccentColor, initialPanel, initialDate, initialFocusPlace, readOnly, routeReadOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; tripAccentColor: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; readOnly?: boolean; routeReadOnly?: boolean; onChange: (city: City) => Promise<string | undefined>; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
   useEffect(() => {
     setDraft({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() })
@@ -1533,6 +1557,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
               <PlacesMap
                 query={mapPoint}
                 centerUrl={draft.googleMapsUrl}
+                accentColor={tripAccentColor}
                 places={[
                   ...Object.entries(ordinaryPlacesByDate).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude }))),
                   ...managedMapPlaces,
@@ -1619,6 +1644,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
             tripStartDate={trip.startDate}
             tripEndDate={trip.endDate}
             tripTimeZone={trip.timeZone}
+            tripAccentColor={trip.accentColor}
             initialPanel={selectedPanel}
             initialDate={selectedCityDate}
             initialFocusPlace={selectedPlaceId}
@@ -1929,7 +1955,7 @@ export default function App() {
   }
 
   const createFromDraft = async (draft: Trip) => {
-    const created = await api.createTrip({ name: draft.name, startDate: draft.startDate, endDate: draft.endDate, timeZone: draft.timeZone, backgroundRemoved: draft.backgroundRemoved })
+    const created = await api.createTrip({ name: draft.name, startDate: draft.startDate, endDate: draft.endDate, timeZone: draft.timeZone, accentColor: draft.accentColor, backgroundRemoved: draft.backgroundRemoved })
     const cityIds = new Map<string, string>()
     for (const [position, city] of draft.cities.entries()) {
       const result = await api.createCity(created.trip.id, {
@@ -1976,7 +2002,7 @@ export default function App() {
       if (!draft.id) {
         await createFromDraft(draft)
       } else {
-        await api.updateTrip(draft.id, { name: draft.name, startDate: draft.startDate, endDate: draft.endDate, timeZone: draft.timeZone, backgroundRemoved: draft.backgroundRemoved, expectedUpdatedAt: draft.updatedAt })
+        await api.updateTrip(draft.id, { name: draft.name, startDate: draft.startDate, endDate: draft.endDate, timeZone: draft.timeZone, accentColor: draft.accentColor, backgroundRemoved: draft.backgroundRemoved, expectedUpdatedAt: draft.updatedAt })
         const remote = (await api.trip(draft.id)).trip
         const existingIds = new Set(remote.cities.map((city) => city.id))
         for (const cityId of draft.deletedCityIds ?? []) await api.deleteCity(draft.id, cityId)

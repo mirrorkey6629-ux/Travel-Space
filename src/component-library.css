@@ -101,9 +101,11 @@
 .kit-info-row-list-specimen .kit-variant-label, .kit-item-list-specimen .kit-variant-label { width: 100%; text-align: left; }
 .kit-containers-section .kit-grid { grid-template-columns: 1fr; }
 .kit-containers-section .kit-demo { flex-direction: column; }
-.kit-containers-section .kit-variant { width: 100%; flex: 0 0 auto; display: grid; grid-template-columns: 128px minmax(0, 1fr); align-items: center; gap: 12px; }
+.kit-containers-section .kit-variant { width: 100%; flex: 0 0 auto; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+.kit-containers-section .kit-info-row-layout > .kit-variant { gap: 12px; }
+.kit-containers-section .kit-variant-label { width: 100%; text-align: left; }
 .kit-containers-section .kit-variant-example { width: 100%; }
-.kit-auth-panel-preview { width: 100%; display: flex; justify-content: center; }
+.kit-auth-panel-preview { width: 100%; display: flex; justify-content: flex-start; }
 .kit-auth-panel-preview .auth-panel { flex: 0 0 500px; max-width: 100%; }
 .kit-auth-panel-preview .auth-panel > .ui-button { width: 100%; }
 .kit-typography-section .kit-grid { grid-template-columns: 1fr; gap: 32px; }

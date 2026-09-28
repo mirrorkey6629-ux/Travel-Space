@@ -134,6 +134,8 @@ export default function ComponentLibrary() {
   const [infoRowListText, setInfoRowListText] = useState(false)
   const [itemListHeadline, setItemListHeadline] = useState(false)
   const [textareaListHeadline, setTextareaListHeadline] = useState(false)
+  const [authPanelTopButton, setAuthPanelTopButton] = useState(false)
+  const [formPanelTopButton, setFormPanelTopButton] = useState(false)
   const [notificationShakeKey, setNotificationShakeKey] = useState(0)
   const [assignees, setAssignees] = useState<string[]>(['torch'])
   const [emptyMoney, setEmptyMoney] = useState(0)
@@ -467,9 +469,11 @@ export default function ComponentLibrary() {
 
         <Section id="glass" title="Контейнеры" description="Основные уровни вложенности" className="kit-containers-section">
           <Specimen name="Auth panel">
+            <div className="kit-info-row-layout">
+            <div className="kit-info-row-controls"><PropertyToggle label="Top Button" checked={authPanelTopButton} onChange={setAuthPanelTopButton} /></div>
             <Variant label={<>Width: 500<br />Padding: 48<br />Gap: 32</>} wide>
               <div className="kit-auth-panel-preview">
-                <AuthPanel>
+                <AuthPanel action={authPanelTopButton ? <IconButton icon={<Icon name="close" />} aria-label="Закрыть" /> : undefined}>
                   <h1>Добро пожаловать</h1>
                   <FormControlList>
                     <FormControlRow><Input icon={<Icon name="email" />} placeholder="Email" /></FormControlRow>
@@ -480,12 +484,15 @@ export default function ComponentLibrary() {
                 </AuthPanel>
               </div>
             </Variant>
+            </div>
           </Specimen>
           <Specimen name="Form panel">
-            <Variant label={<>680px<br />Padding 48px<br />Group gap 32px</>} wide>
+            <div className="kit-info-row-layout">
+            <div className="kit-info-row-controls"><PropertyToggle label="Top Button" checked={formPanelTopButton} onChange={setFormPanelTopButton} /></div>
+            <Variant label={<>Width: 680<br />Padding: 48<br />Group gap: 32</>} wide>
               <FormPanel>
                 <FormPanelGroup>
-                  <FormPanelHeader title="Дом – Осака" text="✈️ В пути 14 ч 30 мин" />
+                  <FormPanelHeader title="Дом – Осака" text="✈️ В пути 14 ч 30 мин" action={formPanelTopButton ? <IconButton icon={<Icon name="close" />} aria-label="Закрыть" /> : undefined} />
                   <FormControlList>
                     <FormControlRow columns={2}><Input label="Уедем" icon={<Icon name="calendar-month" />} defaultValue="3 октября · Сб" /><Input label="Приедем" icon={<Icon name="calendar-month" />} defaultValue="4 октября · Вс" /></FormControlRow>
                     <FormControlRow columns={2}><Input label="Место отъезда" icon={<Icon name="public" />} defaultValue="Домодедово" /><Input label="Место приезда" icon={<Icon name="public" />} defaultValue="Аэропорт Кансай" /></FormControlRow>
@@ -507,6 +514,7 @@ export default function ComponentLibrary() {
                 <FormPanelNote centered>P.S. Галочка в меню появится после заполнения дат, времени, названий локаций и прикрепления билета</FormPanelNote>
               </FormPanel>
             </Variant>
+            </div>
           </Specimen>
           <Specimen name="Divider"><Variant label="Default" wide><div className="divider" /></Variant></Specimen>
         </Section>

@@ -76,9 +76,10 @@ function addressFromMapsUrl(value: string): string {
   }
 }
 
-function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false, interactive = true, managed = false) {
+function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false, interactive = true, managed = false, accentColor?: string) {
   const element = document.createElement('div')
   element.className = `place-marker${managed ? ' place-marker-managed' : ''}${draft ? ' place-marker-draft' : ''}${dimmed ? ' is-dimmed' : ''}${interactive ? '' : ' is-static'}`
+  if (!draft && accentColor) element.style.backgroundColor = accentColor
   const image = document.createElement('img')
   image.className = 'ui-icon'
   image.width = 24
@@ -93,12 +94,13 @@ function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false, inter
   return element
 }
 
-export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, readOnly, formatDate, formatDateOption, onAdd, onUpdate, onDelete, onResolvePlace, onEditTarget, onOpenBooking, focusRequest, onFocusHandled }: {
+export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, accentColor, readOnly, formatDate, formatDateOption, onAdd, onUpdate, onDelete, onResolvePlace, onEditTarget, onOpenBooking, focusRequest, onFocusHandled }: {
   query: string
   centerUrl?: string
   places: MapPlace[]
   dates: string[]
   activeDate: string | null
+  accentColor?: string
   readOnly?: boolean
   formatDate: (value: string) => string
   formatDateOption: (value: string) => string
@@ -225,7 +227,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
         position: coordinates,
         // title не задаём: браузер рисует по нему свой чёрный системный тултип,
         // который дублирует попап и перекрывает соседние точки.
-        content: markerContent(place.icon, dimmed, false, interactive, Boolean(place.editTarget)),
+        content: markerContent(place.icon, dimmed, false, interactive, Boolean(place.editTarget), accentColor),
         // Без gmpClickable маркер с собственным content не генерирует событий клика.
         gmpClickable: interactive,
       })
@@ -257,7 +259,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, re
       })
     })
     return () => { active = false }
-  }, [mapsReady, placesSignature, activeDate])
+  }, [mapsReady, placesSignature, activeDate, accentColor])
 
   // Черновой пин — тот же AdvancedMarkerElement, но с иконкой pin-add.
   useEffect(() => {
