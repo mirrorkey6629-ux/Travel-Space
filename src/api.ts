@@ -12,6 +12,10 @@ export class ApiRequestError extends Error {
   }
 }
 
+export const isConflictError = (reason: unknown) => Boolean(
+  reason && typeof reason === 'object' && 'status' in reason && Number((reason as { status?: unknown }).status) === 409,
+)
+
 export type ApiRole = 'owner' | 'member'
 
 export type ApiTripSummary = {

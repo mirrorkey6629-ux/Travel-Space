@@ -1,5 +1,5 @@
 import { CSSProperties, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { api, ApiRequestError, ApiTripDetails, ApiTripSummary, session, TransportType } from './api'
+import { api, ApiTripDetails, ApiTripSummary, isConflictError, session, TransportType } from './api'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
 import { DateInput, Input, Select, Textarea, TimeZoneInput } from './components/FormControls'
@@ -1798,7 +1798,7 @@ export default function App() {
         const remoteTrip = fromApiTrip(result.trip)
         const signature = protectedDataSignature(remoteTrip)
         if (hasDifferentProtectedData(remoteTrip, localTrip) && signature !== ignoredRemoteSignatureRef.current) {
-          setRemoteUpdateNotice({ signature, message: 'В поездке появились новые данны' })
+          setRemoteUpdateNotice({ signature, message: 'В поездке появились новые данные' })
         }
       } catch {
         // Фоновая проверка не должна мешать работе с формой при нестабильной сети.
@@ -1902,7 +1902,7 @@ export default function App() {
       }
       setScreen('dashboard')
     } catch (reason) {
-      if (reason instanceof ApiRequestError && reason.status === 409) setConflictMessage('В поездке появились новые данные')
+      if (isConflictError(reason)) setConflictMessage('В поездке появились новые данные')
       else setError(reason instanceof Error ? reason.message : 'Не удалось сохранить')
     }
   }
@@ -1919,7 +1919,7 @@ export default function App() {
     if (!trip?.id) return
     try { await saveCityPayload(city.id, { name: city.name, arrivalDate: city.arrival, departureDate: city.departure, arrivalPeriod: city.arrivalPeriod, departurePeriod: city.departurePeriod, ...cityLocationPayload(city), ...hotelPayload(city), ...transportPayload(city), ...assignmentPayload(city) }, city.updatedAt) }
     catch (reason) {
-      if (reason instanceof ApiRequestError && reason.status === 409) setConflictMessage('В поездке появились новые данные')
+      if (isConflictError(reason)) setConflictMessage('В поездке появились новые данные')
       else setError(reason instanceof Error ? reason.message : 'Ошибка сохранения')
     }
   }

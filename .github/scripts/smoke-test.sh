@@ -91,4 +91,7 @@ echo "→ protected endpoint rejects anonymous access"
 code=$(curl -s -o /dev/null -w '%{http_code}' "$BASE_URL/api/trips")
 [ "$code" = 401 ] || fail "expected 401 at $BASE_URL/api/trips, got $code"
 
+echo "→ stale session cannot overwrite newer trip data"
+BASE_URL="$BASE_URL" node .github/scripts/conflict-test.mjs || fail "two-session conflict protection failed"
+
 echo "Smoke test passed."
