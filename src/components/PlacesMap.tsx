@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { MapSearch, type SearchResult } from './MapSearch'
 import { PlacePopup } from './PlacePopup'
 import { iconForGoogleTypes, managedPlaceIconUrl, placeIconUrl, type PlaceIconKey } from '../placeIcons'
@@ -95,13 +95,14 @@ function markerContent(icon: PlaceIconKey, dimmed: boolean, draft = false, inter
   return element
 }
 
-export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, accentColor, readOnly, formatDate, formatDateOption, onAdd, onUpdate, onDelete, onResolvePlace, onEditTarget, onOpenBooking, focusRequest, onFocusHandled }: {
+export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, accentColor, pointCardTint, readOnly, formatDate, formatDateOption, onAdd, onUpdate, onDelete, onResolvePlace, onEditTarget, onOpenBooking, focusRequest, onFocusHandled }: {
   query: string
   centerUrl?: string
   places: MapPlace[]
   dates: string[]
   activeDate: string | null
   accentColor?: string
+  pointCardTint?: string
   readOnly?: boolean
   formatDate: (value: string) => string
   formatDateOption: (value: string) => string
@@ -359,7 +360,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, ac
       : null
 
   return (
-    <div className="places-map">
+    <div className={`places-map${pointCardTint ? ' places-map-tinted' : ''}`} style={pointCardTint ? { '--map-point-card-tint': pointCardTint } as CSSProperties : undefined}>
       <div ref={containerRef} className="google-map-picker" aria-label="Карта точек" />
       {/* Оффлайн Google Maps не загружается. Пустой прямоугольник выглядел бы
           поломкой, поэтому область карты прямо говорит, что происходит. */}

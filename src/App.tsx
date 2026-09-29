@@ -864,9 +864,11 @@ function CityEditor({ trip, initial, rowError, onClearRowError, onSave, onClose 
   const hasImage = Boolean(city.imageFile || city.image || city.imageUrl)
   const members = trip.members ?? []
   const canAssign = trip.role === 'owner' || !trip.id
+  const initialCitySignature = initial ? JSON.stringify({ ...initial, arrivalPeriod: initial.arrivalPeriod ?? 'morning', departurePeriod: initial.departurePeriod ?? 'evening' }) : ''
+  const cityChanged = JSON.stringify(city) !== initialCitySignature
   return (
-    <form className="setup-transition" onSubmit={(event) => { event.preventDefault(); setShowErrors(true); if (valid) onSave(city) }}>
-      <FormPanelLayout action={<Button type="submit">Сохранить город</Button>}>
+    <form className="setup-transition" onSubmit={(event) => { event.preventDefault(); setShowErrors(true); if (valid && cityChanged) onSave(city) }}>
+      <FormPanelLayout action={<Button type="submit" disabled={!valid || !cityChanged}>Сохранить город</Button>}>
         <FormPanelHeader title={initial ? city.name : 'Добавить город'} action={<IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />} />
         <ImageFilePicker onSelect={(file, previewUrl) => { const error = imageFileError(file); setImageError(error); if (!error) { onClearRowError(); setCity((current) => ({ ...current, imageFile: file, imageUrl: previewUrl })) } }}>
           {({ open, clearPreview }) => <InfoRow image={hasImage ? city.imageUrl || cityPlaceholder : undefined} imageAlt="Фото города" title="Фото города" titleStyle="text" subtitle={hasImage ? city.imageFile?.name || city.image?.name || 'Фото города' : 'В формате JPG, PNG, WEBP до 15 МБ'} error={imageError} actionTheme="secondary" actions={hasImage ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фото города', onClick: open }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото города', onClick: () => { clearPreview(); setImageError(undefined); setCity((current) => ({ ...current, imageDeleteId: current.image?.id, image: undefined, imageFile: undefined, imageUrl: undefined })) } }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото города', onClick: open }]} />}
@@ -916,9 +918,10 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
     const departurePeriod = city.departurePeriod ?? 'evening'
     return city.name.trim() && city.arrival && city.departure && city.departure >= city.arrival && (city.arrival !== city.departure || periodOrder[departurePeriod] >= periodOrder[arrivalPeriod])
   })
+  const citiesChanged = JSON.stringify(cities) !== JSON.stringify(trip.cities)
 
   return (
-    <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); setShowErrors(true); if (valid) onSave(cities) }}>
+    <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); setShowErrors(true); if (valid && citiesChanged) onSave(cities) }}>
       <section className="glass setup-card editing-all">
       <div className="all-cities-editor">
       <IconButton type="button" className="bulk-edit-button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть редактирование" />
@@ -946,7 +949,7 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
       </div>
       </div>
       </section>
-      <Button type="submit">Сохранить поездку</Button>
+      <Button type="submit" disabled={!valid || !citiesChanged}>Сохранить поездку</Button>
     </form>
   )
 }
@@ -954,7 +957,8 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
 function SetupScreen({ initial, user, refreshToken, rowErrors, onClearRowError, onCreate, onCitySaved, onExit }: { initial: Trip | null; user: CurrentUser | null; refreshToken: number; rowErrors: Record<string, string>; onClearRowError: (key: string) => void; onCreate: (trip: Trip) => Promise<Trip | undefined>; onCitySaved: () => void; onExit: () => void }) {
   const [trip, setTrip] = useState<Trip>(initial ?? { name: '', startDate: '', endDate: '', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', accentColor: DEFAULT_TRIP_ACCENT_COLOR, cities: [], dayDescriptions: {}, members: user ? [{ id: user.id, email: user.email, displayName: user.displayName, role: 'owner', hasAvatar: user.hasAvatar, avatarUrl: user.avatarUrl }] : [] })
   const [showErrors, setShowErrors] = useState(false)
-  const [savedSignature, setSavedSignature] = useState('')
+  const [savedSignature, setSavedSignature] = useState(() => initial ? JSON.stringify(initial) : '')
+  const [hasSaved, setHasSaved] = useState(false)
   const [busy, setBusy] = useState(false)
   const accentColor = trip.accentColor || DEFAULT_TRIP_ACCENT_COLOR
   const [accentPaletteOpen, setAccentPaletteOpen] = useState(false)
@@ -969,6 +973,8 @@ function SetupScreen({ initial, user, refreshToken, rowErrors, onClearRowError, 
   useEffect(() => {
     if (!initial || refreshToken === 0) return
     setTrip(initial)
+    setSavedSignature(JSON.stringify(initial))
+    setHasSaved(false)
     setEditing((current) => current === undefined || current === null ? current : initial.cities.find((city) => city.id === current.id))
   }, [initial, refreshToken])
   useEffect(() => {
@@ -1003,7 +1009,7 @@ function SetupScreen({ initial, user, refreshToken, rowErrors, onClearRowError, 
         ) : editing !== undefined ? (
           <CityEditor key={`city:${editing?.id ?? 'new'}:${refreshToken}`} trip={trip} initial={editing ?? undefined} rowError={editing ? rowErrors[`city-image:${editing.id}`] : undefined} onClearRowError={() => { if (editing) onClearRowError(`city-image:${editing.id}`) }} onSave={upsertCity} onClose={() => setEditing(undefined)} />
         ) : (
-          <FormPanelLayout className="setup-transition" action={trip.cities.length > 0 && <Button disabled={!access.canEdit || busy || savedSignature === tripSignature} onClick={() => { setShowErrors(true); if (!trip.name.trim() || !datesValid || !allCityDatesValid) return; setBusy(true); void onCreate(trip).then((saved) => { if (!saved) return; setTrip(saved); setSavedSignature(JSON.stringify(saved)) }).finally(() => setBusy(false)) }}>{busy ? 'Сохраняем…' : savedSignature === tripSignature ? 'Изменения сохранены' : 'Сохранить поездку'}</Button>}>
+          <FormPanelLayout className="setup-transition" action={trip.cities.length > 0 && <Button disabled={!access.canEdit || busy || savedSignature === tripSignature} onClick={() => { setShowErrors(true); if (!trip.name.trim() || !datesValid || !allCityDatesValid) return; setBusy(true); void onCreate(trip).then((saved) => { if (!saved) return; setTrip(saved); setSavedSignature(JSON.stringify(saved)); setHasSaved(true) }).finally(() => setBusy(false)) }}>{busy ? 'Сохраняем…' : hasSaved && savedSignature === tripSignature ? 'Изменения сохранены' : 'Сохранить поездку'}</Button>}>
             <FormPanelHeader title={trip.name || (initial ? 'Поездка' : 'Добавить поездку')} text={<>{datesValid && <>{formatDays(tripDays)} · </>}{formatTimeZoneOffset(trip.timeZone, trip.startDate)}</>} />
             <FormPanelGroup>
               <FormControlList headline="О поездке">
@@ -1418,17 +1424,32 @@ const documentMetadata = (file: TravelFile) => {
   return [file.uploadedBy, uploadedAt].filter(Boolean).join(' · ')
 }
 
+const transportFormValue = (value: TransportDetails): TransportDetails => {
+  const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
+  return { ...value, ticketOnSite, ...(ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) }
+}
+
+const hotelFormValue = (value: HotelDetails): HotelDetails => ({
+  name: value.name.trim(),
+  url: value.url.trim(),
+  checkInTime: value.checkInTime,
+  checkOutTime: value.checkOutTime,
+  notes: value.notes.trim(),
+  payerIds: value.payerIds,
+  totalAmountRubles: value.totalAmountRubles,
+})
+
 function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, ticketError, readOnly = false, routeReadOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; ticketError?: ReactNode; readOnly?: boolean; routeReadOnly?: boolean; onSave: (value: TransportDetails) => Promise<boolean>; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
   const valueSignature = JSON.stringify(value)
-  const [draft, setDraft] = useState<TransportDetails>(() => {
-    const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
-    return { ...value, ticketOnSite, ...(ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) }
-  })
-  const [savedSignature, setSavedSignature] = useState('')
+  const [draft, setDraft] = useState<TransportDetails>(() => transportFormValue(value))
+  const [savedSignature, setSavedSignature] = useState(() => JSON.stringify(transportFormValue(value)))
+  const [hasSaved, setHasSaved] = useState(false)
   const [busy, setBusy] = useState(false)
   useEffect(() => {
-    const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
-    setDraft({ ...value, ticketOnSite, ...(ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) })
+    const next = transportFormValue(value)
+    setDraft(next)
+    setSavedSignature(JSON.stringify(next))
+    setHasSaved(false)
   }, [valueSignature])
   const visibleTickets = tickets.slice(0, 1)
   const legacyTicketName = visibleTickets.length === 0 ? ticketName : ''
@@ -1440,9 +1461,9 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   const journeySummary = draft.type ? `${transportEmoji[draft.type]} ${journeyText}` : journeyText
   const draftSignature = JSON.stringify(draft)
   return (
-    <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); const submitted = draft.ticketOnSite ? { ...draft, departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : draft; setBusy(true); void onSave(submitted).then((saved) => { if (saved) setSavedSignature(JSON.stringify(submitted)) }).finally(() => setBusy(false)) }}>
+    <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); if (busy || savedSignature === draftSignature) return; const submitted = transportFormValue(draft); setBusy(true); void onSave(submitted).then((saved) => { if (saved) { setSavedSignature(JSON.stringify(submitted)); setHasSaved(true) } }).finally(() => setBusy(false)) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
-      <FormPanelLayout action={!readOnly && <Button type="submit" disabled={busy || savedSignature === draftSignature}>{busy ? 'Сохраняем…' : savedSignature === draftSignature ? 'Изменения сохранены' : 'Сохранить'}</Button>}>
+      <FormPanelLayout action={!readOnly && <Button type="submit" disabled={busy || savedSignature === draftSignature}>{busy ? 'Сохраняем…' : hasSaved && savedSignature === draftSignature ? 'Изменения сохранены' : 'Сохранить'}</Button>}>
         <FormPanelGroup>
           <FormPanelGroup>
             <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
@@ -1504,14 +1525,16 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
 function HotelDialog({ cityName, value, members, booking, bookingError, readOnly = false, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; members: TripMember[]; booking?: TravelFile; bookingError?: ReactNode; readOnly?: boolean; onSave: (value: HotelDetails) => Promise<boolean>; onBooking: (value: HotelDetails) => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
   const valueSignature = JSON.stringify(value)
   const [draft, setDraft] = useState(value)
-  const [savedSignature, setSavedSignature] = useState('')
+  const [savedSignature, setSavedSignature] = useState(() => JSON.stringify(hotelFormValue(value)))
+  const [hasSaved, setHasSaved] = useState(false)
   const [busy, setBusy] = useState(false)
-  useEffect(() => setDraft(value), [valueSignature])
-  const draftSignature = JSON.stringify(draft)
+  useEffect(() => { setDraft(value); setSavedSignature(JSON.stringify(hotelFormValue(value))); setHasSaved(false) }, [valueSignature])
+  const submitted = hotelFormValue(draft)
+  const draftSignature = JSON.stringify(submitted)
   return (
-    <form className="transport-editor-screen trip-background setup-transition" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); const submitted = { name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim(), payerIds: draft.payerIds, totalAmountRubles: draft.totalAmountRubles }; setBusy(true); void onSave(submitted).then((saved) => { if (saved) setSavedSignature(JSON.stringify(submitted)) }).finally(() => setBusy(false)) }}>
+    <form className="transport-editor-screen trip-background setup-transition" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); if (busy || savedSignature === draftSignature) return; setBusy(true); void onSave(submitted).then((saved) => { if (saved) { setSavedSignature(JSON.stringify(submitted)); setHasSaved(true) } }).finally(() => setBusy(false)) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
-      <FormPanelLayout action={!readOnly && <Button type="submit" disabled={busy || savedSignature === draftSignature}>{busy ? 'Сохраняем…' : savedSignature === draftSignature ? 'Изменения сохранены' : 'Сохранить'}</Button>}>
+      <FormPanelLayout action={!readOnly && <Button type="submit" disabled={busy || savedSignature === draftSignature}>{busy ? 'Сохраняем…' : hasSaved && savedSignature === draftSignature ? 'Изменения сохранены' : 'Сохранить'}</Button>}>
           <FormPanelHeader id="hotel-title" title={`Отель ${cityName}`} />
           <FormPanelGroup>
           <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
@@ -1728,6 +1751,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
                 query={mapPoint}
                 centerUrl={draft.googleMapsUrl}
                 accentColor={tripAccentColor}
+                pointCardTint={tripAccentColor !== DEFAULT_TRIP_ACCENT_COLOR ? tripAccentColor : undefined}
                 places={[
                   ...Object.entries(ordinaryPlacesByDate).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, notes: item.notes, date, latitude: item.latitude, longitude: item.longitude }))),
                   ...managedMapPlaces,
