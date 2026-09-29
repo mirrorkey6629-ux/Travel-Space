@@ -7,7 +7,7 @@ const trip = (hotel = '123'): ProtectedTripState => ({
   endDate: '2026-10-10',
   timeZone: 'Asia/Tokyo',
   backgroundRemoved: false,
-  cities: [{ id: 'city-1', updatedAt: 'version-1', name: 'Токио', hotel, places: {}, tasks: [], files: [] }],
+  cities: [{ id: 'city-1', updatedAt: 'version-1', name: 'Токио', hotel, places: {}, files: [] }],
 })
 
 describe('protected data comparison', () => {

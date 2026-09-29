@@ -1,6 +1,6 @@
-import { CSSProperties, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { CSSProperties, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { api, ApiRequestError, ApiTripChange, ApiTripDetails, ApiTripSummary, isConflictError, session, TransportType } from './api'
+import { ACCESS_DENIED_EVENT, api, ApiRequestError, ApiTripChange, ApiTripDetails, ApiTripSummary, isConflictError, session, TransportType } from './api'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
 import { DateInput, Input, Select, Textarea, TimeZoneInput } from './components/FormControls'
@@ -8,6 +8,8 @@ import { InfoRow } from './components/InfoRow'
 import { InfoRowList } from './components/InfoRowList'
 import { TypographyGroup } from './components/TypographyGroup'
 import { UpdateNotification } from './components/UpdateNotification'
+import { ErrorNotification } from './components/ErrorNotification'
+import { SuccessNotification } from './components/SuccessNotification'
 import { Icon, type IconName } from './components/Icon'
 import { UNSCHEDULED_KEY } from './places'
 import { PlacesMap } from './components/PlacesMap'
@@ -28,14 +30,14 @@ import type { CacheState } from './offline/cacheState'
 import { AccessContext, tripAccess, useAccess } from './tripAccess'
 import { hasDifferentProtectedData } from './remoteRevision'
 
-type Place = { id: string; name: string; url: string; icon: PlaceIconKey; latitude?: number; longitude?: number }
-type Task = { id: string; title: string; done: boolean }
+type Place = { id: string; name: string; url: string; icon: PlaceIconKey; notes: string; latitude?: number; longitude?: number }
 type TravelFile = { id: string; name: string; category: string; uploadedBy?: string; uploadedAt?: string }
 type HotelDetails = { name: string; url: string; checkInTime: string; checkOutTime: string; notes: string; payerIds: string[]; totalAmountRubles: number }
 type TransportDetails = { type?: TransportType; name: string; departureDate: string; arrivalDate: string; departureTime: string; arrivalTime: string; departureTimeZone: string; arrivalTimeZone: string; departureStation: string; departureStationUrl: string; arrivalStation: string; arrivalStationUrl: string; notes: string; ticketOnSite: boolean; payerIds: string[]; totalAmountRubles: number }
 type TripMember = { id: string; email: string; displayName: string; role: 'owner' | 'member'; hasAvatar?: boolean; avatarUrl?: string }
 type CurrentUser = { id: string; email: string; displayName: string; hasAvatar: boolean; avatarUrl?: string }
 type DayPeriod = 'morning' | 'day' | 'evening'
+type ErrorNotice = { title: string; message: string; retry?: () => void; retryLabel?: string; actionIcon?: 'retry' | 'refresh'; closable?: boolean }
 type City = {
   id: string
   updatedAt?: string
@@ -61,7 +63,6 @@ type City = {
   hotelAssigneeIds: string[]
   planAssigneeIds: string[]
   places: Record<string, Place[]>
-  tasks: Task[]
   files: TravelFile[]
   image?: TravelFile
   imageUrl?: string
@@ -72,6 +73,87 @@ type Trip = { id?: string; updatedAt?: string; role?: 'owner' | 'member'; name: 
 type Screen = 'start' | 'login' | 'join' | 'trips' | 'setup' | 'dashboard' | 'profile' | 'view'
 type RemoteUpdateNotice = { message: string }
 export type { IconName } from './components/Icon'
+
+const deletionErrorMessages = new Set([
+  'Место не найдено',
+  'Файл не найден',
+  'Поездка не найдена',
+  'Участник не найден',
+  'Удалить файл может его автор или владелец поездки',
+])
+
+const deletionErrorCopy: Record<string, string> = {
+  'Удалить файл может его автор или владелец поездки': 'Удалить файл может его автор или\u00a0владелец\u00a0поездки',
+}
+
+const deletionErrorMessage = (reason: unknown) => {
+  if (!(reason instanceof ApiRequestError) || !deletionErrorMessages.has(reason.message)) return 'Попробуйте ещё раз'
+  if (isMissingDeletionError(reason)) return 'Обновитесь до последней версии поездки'
+  return deletionErrorCopy[reason.message] ?? reason.message
+}
+
+const isMissingDeletionError = (reason: unknown) => reason instanceof ApiRequestError && [
+  'Место не найдено',
+  'Файл не найден',
+  'Поездка не найдена',
+  'Участник не найден',
+].includes(reason.message)
+
+const isMissingCityError = (reason: unknown) => reason instanceof ApiRequestError && reason.message === 'Город не найден'
+const isStaleTripDataError = (reason: unknown) => isMissingCityError(reason) || (reason instanceof ApiRequestError && [
+  'Даты города должны находиться внутри поездки',
+  'Ответственный должен быть участником поездки',
+].includes(reason.message))
+const isTripDatesExcludeCitiesError = (reason: unknown) => reason instanceof ApiRequestError && reason.message === 'Сначала перенесите даты городов внутрь нового диапазона'
+const isDuplicatePlaceError = (reason: unknown) => reason instanceof ApiRequestError && reason.message === 'Эта точка уже добавлена на выбранный день'
+const duplicatePlaceTitle = 'Дважды никак в один день'
+const duplicatePlaceMessage = 'Выберите другую дату для точки'
+const staleTripMessage = 'Обновитесь до последней версии поездки'
+const staleTripOptions = { retryLabel: 'Обновить данные', actionIcon: 'refresh' as const, closable: false }
+
+const uploadErrorMessage = (reason: unknown) => {
+  if (!(reason instanceof ApiRequestError)) return undefined
+  if (reason.message === 'Файл не выбран') return 'Нужно выбрать'
+  if (reason.message === 'Фото должно быть изображением' || reason.message === 'Аватар должен быть изображением') return 'Нужно в формате JPG, PNG или WEBP'
+  if (reason.status === 413 || /превышает допустимый размер|file too large/i.test(reason.message)) return 'Должен быть до 15 МБ'
+  return undefined
+}
+
+const uploadErrorTitle = (message?: string) => message === 'Должен быть до 15 МБ'
+  ? 'Какой огромный файл'
+  : message === 'Нужно в формате JPG, PNG или WEBP'
+    ? 'Кажется, это не картинка'
+    : message === 'Нужно выбрать'
+      ? 'Кажется, вы не выбрали файл'
+    : 'Эх, файл не загрузился'
+
+const isNonRetryableUploadMessage = (message?: string) => message === 'Нужно в формате JPG, PNG или WEBP' || message === 'Должен быть до 15 МБ' || message === 'Нужно выбрать'
+const MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+const imageFileError = (file: File) => !['image/jpeg', 'image/png', 'image/webp'].includes(file.type)
+  ? 'Проверьте формат файла'
+  : file.size > MAX_UPLOAD_BYTES ? 'Слишком тяжёлый файл' : undefined
+const imageRowErrorMessage = (reason: unknown) => uploadErrorMessage(reason) === 'Нужно в формате JPG, PNG или WEBP'
+  ? 'Проверьте формат файла'
+  : uploadErrorMessage(reason) === 'Должен быть до 15 МБ' ? 'Слишком тяжёлый файл' : uploadErrorMessage(reason) ?? 'Попробуйте загрузить ещё раз'
+
+const invalidImportMessages = new Set([
+  'В файле указаны некорректные данные поездки',
+  'Некорректные данные города в файле',
+  'Некорректное место в файле',
+  'Дата места находится за пределами дат города',
+  'Некорректное описание дня в файле',
+  'Некорректный документ в файле',
+  'Неизвестная иконка места в файле поездки',
+])
+
+const importErrorContent = (reason: unknown) => {
+  if (!(reason instanceof ApiRequestError)) return undefined
+  if (reason.message === 'Файл импорта не выбран') return { title: 'Кажется, вы не выбрали файл', message: 'Нужно выбрать' }
+  if (reason.message === 'Файл поездки повреждён или имеет неверный формат') return { title: 'Кажется, файл повреждён', message: 'Попробуйте загрузить другой файл' }
+  if (reason.message === 'Неподдерживаемый формат файла поездки') return { title: 'Не тот формат файла', message: 'Нужен формат .travelspace' }
+  if (invalidImportMessages.has(reason.message)) return { title: 'Эх, поездка не загружается', message: 'В ней есть некорректные данные' }
+  return undefined
+}
 
 const STORAGE_KEY = 'tabi-trip-v1'
 const ADMIN_EMAIL = 'mirrorkey6629@gmail.com'
@@ -280,7 +362,7 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
     const places: Record<string, Place[]> = {}
     source.places.filter((place) => place.city_id === city.id).forEach((place) => {
       const key = place.visit_date?.slice(0, 10) || UNSCHEDULED_KEY
-      ;(places[key] ??= []).push({ id: place.id, name: place.name, url: place.google_maps_url, icon: place.icon ?? 'default', latitude: place.latitude ?? undefined, longitude: place.longitude ?? undefined })
+      ;(places[key] ??= []).push({ id: place.id, name: place.name, url: place.google_maps_url, icon: place.icon ?? 'default', notes: place.notes ?? '', latitude: place.latitude ?? undefined, longitude: place.longitude ?? undefined })
     })
     const documents = source.documents.filter((document) => document.city_id === city.id)
     const trainIn = documents.find((document) => document.category.startsWith('train-in:'))?.original_name || city.train_in
@@ -311,7 +393,6 @@ const fromApiTrip = (source: ApiTripDetails): Trip => {
       hotelAssigneeIds: city.hotel_assignee_ids ?? [],
       planAssigneeIds: city.plan_assignee_ids ?? [],
       places,
-      tasks: source.tasks.filter((task) => task.city_id === city.id).map((task) => ({ id: task.id, title: task.title, done: task.done })),
       files: documents.map((document) => ({ id: document.id, name: document.original_name, category: document.category, uploadedBy: document.created_by_name, uploadedAt: document.created_at })),
       image: imageDocument ? { id: imageDocument.id, name: imageDocument.original_name, category: imageDocument.category, uploadedBy: imageDocument.created_by_name, uploadedAt: imageDocument.created_at } : undefined,
     }
@@ -442,70 +523,82 @@ function RandomGreetingTitle({ defaultTitle }: { defaultTitle: string }) {
   )
 }
 
-function LoginScreen({ onSubmit }: { onSubmit: () => Promise<void> }) {
+function LoginScreen({ onSubmit, onOperationError }: { onSubmit: () => Promise<void>; onOperationError: (title: string, retry: () => void) => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [showErrors, setShowErrors] = useState(false)
   const [busy, setBusy] = useState(false)
-  const submit = async (event: FormEvent) => {
-    event.preventDefault(); setError(''); setBusy(true)
+  const emailError = !/^\S+@\S+\.\S+$/.test(email.trim()) || error === 'Такая почта не зарегистрирована' ? 'Такая почта не зарегистрирована' : error === 'Аккаунт с такой почтой уже есть' ? 'Аккаунт с такой почтой уже есть' : ''
+  const nameError = mode === 'register' && !name.trim() ? 'Нужно ввести имя' : ''
+  const passwordError = password.length < 8 ? 'В пароле должно быть не меньше 8 символов' : password.length > 256 ? mode === 'login' ? 'Неправильный пароль' : 'В пароле должно быть меньше 256 символов' : error === 'Неправильный пароль' ? 'Неправильный пароль' : ''
+  const authenticate = async () => {
+    setError(''); setBusy(true)
     try {
       const result = mode === 'register'
         ? await api.register(email, password, name)
         : await api.login(email, password)
       session.token = result.token
       await onSubmit()
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка входа') }
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : ''
+      if (accountFieldErrors.has(message)) setError(message)
+      else onOperationError('Ох, что-то отвалилось', () => void authenticate())
+    }
     finally { setBusy(false) }
+  }
+  const submit = (event: FormEvent) => {
+    event.preventDefault(); setShowErrors(true)
+    if (emailError || nameError || passwordError) return
+    void authenticate()
   }
   return (
     <AuthPanel as="form" onSubmit={submit}>
       {mode === 'login' ? <RandomGreetingTitle defaultTitle="И снова здравствуйте" /> : <h1>Регистрация</h1>}
-      <div className="form-stack tight">
-        <FormControlList>
-          {mode === 'register' && <FormControlRow><Input icon={<Icon name="face" />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" autoFocus /></FormControlRow>}
-          <FormControlRow><Input icon={<Icon name="email" />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" autoFocus={mode === 'login'} /></FormControlRow>
-          <FormControlRow><Input icon={<Icon name="encrypted" />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></FormControlRow>
-        </FormControlList>
-        <Button type="submit" disabled={busy || !email.trim() || password.length < 8 || (mode === 'register' && !name.trim())}>{busy ? 'Подожди…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}</Button>
-      </div>
+      <FormControlList>
+        {mode === 'register' && <FormControlRow><Input icon={<Icon name="face" />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" autoFocus error={showErrors ? nameError : undefined} /></FormControlRow>}
+        <FormControlRow><Input icon={<Icon name="email" />} type="email" value={email} onChange={(event) => { setEmail(event.target.value); setError('') }} placeholder="Email" autoComplete="email" autoFocus={mode === 'login'} error={showErrors || error.includes('email') ? emailError : undefined} /></FormControlRow>
+        <FormControlRow><Input icon={<Icon name="encrypted" />} type="password" value={password} onChange={(event) => { setPassword(event.target.value); setError('') }} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} error={showErrors || error === 'Неправильный пароль' ? passwordError : undefined} /></FormControlRow>
+      </FormControlList>
+      <Button type="submit" disabled={busy}>{busy ? 'Подожди…' : mode === 'login' ? 'Войти' : 'Создать аккаунт'}</Button>
       <Button size="m" theme="transparent" type="button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError('') }}>
         {mode === 'login' ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
       </Button>
-      {error && <p className="form-hint">{error}</p>}
+      {error && !emailError && !passwordError && <p className="form-hint">{error}</p>}
     </AuthPanel>
   )
 }
 
-function JoinScreen({ onSubmit, initialLink = '' }: { onSubmit: (link: string, name: string, email: string, password: string, mode: 'login' | 'register') => Promise<void>; initialLink?: string }) {
+const accountFieldErrors = new Set(['Такая почта не зарегистрирована', 'Неправильный пароль', 'Аккаунт с такой почтой уже есть'])
+
+function JoinScreen({ onSubmit, initialLink = '', serverError = '', onClearError }: { onSubmit: (link: string, name: string, email: string, password: string, mode: 'login' | 'register') => Promise<void>; initialLink?: string; serverError?: string; onClearError: () => void }) {
   const [mode, setMode] = useState<'login' | 'register'>('register')
   const [link, setLink] = useState(initialLink)
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showErrors, setShowErrors] = useState(false)
   const valid = link.trim() && email.trim() && password.length >= 8 && (mode === 'login' || name.trim())
   return (
-    <AuthPanel as="form" offset onSubmit={async (event) => { event.preventDefault(); if (valid) await onSubmit(link, name, email, password, mode) }}>
+    <AuthPanel as="form" onSubmit={async (event) => { event.preventDefault(); setShowErrors(true); if (valid && /^\S+@\S+\.\S+$/.test(email.trim()) && password.length <= 256) await onSubmit(link, name, email, password, mode) }}>
       <RandomGreetingTitle defaultTitle="Добро пожаловать" />
-      <div className="form-stack">
-        <FormControlList>
-          <FormControlRow><Input icon={<Icon name="link" />} value={link} onChange={(event) => setLink(event.target.value)} placeholder="Ссылка на поездку" /></FormControlRow>
-          {mode === 'register' && <FormControlRow><Input icon={<Icon name="face" />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" /></FormControlRow>}
-          <FormControlRow><Input icon={<Icon name="email" />} type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" autoComplete="email" /></FormControlRow>
-          <FormControlRow><Input icon={<Icon name="encrypted" />} type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} /></FormControlRow>
-        </FormControlList>
-        <Button type="submit" disabled={!valid}>Я в деле</Button>
-      </div>
-      <Button size="m" theme="transparent" type="button" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+      <FormControlList>
+        <FormControlRow><Input icon={<Icon name="link" />} value={link} onChange={(event) => { setLink(event.target.value); onClearError() }} placeholder="Ссылка на поездку" error={serverError === 'Неправильная ссылка' ? serverError : showErrors && !link.includes('/join/') ? 'Неправильная ссылка' : undefined} /></FormControlRow>
+        {mode === 'register' && <FormControlRow><Input icon={<Icon name="face" />} value={name} onChange={(event) => setName(event.target.value)} placeholder="Как тебя называть" autoComplete="name" error={showErrors && !name.trim() ? 'Нужно ввести имя' : undefined} /></FormControlRow>}
+        <FormControlRow><Input icon={<Icon name="email" />} type="email" value={email} onChange={(event) => { setEmail(event.target.value); onClearError() }} placeholder="Email" autoComplete="email" error={serverError === 'Такая почта не зарегистрирована' || serverError === 'Аккаунт с такой почтой уже есть' ? serverError : showErrors && !/^\S+@\S+\.\S+$/.test(email.trim()) ? 'Такая почта не зарегистрирована' : undefined} /></FormControlRow>
+        <FormControlRow><Input icon={<Icon name="encrypted" />} type="password" value={password} onChange={(event) => { setPassword(event.target.value); onClearError() }} placeholder="Пароль — минимум 8 символов" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} error={serverError === 'Неправильный пароль' ? serverError : showErrors ? password.length < 8 ? 'В пароле должно быть не меньше 8 символов' : password.length > 256 ? mode === 'login' ? 'Неправильный пароль' : 'В пароле должно быть меньше 256 символов' : undefined : undefined} /></FormControlRow>
+      </FormControlList>
+      <Button type="submit">Я в деле</Button>
+      <Button size="m" theme="transparent" type="button" onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); onClearError() }}>
         {mode === 'login' ? 'Создать новый аккаунт' : 'У меня уже есть аккаунт'}
       </Button>
     </AuthPanel>
   )
 }
 
-function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: CurrentUser; onBack: () => void; onSave: (value: { displayName: string; email: string; password?: string }) => Promise<void>; onAvatar: (file: File) => Promise<string>; onLogout: () => void }) {
+function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout, onOperationError }: { user: CurrentUser; onBack: () => void; onSave: (value: { displayName: string; email: string; password?: string }) => Promise<void>; onAvatar: (file: File) => Promise<string>; onLogout: () => void; onOperationError: (title: string, retry: () => void, message?: string, options?: { retryable?: boolean }) => void }) {
   const [displayName, setDisplayName] = useState(user.displayName)
   const [email, setEmail] = useState(user.email)
   const [password, setPassword] = useState('')
@@ -514,13 +607,12 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState('')
+  const [showErrors, setShowErrors] = useState(false)
   const saved = message === 'Изменения сохранены'
   const profileChanged = displayName.trim() !== user.displayName || email.trim().toLowerCase() !== user.email.toLowerCase() || Boolean(password)
   const changed = profileChanged || Boolean(avatarFile)
-  const valid = displayName.trim() && /^\S+@\S+\.\S+$/.test(email.trim()) && (!password || password.length >= 8)
-  const submit = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!changed || !valid) return
+  const valid = displayName.trim() && /^\S+@\S+\.\S+$/.test(email.trim()) && (!password || (password.length >= 8 && password.length <= 256))
+  const submitProfile = async () => {
     setBusy(true)
     setMessage('')
     try {
@@ -533,17 +625,28 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
       setPassword('')
       setMessage('Изменения сохранены')
     } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : 'Не удалось сохранить изменения')
+      const message = reason instanceof Error ? reason.message : ''
+      if (message === 'Аккаунт с такой почтой уже есть') setMessage(message)
+      else {
+        const uploadMessage = avatarFile ? uploadErrorMessage(reason) : undefined
+        onOperationError(uploadMessage ? uploadErrorTitle(uploadMessage) : 'Эх, не сохраняется', () => void submitProfile(), uploadMessage, isNonRetryableUploadMessage(uploadMessage) ? { retryable: false } : undefined)
+      }
     } finally {
       setBusy(false)
     }
+  }
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    setShowErrors(true)
+    if (!changed || !valid) return
+    void submitProfile()
   }
   return (
     <main className="screen auth-screen profile-screen">
       <GalaxyBackground />
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
       <form className="profile-form" onSubmit={submit}>
-        <FormPanelLayout className="setup-transition" contentHeight action={<Button type="submit" disabled={busy || !changed || !valid || !access.canEdit}>{busy ? 'Сохраняем…' : saved ? 'Изменения сохранены' : 'Сохранить'}</Button>}>
+        <FormPanelLayout className="setup-transition" contentHeight action={<Button type="submit" disabled={busy || !changed || !access.canEdit}>{busy ? 'Сохраняем…' : saved ? 'Изменения сохранены' : 'Сохранить'}</Button>}>
           <FormPanelHeader title="Профиль" action={<IconButton type="button" icon={<Icon name="door-open" />} onClick={onLogout} aria-label="Выйти из аккаунта" title="Выйти из аккаунта" />} />
           <FormPanelGroup className="profile-avatar-group">
             <ImageFilePicker disabled={!access.canEdit} onSelect={(file, previewUrl) => { setAvatarUrl(previewUrl); setAvatarFile(file); setMessage('') }}>
@@ -552,9 +655,9 @@ function ProfileScreen({ user, onBack, onSave, onAvatar, onLogout }: { user: Cur
           </FormPanelGroup>
           <FormPanelGroup>
             <FormControlList>
-              <FormControlRow><Input icon={<Icon name="face" />} aria-label="Имя" placeholder="Имя" value={displayName} onChange={(event) => { setDisplayName(event.target.value); setMessage('') }} autoComplete="name" /></FormControlRow>
-              <FormControlRow><Input icon={<Icon name="email" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" /></FormControlRow>
-              <FormControlRow><Input icon={<Icon name="encrypted" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" /></FormControlRow>
+              <FormControlRow><Input icon={<Icon name="face" />} aria-label="Имя" placeholder="Имя" value={displayName} onChange={(event) => { setDisplayName(event.target.value); setMessage('') }} autoComplete="name" error={showErrors && !displayName.trim() ? 'Нужно ввести имя' : undefined} /></FormControlRow>
+              <FormControlRow><Input icon={<Icon name="email" />} aria-label="Почта" placeholder="Почта" type="email" value={email} onChange={(event) => { setEmail(event.target.value); setMessage('') }} autoComplete="email" error={message.includes('Аккаунт с такой почтой') ? 'Аккаунт с такой почтой уже есть' : showErrors && !/^\S+@\S+\.\S+$/.test(email.trim()) ? 'Такая почта не зарегистрирована' : undefined} /></FormControlRow>
+              <FormControlRow><Input icon={<Icon name="encrypted" />} aria-label="Новый пароль" type="password" value={password} onChange={(event) => { setPassword(event.target.value); setMessage('') }} placeholder="Новый пароль" autoComplete="new-password" error={showErrors && password ? password.length < 8 ? 'В пароле должно быть не меньше 8 символов' : password.length > 256 ? 'В пароле должно быть меньше 256 символов' : undefined : undefined} /></FormControlRow>
             </FormControlList>
           </FormPanelGroup>
           {message && !saved && <FormPanelNote centered>{message}</FormPanelNote>}
@@ -618,15 +721,27 @@ function TripsScreen({ trips, canCreate, deleteTarget, onOpen, onCreate, onClose
 function DeleteTripDialog({ trip, onClose, onConfirm }: { trip: ApiTripSummary; onClose: () => void; onConfirm: () => Promise<void> }) {
   const [confirmation, setConfirmation] = useState('')
   const [busy, setBusy] = useState(false)
+  const [showError, setShowError] = useState(false)
   return (
-    <FormPanelLayout className="setup-transition" contentHeight action={<Button disabled={confirmation !== trip.name || busy} onClick={async () => { setBusy(true); try { await onConfirm() } finally { setBusy(false) } }}>{busy ? 'Удаляем…' : 'Удалить поездку'}</Button>}>
+    <FormPanelLayout className="setup-transition" contentHeight action={<Button disabled={busy} onClick={async () => { setShowError(true); if (confirmation !== trip.name) return; setBusy(true); try { await onConfirm() } finally { setBusy(false) } }}>{busy ? 'Удаляем…' : 'Удалить поездку'}</Button>}>
       <FormPanelHeader title={`Удалить «${trip.name}»?`} text="Все данные поездки будут удалены без возможности восстановления. Для подтверждения введите её название." action={<IconButton icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />} />
-      <FormPanelGroup><FormControlList><FormControlRow><Input showLabel={false} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={trip.name} autoFocus /></FormControlRow></FormControlList></FormPanelGroup>
+      <FormPanelGroup><FormControlList><FormControlRow><Input showLabel={false} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={trip.name} autoFocus error={showError && confirmation !== trip.name ? 'Такой поездки не существует' : undefined} /></FormControlRow></FormControlList></FormPanelGroup>
     </FormPanelLayout>
   )
 }
 
-function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: Trip; onBack: () => void; onCreate: (hours: number) => Promise<{ url: string; expiresAt: string }>; onViewLink: () => Promise<string>; onRemove: (member: TripMember) => Promise<void> }) {
+function DeleteCityDialog({ city, onClose, onConfirm }: { city: City; onClose: () => void; onConfirm: () => void }) {
+  const [confirmation, setConfirmation] = useState('')
+  const [showError, setShowError] = useState(false)
+  return (
+    <FormPanelLayout className="setup-transition" contentHeight action={<Button onClick={() => { setShowError(true); if (confirmation === city.name) onConfirm() }}>Удалить город</Button>}>
+      <FormPanelHeader title={`Удалить ${city.name}?`} text="Все локации и файлы из него будут удалены. Для подтверждения введите название города." action={<IconButton icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />} />
+      <FormPanelGroup><FormControlList><FormControlRow><Input showLabel={false} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} placeholder={city.name} autoFocus error={showError && confirmation !== city.name ? 'Такого города не существует' : undefined} /></FormControlRow></FormControlList></FormPanelGroup>
+    </FormPanelLayout>
+  )
+}
+
+function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove, onRefresh, onOperationError }: { trip: Trip; onBack: () => void; onCreate: (hours: number) => Promise<{ url: string; expiresAt: string }>; onViewLink: () => Promise<string>; onRemove: (member: TripMember) => Promise<void>; onRefresh: () => Promise<void>; onOperationError: (title: string, retry: () => void, message?: string, options?: { retryLabel?: string; actionIcon?: 'retry' | 'refresh'; closable?: boolean; retryable?: boolean }) => void }) {
   const [invite, setInvite] = useState<{ url: string; expiresAt: string } | null>(null)
   const access = useAccess()
   const [viewLink, setViewLink] = useState('')
@@ -639,14 +754,28 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
     if (left.role === right.role) return 0
     return left.role === 'owner' ? -1 : 1
   })
-  useEffect(() => { if (isOwner) void onViewLink().then(setViewLink).catch(() => setViewLink('')) }, [isOwner, onViewLink])
+  const loadViewLink = () => void onViewLink().then(setViewLink).catch(() => { setViewLink(''); onOperationError('Ох, что-то отвалилось', loadViewLink) })
+  const createInvitation = async () => {
+    setBusy(true)
+    try { setInvite(await onCreate(24)) }
+    catch { onOperationError('Ох, что-то отвалилось', () => void createInvitation()) }
+    finally { setBusy(false) }
+  }
+  const removeMember = async (member: TripMember) => {
+    try { await onRemove(member) }
+    catch (reason) {
+      const missing = isMissingDeletionError(reason)
+      onOperationError(missing ? 'Кажется, данные устарели' : 'Эх, не удаляется', missing ? () => void onRefresh() : () => void removeMember(member), deletionErrorMessage(reason), missing ? { retryLabel: 'Обновить данные', actionIcon: 'refresh', closable: false } : undefined)
+    }
+  }
+  useEffect(() => { if (isOwner) loadViewLink() }, [isOwner])
   return <main className={tripBackgroundClassName('screen trip-background setup-screen', backgroundReady)} style={tripBackgroundStyle(trip)}>
     <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onBack} aria-label="Назад" title="Назад" />
     <FormPanelLayout className="setup-transition" contentHeight>
       <FormPanelHeader title={`Участники «${trip.name}»`} />
       <FormPanelGroup>
         {members.length > 0
-          ? <InfoRowList>{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={member.email} actionTheme="secondary" actions={!isOwner || member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void onRemove(member) } }]} />)}</InfoRowList>
+          ? <InfoRowList>{members.map((member) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} titleStyle="text" subtitle={member.email} actionTheme="secondary" actions={!isOwner || member.role === 'owner' ? [] : [{ icon: <Icon name="delete-forever" />, label: `Удалить ${member.displayName} из поездки`, title: 'Удалить участника', onClick: () => { if (window.confirm(`Удалить ${member.displayName} из поездки?`)) void removeMember(member) } }]} />)}</InfoRowList>
           : <FormPanelNote centered>Не удалось загрузить список участников.</FormPanelNote>}
       </FormPanelGroup>
       {isOwner && <>
@@ -655,7 +784,7 @@ function InviteScreen({ trip, onBack, onCreate, onViewLink, onRemove }: { trip: 
           {invite && <>
             <FormControlRow><Input aria-label="Активная ссылка приглашения" icon={<Icon name="link" />} type="url" readOnly value={invite.url} trailingIcon={<Icon name="content-copy" />} trailingIconLabel="Скопировать ссылку" onTrailingIconClick={() => void navigator.clipboard.writeText(invite.url)} /></FormControlRow>
           </>}
-          <FormControlRow><Button size="l" disabled={busy} onClick={async () => { setBusy(true); try { setInvite(await onCreate(24)) } finally { setBusy(false) } }}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button></FormControlRow>
+          <FormControlRow><Button size="l" disabled={busy} onClick={() => void createInvitation()}>{busy ? 'Создаём…' : invite ? 'Создать новую ссылку' : 'Создать ссылку'}</Button></FormControlRow>
           </FormControlList>
         </FormPanelGroup>
         <FormPanelGroup>
@@ -705,12 +834,26 @@ const transportPayload = (city: City) => ({
 const hotelPayload = (city: City) => ({ hotelNotNeeded: city.hotelNotNeeded, hotel: city.hotel, hotelUrl: city.hotelUrl, hotelCheckInTime: city.hotelCheckInTime ?? '', hotelCheckOutTime: city.hotelCheckOutTime ?? '', hotelNotes: city.hotelNotes ?? '', hotelPayerIds: city.hotelPayerIds ?? [], hotelTotalAmountRubles: city.hotelTotalAmountRubles ?? 0 })
 const assignmentPayload = (city: City) => ({ ticketAssigneeIds: city.ticketAssigneeIds, hotelAssigneeIds: city.hotelNotNeeded ? [] : city.hotelAssigneeIds, planAssigneeIds: city.planAssigneeIds })
 const cityLocationPayload = (city: City) => ({ googleMapsUrl: city.googleMapsUrl.trim() })
-const emptyCity = (): City => ({ id: uid(), name: '', googleMapsUrl: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotelNotNeeded: false, hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', hotelPayerIds: [], hotelTotalAmountRubles: 0, trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), ticketAssigneeIds: [], hotelAssigneeIds: [], planAssigneeIds: [], places: {}, tasks: [], files: [] })
+const resetPlacesOutsideCityDates = (places: Record<string, Place[]>, arrival: string, departure: string) => {
+  if (!arrival || !departure) return places
+  const unscheduled = [...(places[UNSCHEDULED_KEY] ?? [])]
+  const next: Record<string, Place[]> = {}
+  for (const [date, items] of Object.entries(places)) {
+    if (date === UNSCHEDULED_KEY) continue
+    if (date < arrival || date > departure) unscheduled.push(...items)
+    else next[date] = items
+  }
+  if (unscheduled.length) next[UNSCHEDULED_KEY] = unscheduled
+  return next
+}
+const emptyCity = (): City => ({ id: uid(), name: '', googleMapsUrl: '', arrival: '', departure: '', arrivalPeriod: 'morning', departurePeriod: 'evening', hotelNotNeeded: false, hotel: '', hotelUrl: '', hotelCheckInTime: '', hotelCheckOutTime: '', hotelNotes: '', hotelPayerIds: [], hotelTotalAmountRubles: 0, trainIn: '', trainOut: '', transportIn: emptyTransport(), transportOut: emptyTransport(), ticketAssigneeIds: [], hotelAssigneeIds: [], planAssigneeIds: [], places: {}, files: [] })
 
 const assigneeOptions = (members: TripMember[]) => members.map((member) => ({ value: member.id, label: member.displayName }))
 
-function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: City; onSave: (city: City) => void; onClose: () => void }) {
+function CityEditor({ trip, initial, rowError, onClearRowError, onSave, onClose }: { trip: Trip; initial?: City; rowError?: string; onClearRowError: () => void; onSave: (city: City) => void; onClose: () => void }) {
   const [city, setCity] = useState<City>(() => initial ? { ...initial, arrivalPeriod: initial.arrivalPeriod ?? 'morning', departurePeriod: initial.departurePeriod ?? 'evening' } : emptyCity())
+  const [imageError, setImageError] = useState<string | undefined>(rowError)
+  const [showErrors, setShowErrors] = useState(false)
   useEffect(() => {
     if (initial) setCity({ ...initial, arrivalPeriod: initial.arrivalPeriod ?? 'morning', departurePeriod: initial.departurePeriod ?? 'evening' })
   }, [initial?.updatedAt])
@@ -722,27 +865,27 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
   const members = trip.members ?? []
   const canAssign = trip.role === 'owner' || !trip.id
   return (
-    <form className="setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(city) }}>
-      <FormPanelLayout action={<Button type="submit" disabled={!valid}>Сохранить город</Button>}>
+    <form className="setup-transition" onSubmit={(event) => { event.preventDefault(); setShowErrors(true); if (valid) onSave(city) }}>
+      <FormPanelLayout action={<Button type="submit">Сохранить город</Button>}>
         <FormPanelHeader title={initial ? city.name : 'Добавить город'} action={<IconButton type="button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />} />
-        <ImageFilePicker onSelect={(file, previewUrl) => setCity((current) => ({ ...current, imageFile: file, imageUrl: previewUrl }))}>
-          {({ open, clearPreview }) => <InfoRow image={hasImage ? city.imageUrl || cityPlaceholder : undefined} imageAlt="Фото города" title={hasImage ? 'Фото города' : 'Прикрепить фото города'} subtitle={hasImage ? city.imageFile?.name || city.image?.name || 'Фото города' : 'Лучше в вертикальном формате'} actionTheme="secondary" actions={hasImage ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фото города', onClick: open }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото города', onClick: () => { clearPreview(); setCity((current) => ({ ...current, imageDeleteId: current.image?.id, image: undefined, imageFile: undefined, imageUrl: undefined })) } }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото города', onClick: open }]} />}
+        <ImageFilePicker onSelect={(file, previewUrl) => { const error = imageFileError(file); setImageError(error); if (!error) { onClearRowError(); setCity((current) => ({ ...current, imageFile: file, imageUrl: previewUrl })) } }}>
+          {({ open, clearPreview }) => <InfoRow image={hasImage ? city.imageUrl || cityPlaceholder : undefined} imageAlt="Фото города" title="Фото города" titleStyle="text" subtitle={hasImage ? city.imageFile?.name || city.image?.name || 'Фото города' : 'В формате JPG, PNG, WEBP до 15 МБ'} error={imageError} actionTheme="secondary" actions={hasImage ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фото города', onClick: open }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото города', onClick: () => { clearPreview(); setImageError(undefined); setCity((current) => ({ ...current, imageDeleteId: current.image?.id, image: undefined, imageFile: undefined, imageUrl: undefined })) } }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото города', onClick: open }]} />}
         </ImageFilePicker>
         <FormPanelGroup>
           <FormControlList headline="Куда едем">
-            <FormControlRow><Input label="Название города" icon={<Icon name="planet" />} value={city.name} onChange={(event) => setCity({ ...city, name: event.target.value })} placeholder="Например, Осака" /></FormControlRow>
+            <FormControlRow><Input label="Название города" icon={<Icon name="planet" />} value={city.name} onChange={(event) => setCity({ ...city, name: event.target.value })} placeholder="Например, Осака" error={showErrors && !city.name.trim() ? 'Нужно ввести название города' : undefined} /></FormControlRow>
             <FormControlRow><Input label="Ссылка Google Maps" icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(event) => setCity({ ...city, googleMapsUrl: event.target.value })} /></FormControlRow>
           </FormControlList>
         </FormPanelGroup>
         <FormPanelGroup>
           <FormControlList headline="Когда едем">
             <FormControlRow columns={2}>
-              <Select type="date" label="Прибытие" placeholder="Приедем" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; setCity((current) => ({ ...current, arrival, departure: current.departure < arrival ? '' : current.departure })) }}>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select>
-              <Select type="date" label="Отъезд" placeholder="Уедем" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => setCity((current) => ({ ...current, departure: event.target.value }))}>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select>
+              <Select type="date" label="Прибытие" placeholder="Приедем" icon={<Icon name="calendar-month" />} value={city.arrival} error={showErrors && !city.arrival ? 'Нужно выбрать дату прибытия' : undefined} onChange={(event) => { const arrival = event.target.value; setCity((current) => { const departure = current.departure < arrival ? '' : current.departure; return { ...current, arrival, departure, places: resetPlacesOutsideCityDates(current.places, arrival, departure) } }) }}>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select>
+              <Select type="date" label="Отъезд" placeholder="Уедем" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} error={showErrors && city.arrival && !city.departure ? 'Нужно выбрать дату отъезда' : showErrors && city.departure < city.arrival ? 'Дата отъезда не может быть раньше даты прибытия' : undefined} onChange={(event) => { const departure = event.target.value; setCity((current) => ({ ...current, departure, places: resetPlacesOutsideCityDates(current.places, current.arrival, departure) })) }}>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select>
             </FormControlRow>
             <FormControlRow columns={2}>
               <Select type="time" icon={<Icon name="time" />} aria-label="Время прибытия" value={city.arrivalPeriod ?? 'morning'} onChange={(event) => setCity((current) => ({ ...current, arrivalPeriod: event.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select>
-              <Select type="time" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} onChange={(event) => setCity((current) => ({ ...current, departurePeriod: event.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select>
+              <Select type="time" icon={<Icon name="time" />} aria-label="Время отъезда" value={city.departurePeriod ?? 'evening'} error={showErrors && !sameDayPeriodsValid ? 'Время отъезда не может быть раньше времени прибытия' : undefined} onChange={(event) => setCity((current) => ({ ...current, departurePeriod: event.target.value as DayPeriod }))}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select>
             </FormControlRow>
           </FormControlList>
         </FormPanelGroup>
@@ -761,6 +904,7 @@ function CityEditor({ trip, initial, onSave, onClose }: { trip: Trip; initial?: 
 
 function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (cities: City[]) => void; onClose: () => void }) {
   const [cities, setCities] = useState(() => trip.cities.map((city) => ({ ...city })))
+  const [showErrors, setShowErrors] = useState(false)
   const citiesSignature = trip.cities.map((city) => `${city.id}:${city.updatedAt ?? ''}`).join('|')
   useEffect(() => setCities(trip.cities.map((city) => ({ ...city }))), [citiesSignature])
   const tripDates = dateRange(trip.startDate, trip.endDate)
@@ -774,7 +918,7 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
   })
 
   return (
-    <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); if (valid) onSave(cities) }}>
+    <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); setShowErrors(true); if (valid) onSave(cities) }}>
       <section className="glass setup-card editing-all">
       <div className="all-cities-editor">
       <IconButton type="button" className="bulk-edit-button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть редактирование" />
@@ -785,11 +929,11 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
             const departureDates = tripDates.filter((date) => !city.arrival || date >= city.arrival)
             return (
               <FormControlList className="all-city-fields" gap={24} key={city.id}>
-                <FormControlRow><Input label="Название города" icon={<Icon name="planet" />} value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} /></FormControlRow>
+                <FormControlRow><Input label="Название города" icon={<Icon name="planet" />} value={city.name} onChange={(event) => updateCity(city.id, { name: event.target.value })} error={showErrors && !city.name.trim() ? 'Нужно ввести название города' : undefined} /></FormControlRow>
                 <FormControlRow><Input label="Ссылка Google Maps" icon={<Icon name="link" />} type="url" value={city.googleMapsUrl} onChange={(event) => updateCity(city.id, { googleMapsUrl: event.target.value })} /></FormControlRow>
                 <FormControlRow columns={2}>
-                  <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select type="date" placeholder="Приедем" icon={<Icon name="calendar-month" />} value={city.arrival} onChange={(event) => { const arrival = event.target.value; updateCity(city.id, { arrival, departure: city.departure < arrival ? '' : city.departure }) }}>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
-                  <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select type="date" placeholder="Уедем" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} onChange={(event) => updateCity(city.id, { departure: event.target.value })}>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+                  <label className="field"><span>Прибытие</span><div className="date-time-fields"><Select type="date" placeholder="Приедем" icon={<Icon name="calendar-month" />} value={city.arrival} error={showErrors && !city.arrival ? 'Нужно выбрать дату прибытия' : undefined} onChange={(event) => { const arrival = event.target.value; const departure = city.departure < arrival ? '' : city.departure; updateCity(city.id, { arrival, departure, places: resetPlacesOutsideCityDates(city.places, arrival, departure) }) }}>{tripDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время прибытия в ${city.name}`} value={city.arrivalPeriod ?? 'morning'} onChange={(event) => updateCity(city.id, { arrivalPeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
+                  <label className="field"><span>Отъезд</span><div className="date-time-fields"><Select type="date" placeholder="Уедем" icon={<Icon name="calendar-month" />} value={city.departure} disabled={!city.arrival} error={showErrors && city.arrival && !city.departure ? 'Нужно выбрать дату отъезда' : undefined} onChange={(event) => { const departure = event.target.value; updateCity(city.id, { departure, places: resetPlacesOutsideCityDates(city.places, city.arrival, departure) }) }}>{departureDates.map((date) => <option key={date} value={date}>{formatDate(date)} · {ruWeekdays[parseDate(date).getDay()]}</option>)}</Select><Select type="time" icon={<Icon name="time" />} aria-label={`Время отъезда из ${city.name}`} value={city.departurePeriod ?? 'evening'} error={showErrors && city.arrival === city.departure && periodOrder[city.departurePeriod ?? 'evening'] < periodOrder[city.arrivalPeriod ?? 'morning'] ? 'Время отъезда не может быть раньше времени прибытия' : undefined} onChange={(event) => updateCity(city.id, { departurePeriod: event.target.value as DayPeriod })}><option value="morning">Утро</option><option value="day">День</option><option value="evening">Вечер</option></Select></div></label>
                 </FormControlRow>
                 <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.ticketAssigneeIds} icon={<Icon name="ticket" />} emptyLabel="Кто покупает билет" disabled={!canAssign} onValueChange={(ticketAssigneeIds) => updateCity(city.id, { ticketAssigneeIds })} /></FormControlRow>
                 <FormControlRow><Select type="assignee" options={assigneeOptions(members)} value={city.hotelAssigneeIds} icon={<Icon name="hotel" />} emptyLabel="Кто бронит отель" disabled={!canAssign || city.hotelNotNeeded} onValueChange={(hotelAssigneeIds) => updateCity(city.id, { hotelAssigneeIds })} /></FormControlRow>
@@ -802,19 +946,25 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
       </div>
       </div>
       </section>
-      <Button type="submit" disabled={!valid}>Сохранить поездку</Button>
+      <Button type="submit">Сохранить поездку</Button>
     </form>
   )
 }
 
-function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initial: Trip | null; user: CurrentUser | null; refreshToken: number; onCreate: (trip: Trip) => void; onExit: () => void }) {
+function SetupScreen({ initial, user, refreshToken, rowErrors, onClearRowError, onCreate, onCitySaved, onExit }: { initial: Trip | null; user: CurrentUser | null; refreshToken: number; rowErrors: Record<string, string>; onClearRowError: (key: string) => void; onCreate: (trip: Trip) => Promise<Trip | undefined>; onCitySaved: () => void; onExit: () => void }) {
   const [trip, setTrip] = useState<Trip>(initial ?? { name: '', startDate: '', endDate: '', timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC', accentColor: DEFAULT_TRIP_ACCENT_COLOR, cities: [], dayDescriptions: {}, members: user ? [{ id: user.id, email: user.email, displayName: user.displayName, role: 'owner', hasAvatar: user.hasAvatar, avatarUrl: user.avatarUrl }] : [] })
+  const [showErrors, setShowErrors] = useState(false)
+  const [savedSignature, setSavedSignature] = useState('')
+  const [busy, setBusy] = useState(false)
   const accentColor = trip.accentColor || DEFAULT_TRIP_ACCENT_COLOR
   const [accentPaletteOpen, setAccentPaletteOpen] = useState(false)
+  const [backgroundError, setBackgroundError] = useState<string | undefined>(rowErrors.background)
+  useEffect(() => { if (rowErrors.background) setBackgroundError(rowErrors.background) }, [rowErrors.background])
   const [accentPalettePosition, setAccentPalettePosition] = useState({ right: 0, bottom: 0 })
   const accentPaletteRef = useRef<HTMLDivElement>(null)
   const [editing, setEditing] = useState<City | null | undefined>(undefined)
   const [editingAll, setEditingAll] = useState(false)
+  const [deleteCityTarget, setDeleteCityTarget] = useState<City | null>(null)
   const backgroundReady = useTripBackgroundReady(trip)
   useEffect(() => {
     if (!initial || refreshToken === 0) return
@@ -831,6 +981,8 @@ function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initia
   }, [accentPaletteOpen])
   const access = useAccess()
   const datesValid = trip.startDate && trip.endDate && trip.endDate >= trip.startDate
+  const cityDatesValid = (city: City) => Boolean(datesValid && city.arrival >= trip.startDate && city.departure <= trip.endDate)
+  const allCityDatesValid = trip.cities.every(cityDatesValid)
   const tripDays = datesValid ? daysBetween(trip.startDate, trip.endDate) : 0
   const hasBackground = !trip.backgroundRemoved && Boolean(trip.backgroundFile || trip.background || trip.backgroundUrl)
   const upsertCity = (city: City) => {
@@ -838,29 +990,33 @@ function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initia
     const cities = exists ? trip.cities.map((item) => item.id === city.id ? city : item) : [...trip.cities, city]
     setTrip({ ...trip, cities: sortCitiesByDate(cities) })
     setEditing(undefined)
+    onCitySaved()
   }
+  const tripSignature = JSON.stringify(trip)
   return (
     <main className={tripBackgroundClassName('screen trip-background setup-screen', backgroundReady)} style={tripBackgroundStyle(trip)}>
       <IconButton className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onExit} aria-label="Назад" />
       {editingAll ? (
           <AllCitiesEditor key={`all-cities:${refreshToken}`} trip={trip} onClose={() => setEditingAll(false)} onSave={(cities) => { setTrip((current) => ({ ...current, cities: sortCitiesByDate(cities) })); setEditingAll(false) }} />
+        ) : deleteCityTarget ? (
+          <DeleteCityDialog city={deleteCityTarget} onClose={() => setDeleteCityTarget(null)} onConfirm={() => { const city = deleteCityTarget; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id), deletedCityIds: city.updatedAt ? [...new Set([...(current.deletedCityIds ?? []), city.id])] : current.deletedCityIds })); setDeleteCityTarget(null) }} />
         ) : editing !== undefined ? (
-          <CityEditor key={`city:${editing?.id ?? 'new'}:${refreshToken}`} trip={trip} initial={editing ?? undefined} onSave={upsertCity} onClose={() => setEditing(undefined)} />
+          <CityEditor key={`city:${editing?.id ?? 'new'}:${refreshToken}`} trip={trip} initial={editing ?? undefined} rowError={editing ? rowErrors[`city-image:${editing.id}`] : undefined} onClearRowError={() => { if (editing) onClearRowError(`city-image:${editing.id}`) }} onSave={upsertCity} onClose={() => setEditing(undefined)} />
         ) : (
-          <FormPanelLayout className="setup-transition" action={trip.cities.length > 0 && <Button disabled={!trip.name.trim() || !access.canEdit} onClick={() => onCreate(trip)}>Сохранить поездку</Button>}>
+          <FormPanelLayout className="setup-transition" action={trip.cities.length > 0 && <Button disabled={!access.canEdit || busy || savedSignature === tripSignature} onClick={() => { setShowErrors(true); if (!trip.name.trim() || !datesValid || !allCityDatesValid) return; setBusy(true); void onCreate(trip).then((saved) => { if (!saved) return; setTrip(saved); setSavedSignature(JSON.stringify(saved)) }).finally(() => setBusy(false)) }}>{busy ? 'Сохраняем…' : savedSignature === tripSignature ? 'Изменения сохранены' : 'Сохранить поездку'}</Button>}>
             <FormPanelHeader title={trip.name || (initial ? 'Поездка' : 'Добавить поездку')} text={<>{datesValid && <>{formatDays(tripDays)} · </>}{formatTimeZoneOffset(trip.timeZone, trip.startDate)}</>} />
             <FormPanelGroup>
               <FormControlList headline="О поездке">
-                <FormControlRow><Input label="Название поездки" icon={<Icon name="book" />} value={trip.name} onChange={(event) => setTrip((current) => ({ ...current, name: event.target.value }))} placeholder="Например, Аниме Тур" /></FormControlRow>
+                <FormControlRow><Input label="Название поездки" icon={<Icon name="book" />} value={trip.name} onChange={(event) => setTrip((current) => ({ ...current, name: event.target.value }))} placeholder="Например, Аниме Тур" error={showErrors && !trip.name.trim() ? 'Нужно ввести название поезки' : undefined} /></FormControlRow>
                 <FormControlRow columns={2}>
-                  <DateInput label="Начало" icon={<Icon name="calendar-month" />} value={trip.startDate} displayValue={trip.startDate ? `${formatDate(trip.startDate)} · ${ruWeekdays[parseDate(trip.startDate).getDay()]}` : 'Выбрать дату'} onChange={(event) => { const value = event.target.value; setTrip((current) => ({ ...current, startDate: value, endDate: current.endDate < value ? '' : current.endDate, deletedCityIds: [...new Set([...(current.deletedCityIds ?? []), ...current.cities.filter((city) => city.updatedAt).map((city) => city.id)])], cities: [] })) }} />
-                  <DateInput label="Окончание" icon={<Icon name="calendar-month" />} min={trip.startDate} disabled={!trip.startDate} value={trip.endDate} displayValue={trip.endDate ? `${formatDate(trip.endDate)} · ${ruWeekdays[parseDate(trip.endDate).getDay()]}` : 'Выбрать дату'} onChange={(event) => { const value = event.target.value; setTrip((current) => ({ ...current, endDate: value, deletedCityIds: [...new Set([...(current.deletedCityIds ?? []), ...current.cities.filter((city) => city.updatedAt).map((city) => city.id)])], cities: [] })) }} />
+                  <DateInput label="Начало" icon={<Icon name="calendar-month" />} value={trip.startDate} displayValue={trip.startDate ? `${formatDate(trip.startDate)} · ${ruWeekdays[parseDate(trip.startDate).getDay()]}` : 'Выбрать дату'} error={showErrors && !trip.startDate ? 'Нужно выбрать дату начала' : undefined} onChange={(event) => { const value = event.target.value; setTrip((current) => ({ ...current, startDate: value, endDate: current.endDate < value ? '' : current.endDate })) }} />
+                  <DateInput label="Окончание" icon={<Icon name="calendar-month" />} min={trip.startDate} disabled={!trip.startDate} value={trip.endDate} displayValue={trip.endDate ? `${formatDate(trip.endDate)} · ${ruWeekdays[parseDate(trip.endDate).getDay()]}` : 'Выбрать дату'} error={showErrors && trip.startDate && !trip.endDate ? 'Нужно выбрать дату окончания' : showErrors && trip.endDate < trip.startDate ? 'Дата окончания не может быть раньше даты начала' : undefined} onChange={(event) => { const value = event.target.value; setTrip((current) => ({ ...current, endDate: value })) }} />
                 </FormControlRow>
               </FormControlList>
             </FormPanelGroup>
             <FormPanelGroup gap={8}>
               <InfoRowList headline="Список городов">
-                {trip.cities.map((city) => <InfoRow key={city.id} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} title={city.name} subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}${city.hotelNotNeeded ? ' · Отель не нужен' : ''}`} onClick={() => setEditing(city)} actionTheme="secondary" hoverEffect actions={[{ icon: <Icon name="delete-forever" />, label: `Удалить город ${city.name}`, onClick: () => { if (!window.confirm(`Удалить город «${city.name}» из маршрута?`)) return; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id), deletedCityIds: city.updatedAt ? [...new Set([...(current.deletedCityIds ?? []), city.id])] : current.deletedCityIds })) } }]} />)}
+                {trip.cities.map((city) => <InfoRow key={city.id} image={city.imageUrl || cityPlaceholder} imageAlt="Изображение города" imageFallback={cityPlaceholder} title={city.name} titleStyle="text" subtitle={`${formatShortRange(city.arrival, city.departure)} · ${formatDays(cityDays(city))}${city.hotelNotNeeded ? ' · Отель не нужен' : ''}`} error={showErrors && !cityDatesValid(city) ? 'Даты города находятся вне дат поездки' : rowErrors[`city-image:${city.id}`]} onClick={() => setEditing(city)} actionTheme="secondary" hoverEffect actions={[{ icon: <Icon name="delete-forever" />, label: `Удалить город ${city.name}`, onClick: () => { const hasContents = Object.values(city.places).some((places) => places.length > 0) || city.files.length > 0 || Boolean(city.image || city.imageFile); if (hasContents) { setDeleteCityTarget(city); return } if (!window.confirm(`Удалить город «${city.name}» из маршрута?`)) return; setTrip((current) => ({ ...current, cities: current.cities.filter((item) => item.id !== city.id), deletedCityIds: city.updatedAt ? [...new Set([...(current.deletedCityIds ?? []), city.id])] : current.deletedCityIds })) } }]} />)}
                 <AddRow icon={<Icon name="add-plus" />} disabled={!datesValid} onClick={() => setEditing(null)} aria-label="Добавить город" />
               </InfoRowList>
             </FormPanelGroup>
@@ -870,8 +1026,8 @@ function SetupScreen({ initial, user, refreshToken, onCreate, onExit }: { initia
               </FormControlList>
             </FormPanelGroup>
             <InfoRowList className="trip-appearance-rows" headline="Оформление">
-              <ImageFilePicker onSelect={(file, previewUrl) => setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: previewUrl, backgroundRemoved: false }))}>
-                {({ open, clearPreview }) => <InfoRow image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title={hasBackground ? 'Фоновое фото' : 'Прикрепить фоновое фото'} titleStyle="text" subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'В хорошем качестве'} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: open }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => { clearPreview(); setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) } }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: open }]} />}
+              <ImageFilePicker onSelect={(file, previewUrl) => { const error = imageFileError(file); setBackgroundError(error); if (!error) { onClearRowError('background'); setTrip((current) => ({ ...current, backgroundFile: file, backgroundUrl: previewUrl, backgroundRemoved: false })) } }}>
+                {({ open, clearPreview }) => <InfoRow image={hasBackground ? trip.backgroundUrl || defaultTripBackground : undefined} imageAlt="Фоновое фото поездки" title="Фоновое фото" titleStyle="text" subtitle={hasBackground ? trip.backgroundFile?.name || trip.background?.name || 'autumn-garden.jpg' : 'В формате JPG, PNG, WEBP до 15 МБ'} error={backgroundError} actionTheme="secondary" actions={hasBackground ? [{ icon: <Icon name="edit" />, label: 'Выбрать новое фоновое фото', onClick: open }, { icon: <Icon name="delete-forever" />, label: 'Удалить фоновое фото', onClick: () => { clearPreview(); setBackgroundError(undefined); setTrip((current) => ({ ...current, backgroundRemoved: true, backgroundDeleteId: current.background?.id, background: undefined, backgroundFile: undefined, backgroundUrl: undefined })) } }] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото', onClick: open }]} />}
               </ImageFilePicker>
               <InfoRow image={`data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48"><rect width="48" height="48" rx="24" fill="${accentColor}"/><g transform="translate(12 12)"><circle cx="12" cy="12" r="9" fill="none" stroke="white" stroke-width="2"/><path d="M9.66667 16H9C8.44772 16 8 15.5523 8 15V10.2019C8 9.8675 8.1671 9.55527 8.4453 9.3698L11.4453 7.3698C11.7812 7.14587 12.2188 7.14587 12.5547 7.3698L15.5547 9.3698C15.8329 9.55527 16 9.8675 16 10.2019V15C16 15.5523 15.5523 16 15 16H14.3333C13.781 16 13.3333 15.5523 13.3333 15V12.5C13.3333 12.2239 13.1095 12 12.8333 12H11.1667C10.8905 12 10.6667 12.2239 10.6667 12.5V15C10.6667 15.5523 10.219 16 9.66667 16Z" fill="white"/></g></svg>`)}`} imageAlt={`Цвет ${accentColor}`} imageShape="circle" title="Цвет поездки" titleStyle="text" subtitle="Будет применяться к точкам на карте и галочкам" actionTheme="secondary" actions={[{ icon: <Icon name="edit" />, label: 'Изменить цвет поездки', onClick: (event) => { const rect = event.currentTarget.getBoundingClientRect(); setAccentPalettePosition({ right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.top + 4 }); setAccentPaletteOpen((open) => !open) } }, { icon: <Icon name="delete-forever" />, label: 'Сбросить цвет поездки', onClick: () => { setTrip((current) => ({ ...current, accentColor: DEFAULT_TRIP_ACCENT_COLOR })); setAccentPaletteOpen(false) } }]} />
             </InfoRowList>
@@ -1038,7 +1194,7 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
       : expense.payerIds.length > 1
         ? `${payers} · По ${formatRubles(expense.totalAmountRubles / expense.payerIds.length)}`
         : payers
-    return <InfoRow key={expense.id} title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} subtitle={paymentText} trailing={formatRubles(expense.totalAmountRubles)} />
+    return <InfoRow key={expense.id} title={expense.transportType ? <TransportLabel label={expense.title} type={expense.transportType} /> : expense.title} titleStyle="text" subtitle={paymentText} trailing={formatRubles(expense.totalAmountRubles)} />
   }
   return (
     <main className={tripBackgroundClassName('transport-editor-screen trip-background setup-transition', backgroundReady)} style={tripBackgroundStyle(trip)}>
@@ -1048,7 +1204,7 @@ function ExpensesScreen({ trip, onBack }: { trip: Trip; onBack: () => void }) {
         {allExpenses.length === 0 && <FormPanelGroup><FormPanelNote centered>Трат пока нет</FormPanelNote></FormPanelGroup>}
         {expenses.hotels.length > 0 && <FormPanelGroup><InfoRowList headline="Жильё" text={`Всего ${formatRubles(categoryTotal(expenses.hotels))}`}>{expenses.hotels.map(expenseRow)}</InfoRowList></FormPanelGroup>}
         {expenses.transport.length > 0 && <FormPanelGroup><InfoRowList headline="Транспорт" text={`Всего ${formatRubles(categoryTotal(expenses.transport))}`}>{expenses.transport.map(expenseRow)}</InfoRowList></FormPanelGroup>}
-        {memberExpenses.length > 0 && <FormPanelGroup><InfoRowList headline="Итого по людям">{memberExpenses.map(({ member, records, totalAmountRubles }) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} subtitle={formatExpenseRecords(records)} trailing={formatRubles(totalAmountRubles)} />)}</InfoRowList></FormPanelGroup>}
+        {memberExpenses.length > 0 && <FormPanelGroup><InfoRowList headline="Итого по людям">{memberExpenses.map(({ member, records, totalAmountRubles }) => <InfoRow key={member.id} image={member.avatarUrl || `${import.meta.env.BASE_URL}assets/${member.role === 'owner' ? 'person-owner.png' : 'person-member.png'}`} imageAlt={`Аватар ${member.displayName}`} imageShape="circle" title={member.displayName} titleStyle="text" subtitle={formatExpenseRecords(records)} trailing={formatRubles(totalAmountRubles)} />)}</InfoRowList></FormPanelGroup>}
       </FormPanelLayout>
     </main>
   )
@@ -1262,12 +1418,14 @@ const documentMetadata = (file: TravelFile) => {
   return [file.uploadedBy, uploadedAt].filter(Boolean).join(' · ')
 }
 
-function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, readOnly = false, routeReadOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; readOnly?: boolean; routeReadOnly?: boolean; onSave: (value: TransportDetails) => Promise<void>; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
+function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTimeZone, members, ticketName, tickets, ticketError, readOnly = false, routeReadOnly = false, onSave, onTicket, onOpenTicket, onDownloadTicket, onDeleteTicket, onClose }: { title: string; departureLabel: string; arrivalLabel: string; value: TransportDetails; defaultTimeZone: string; members: TripMember[]; ticketName: string; tickets: TravelFile[]; ticketError?: ReactNode; readOnly?: boolean; routeReadOnly?: boolean; onSave: (value: TransportDetails) => Promise<boolean>; onTicket: () => void; onOpenTicket: (ticket: TravelFile) => void; onDownloadTicket: (ticket: TravelFile) => void; onDeleteTicket: (ticket: TravelFile) => void; onClose: () => void }) {
   const valueSignature = JSON.stringify(value)
   const [draft, setDraft] = useState<TransportDetails>(() => {
     const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
     return { ...value, ticketOnSite, ...(ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) }
   })
+  const [savedSignature, setSavedSignature] = useState('')
+  const [busy, setBusy] = useState(false)
   useEffect(() => {
     const ticketOnSite = value.type === 'plane' ? false : value.ticketOnSite
     setDraft({ ...value, ticketOnSite, ...(ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) })
@@ -1280,10 +1438,11 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   const durationLabel = formatTravelDuration(draft.departureTime, draft.arrivalTime, draft.departureDate, draft.arrivalDate, departureTimeZone, arrivalTimeZone)
   const journeyText = draft.ticketOnSite ? TICKET_ON_SITE_PAGE_TEXT : durationLabel ?? 'Тут появится время в пути'
   const journeySummary = draft.type ? `${transportEmoji[draft.type]} ${journeyText}` : journeyText
+  const draftSignature = JSON.stringify(draft)
   return (
-    <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); void onSave(draft.ticketOnSite ? { ...draft, departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : draft) }}>
+    <form className="transport-editor-screen trip-background setup-transition" aria-label={title} onSubmit={(event) => { event.preventDefault(); const submitted = draft.ticketOnSite ? { ...draft, departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : draft; setBusy(true); void onSave(submitted).then((saved) => { if (saved) setSavedSignature(JSON.stringify(submitted)) }).finally(() => setBusy(false)) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
-      <FormPanelLayout action={!readOnly && <Button type="submit">Сохранить</Button>}>
+      <FormPanelLayout action={!readOnly && <Button type="submit" disabled={busy || savedSignature === draftSignature}>{busy ? 'Сохраняем…' : savedSignature === draftSignature ? 'Изменения сохранены' : 'Сохранить'}</Button>}>
         <FormPanelGroup>
           <FormPanelGroup>
             <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
@@ -1296,9 +1455,9 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
             </FormPanelGroup>
             <FormPanelGroup gap={8}>
             <InfoRowList headline="Билет">
-              {visibleTickets.map((ticket) => <InfoRow key={ticket.id} disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={ticket.name} titleStyle="text" subtitle={documentMetadata(ticket)} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }])]} />)}
+              {visibleTickets.map((ticket) => <InfoRow key={ticket.id} disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={ticket.name} titleStyle="text" subtitle={documentMetadata(ticket)} error={ticketError} onClick={() => onOpenTicket(ticket)} actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет', onClick: () => onDownloadTicket(ticket) }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить билет', onClick: () => onDeleteTicket(ticket) }])]} />)}
               {legacyTicketName && <InfoRow disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title={legacyTicketName} titleStyle="text" />}
-              {ticketCount < 1 && !readOnly && <InfoRow disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" imageDimmed title="Прикрепить билет" titleStyle="text" subtitle="Лучше в PDF формате" onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
+              {ticketCount < 1 && !readOnly && <InfoRow disabled={draft.ticketOnSite} image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" imageDimmed title="Прикрепить билет" titleStyle="text" subtitle="Лучше в PDF формате" error={ticketError} onClick={onTicket} actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить билет', onClick: onTicket }]} />}
             </InfoRowList>
             <CheckboxTextRow checked={draft.ticketOnSite} disabled={readOnly || draft.type === 'plane'} onClick={() => setDraft({ ...draft, ticketOnSite: !draft.ticketOnSite, ...(!draft.ticketOnSite ? { departureTime: '', arrivalTime: '', departureTimeZone: '', arrivalTimeZone: '', payerIds: [], totalAmountRubles: 0 } : {}) })}>{TICKET_ON_SITE_PAGE_TEXT}</CheckboxTextRow>
             </FormPanelGroup>
@@ -1342,14 +1501,17 @@ function TransportDialog({ title, departureLabel, arrivalLabel, value, defaultTi
   )
 }
 
-function HotelDialog({ cityName, value, members, booking, readOnly = false, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; members: TripMember[]; booking?: TravelFile; readOnly?: boolean; onSave: (value: HotelDetails) => Promise<void>; onBooking: (value: HotelDetails) => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
+function HotelDialog({ cityName, value, members, booking, bookingError, readOnly = false, onSave, onBooking, onOpenBooking, onDownloadBooking, onDeleteBooking, onClose }: { cityName: string; value: HotelDetails; members: TripMember[]; booking?: TravelFile; bookingError?: ReactNode; readOnly?: boolean; onSave: (value: HotelDetails) => Promise<boolean>; onBooking: (value: HotelDetails) => void; onOpenBooking?: () => void; onDownloadBooking?: () => void; onDeleteBooking?: () => void; onClose: () => void }) {
   const valueSignature = JSON.stringify(value)
   const [draft, setDraft] = useState(value)
+  const [savedSignature, setSavedSignature] = useState('')
+  const [busy, setBusy] = useState(false)
   useEffect(() => setDraft(value), [valueSignature])
+  const draftSignature = JSON.stringify(draft)
   return (
-    <form className="transport-editor-screen trip-background setup-transition" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); void onSave({ name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim(), payerIds: draft.payerIds, totalAmountRubles: draft.totalAmountRubles }) }}>
+    <form className="transport-editor-screen trip-background setup-transition" aria-labelledby="hotel-title" onSubmit={(event) => { event.preventDefault(); const submitted = { name: draft.name.trim(), url: draft.url.trim(), checkInTime: draft.checkInTime, checkOutTime: draft.checkOutTime, notes: draft.notes.trim(), payerIds: draft.payerIds, totalAmountRubles: draft.totalAmountRubles }; setBusy(true); void onSave(submitted).then((saved) => { if (saved) setSavedSignature(JSON.stringify(submitted)) }).finally(() => setBusy(false)) }}>
       <IconButton type="button" className="back-button" size="l" icon={<Icon name="arrow-back" />} onClick={onClose} aria-label="Назад" />
-      <FormPanelLayout action={!readOnly && <Button type="submit">Сохранить</Button>}>
+      <FormPanelLayout action={!readOnly && <Button type="submit" disabled={busy || savedSignature === draftSignature}>{busy ? 'Сохраняем…' : savedSignature === draftSignature ? 'Изменения сохранены' : 'Сохранить'}</Button>}>
           <FormPanelHeader id="hotel-title" title={`Отель ${cityName}`} />
           <FormPanelGroup>
           <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
@@ -1366,7 +1528,7 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
               </FormControlRow>
             </FormControlList>
           </FormPanelGroup>
-          {(booking || !readOnly) && <InfoRowList headline="Бронь"><InfoRow image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" imageDimmed={!booking} title={booking ? booking.name : 'Прикрепить бронь'} titleStyle="text" subtitle={booking ? documentMetadata(booking) : 'Лучше в PDF формате'} onClick={booking ? onOpenBooking : () => onBooking(draft)} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }])] : readOnly ? [] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: () => onBooking(draft) }]} /></InfoRowList>}
+          {(booking || !readOnly) && <InfoRowList headline="Бронь"><InfoRow image={`${import.meta.env.BASE_URL}assets/hotel-placeholder.png`} imageAlt="Отель" imageDimmed={!booking} title={booking ? booking.name : 'Прикрепить бронь'} titleStyle="text" subtitle={booking ? documentMetadata(booking) : 'Лучше в PDF формате'} error={bookingError} onClick={booking ? onOpenBooking : () => onBooking(draft)} actionTheme="secondary" actions={booking ? [{ icon: <Icon name="download" />, label: 'Скачать бронь', onClick: onDownloadBooking }, ...(readOnly ? [] : [{ icon: <Icon name="delete-forever" />, label: 'Удалить бронь', onClick: onDeleteBooking }])] : readOnly ? [] : [{ icon: <Icon name="add-plus" />, label: 'Прикрепить бронь', onClick: () => onBooking(draft) }]} /></InfoRowList>}
           </FormPanelGroup>
           <FormPanelGroup as="fieldset" className="dialog-fields" disabled={readOnly}>
               <TextareaList headline="Что стоит помнить"><Textarea aria-label="Заметки об отеле" placeholder="Места, ориентиры и важная информация" value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} /></TextareaList>
@@ -1383,7 +1545,7 @@ function HotelDialog({ cityName, value, members, booking, readOnly = false, onSa
   )
 }
 
-function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, tripAccentColor, initialPanel, initialDate, initialFocusPlace, readOnly, routeReadOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; tripAccentColor: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; readOnly?: boolean; routeReadOnly?: boolean; onChange: (city: City) => Promise<string | undefined>; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
+function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripEndDate, tripTimeZone, tripAccentColor, initialPanel, initialDate, initialFocusPlace, documentErrors, readOnly, routeReadOnly, onChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainChange, onHotelChange, onOpenDocument, onDownloadDocument, onDeleteDocument, onOpenManagedPanel, onPanelClose, onClose }: { city: City; previousCity?: City; nextCity?: City; members: TripMember[]; tripStartDate: string; tripEndDate: string; tripTimeZone: string; tripAccentColor: string; initialPanel?: 'hotel' | 'in' | 'out' | null; initialDate?: string | null; initialFocusPlace?: string | null; documentErrors: Record<string, string>; readOnly?: boolean; routeReadOnly?: boolean; onChange: (city: City) => Promise<string | undefined>; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainChange: (city: City, direction: 'in' | 'out', file: TravelFile, source: File) => Promise<TravelFile | undefined>; onHotelChange: (city: City, file: TravelFile, source: File) => Promise<TravelFile | undefined>; onOpenDocument: (file: TravelFile) => void; onDownloadDocument: (file: TravelFile) => void; onDeleteDocument: (file: TravelFile) => Promise<void>; onOpenManagedPanel: (cityId: string, panel: 'hotel' | 'in' | 'out') => void; onPanelClose: () => void; onClose: () => void }) {
   const [draft, setDraft] = useState(() => ({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() }))
   useEffect(() => {
     setDraft({ ...city, transportIn: city.transportIn ?? emptyTransport(), transportOut: city.transportOut ?? emptyTransport() })
@@ -1393,6 +1555,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
   const [hotelOpen, setHotelOpen] = useState(initialPanel === 'hotel')
   const [activeDate, setActiveDate] = useState<string | null>(initialDate && initialDate >= city.arrival && initialDate <= city.departure ? initialDate : null)
   const [focusRequest, setFocusRequest] = useState<string | null>(initialFocusPlace ?? null)
+  const [attachmentErrors, setAttachmentErrors] = useState<Partial<Record<'in' | 'out' | 'hotel', string>>>({})
   const hotelFileRef = useRef<HTMLInputElement>(null)
   const pendingHotelDraftRef = useRef<HotelDetails | null>(null)
   const trainInFileRef = useRef<HTMLInputElement>(null)
@@ -1427,6 +1590,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     const existingCount = draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).length
     const selected = Array.from(files ?? []).slice(0, Math.max(0, 1 - existingCount))
     if (selected.length === 0) return
+    setAttachmentErrors((current) => ({ ...current, [direction]: undefined }))
     const uploads = selected.map((file) => ({ file, record: { id: uid(), name: file.name, category: `train-${direction}:pending:${uid()}` } }))
     const next = { ...draft, [direction === 'in' ? 'trainIn' : 'trainOut']: uploads[0].file.name, files: [...draft.files, ...uploads.map(({ record }) => record)] }
     setDraft(next)
@@ -1434,12 +1598,16 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
       void onTrainChange(next, direction, record, file).then((saved) => {
         if (!saved) return
         setDraft((current) => ({ ...current, files: [...current.files.filter((item) => item.id !== record.id), saved] }))
-      }).catch(() => setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== record.id) })))
+      }).catch((reason) => {
+        setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== record.id) }))
+        setAttachmentErrors((current) => ({ ...current, [direction]: uploadErrorMessage(reason) ?? 'Попробуйте загрузить ещё раз' }))
+      })
     })
   }
   const addHotelFile = (files: FileList | null) => {
     const file = files?.[0]
     if (!file) return
+    setAttachmentErrors((current) => ({ ...current, hotel: undefined }))
     const hotel = pendingHotelDraftRef.current
     pendingHotelDraftRef.current = null
     const fileRecord = { id: uid(), name: file.name, category: 'hotel-booking' }
@@ -1448,7 +1616,10 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     void onHotelChange(next, fileRecord, file).then((saved) => {
       if (!saved) return
       setDraft((current) => ({ ...current, files: [...current.files.filter((item) => item.id !== fileRecord.id), saved] }))
-    }).catch(() => setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== fileRecord.id) })))
+    }).catch((reason) => {
+      setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== fileRecord.id) }))
+      setAttachmentErrors((current) => ({ ...current, hotel: uploadErrorMessage(reason) ?? 'Попробуйте загрузить ещё раз' }))
+    })
   }
   const mapPoint = draft.transportIn.arrivalStation || draft.transportOut.departureStation || draft.name
   const transportDocuments = (direction: 'in' | 'out') => draft.files.filter((file) => file.category.startsWith(`train-${direction}:`)).slice(0, 1)
@@ -1471,6 +1642,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     name: draft.hotel.trim() || `Жильё · ${draft.name}`,
     url: draft.hotelUrl.trim(),
     icon: 'hotel',
+    notes: draft.hotelNotes,
     date: draft.arrival || UNSCHEDULED_KEY,
     dateLocked: true,
     editTarget: { cityId: draft.id, panel: 'hotel' },
@@ -1487,18 +1659,18 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     : previousCity?.transportOut.arrivalStationUrl.trim()
       ? { details: previousCity.transportOut, owner: previousCity, panel: 'out' as const }
       : undefined
-  if (incoming) managedMapPlaces.push({ id: `managed:transport-in:${draft.id}`, name: incoming.details.arrivalStation.trim() || draft.name, url: incoming.details.arrivalStationUrl.trim(), icon: 'transport', date: incoming.details.arrivalDate || draft.arrival || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: incoming.owner.id, panel: incoming.panel } })
+  if (incoming) managedMapPlaces.push({ id: `managed:transport-in:${draft.id}`, name: incoming.details.arrivalStation.trim() || draft.name, url: incoming.details.arrivalStationUrl.trim(), icon: 'transport', notes: incoming.details.notes, date: incoming.details.arrivalDate || draft.arrival || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: incoming.owner.id, panel: incoming.panel } })
   const outgoing = draft.transportOut.departureStationUrl.trim()
     ? { details: draft.transportOut, owner: draft, panel: 'out' as const }
     : nextCity?.transportIn.departureStationUrl.trim()
       ? { details: nextCity.transportIn, owner: nextCity, panel: 'in' as const }
       : undefined
-  if (outgoing) managedMapPlaces.push({ id: `managed:transport-out:${draft.id}`, name: outgoing.details.departureStation.trim() || draft.name, url: outgoing.details.departureStationUrl.trim(), icon: 'transport', date: outgoing.details.departureDate || draft.departure || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: outgoing.owner.id, panel: outgoing.panel } })
+  if (outgoing) managedMapPlaces.push({ id: `managed:transport-out:${draft.id}`, name: outgoing.details.departureStation.trim() || draft.name, url: outgoing.details.departureStationUrl.trim(), icon: 'transport', notes: outgoing.details.notes, date: outgoing.details.departureDate || draft.departure || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: outgoing.owner.id, panel: outgoing.panel } })
   const placesByDate = managedMapPlaces.reduce<Record<string, Place[]>>((result, place) => ({ ...result, [place.date]: [...(result[place.date] ?? []), place] }), ordinaryPlacesByDate)
   const managedPlaceIds = new Set(managedMapPlaces.map((place) => place.id))
   const pointsCount = Object.values(placesByDate).reduce((total, places) => total + places.length, 0)
   const saveTransport = async (value: TransportDetails) => {
-    if (!transportDirection) return
+    if (!transportDirection) return false
     const currentTransport = transportDirection === 'in' ? draft.transportIn : draft.transportOut
     const permittedValue = routeReadOnly
       ? { ...value, departureDate: currentTransport.departureDate, arrivalDate: currentTransport.arrivalDate }
@@ -1506,19 +1678,17 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     const next = { ...draft, [transportDirection === 'in' ? 'transportIn' : 'transportOut']: permittedValue }
     setDraft(next)
     const savedVersion = await onChange(next)
-    if (!savedVersion) return
+    if (!savedVersion) return false
     setDraft((current) => ({ ...current, updatedAt: savedVersion }))
-    setTransportDirection(null)
-    onPanelClose()
+    return true
   }
   const saveHotel = async (hotel: HotelDetails) => {
     const next = { ...draft, hotel: hotel.name, hotelUrl: hotel.url, hotelCheckInTime: hotel.checkInTime, hotelCheckOutTime: hotel.checkOutTime, hotelNotes: hotel.notes, hotelPayerIds: hotel.payerIds, hotelTotalAmountRubles: hotel.totalAmountRubles }
     setDraft(next)
     const savedVersion = await onChange(next)
-    if (!savedVersion) return
+    if (!savedVersion) return false
     setDraft((current) => ({ ...current, updatedAt: savedVersion }))
-    setHotelOpen(false)
-    onPanelClose()
+    return true
   }
   return (
     <>
@@ -1559,7 +1729,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
                 centerUrl={draft.googleMapsUrl}
                 accentColor={tripAccentColor}
                 places={[
-                  ...Object.entries(ordinaryPlacesByDate).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, date, latitude: item.latitude, longitude: item.longitude }))),
+                  ...Object.entries(ordinaryPlacesByDate).flatMap(([date, items]) => items.map((item) => ({ id: item.id, name: item.name, url: item.url, icon: item.icon, notes: item.notes, date, latitude: item.latitude, longitude: item.longitude }))),
                   ...managedMapPlaces,
                 ]}
                 dates={dateRange(draft.arrival, draft.departure)}
@@ -1571,8 +1741,8 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
                 onFocusHandled={() => setFocusRequest(null)}
                 onEditTarget={({ cityId, panel }) => onOpenManagedPanel(cityId, panel)}
                 onOpenBooking={() => { if (hotelDocument) onOpenDocument(hotelDocument) }}
-                onAdd={({ name, icon, date, position }) => {
-                  const place = { id: uid(), name, url: `https://www.google.com/maps?q=${position.lat.toFixed(6)},${position.lng.toFixed(6)}`, icon, latitude: position.lat, longitude: position.lng }
+                onAdd={({ name, icon, date, notes, position }) => {
+                  const place = { id: uid(), name, url: `https://www.google.com/maps?q=${position.lat.toFixed(6)},${position.lng.toFixed(6)}`, icon, notes, latitude: position.lat, longitude: position.lng }
                   const next = { ...draft, places: { ...draft.places, [date]: [...(draft.places[date] ?? []), place] } }
                   setDraft(next)
                   onAddPlace(next, date, place)
@@ -1581,7 +1751,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
                   const from = Object.keys(draft.places).find((key) => (draft.places[key] ?? []).some((item) => item.id === id))
                   const current = from ? (draft.places[from] ?? []).find((item) => item.id === id) : undefined
                   if (!from || !current) return
-                  const place = { ...current, name: value.name, icon: value.icon }
+                  const place = { ...current, name: value.name, icon: value.icon, notes: value.notes }
                   // Смена даты в тултипе — это тот же перенос, что и драг-н-дроп,
                   // поэтому позиция считается концом целевого дня.
                   const to = value.date
@@ -1611,18 +1781,19 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
           </div>
         </div>
       </section>
-      {transportDirection && <TransportDialog readOnly={readOnly} routeReadOnly={routeReadOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} – ${draft.name}` : `Дом – ${draft.name}`) : (nextCity ? `${draft.name} – ${nextCity.name}` : `${draft.name} – Дом`)} departureLabel={transportDirection === 'in' ? previousCity?.name || 'Дом' : draft.name} arrivalLabel={transportDirection === 'in' ? draft.name : nextCity?.name || 'Дом'} defaultTimeZone={tripTimeZone} members={members} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
-      {hotelOpen && <HotelDialog readOnly={readOnly} cityName={draft.name} members={members} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes, payerIds: draft.hotelPayerIds, totalAmountRubles: draft.hotelTotalAmountRubles }} booking={hotelDocument} onBooking={(hotel) => { pendingHotelDraftRef.current = hotel; hotelFileRef.current?.click() }} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={saveHotel} />}
+      {transportDirection && <TransportDialog readOnly={readOnly} routeReadOnly={routeReadOnly} title={transportDirection === 'in' ? (previousCity ? `${previousCity.name} – ${draft.name}` : `Дом – ${draft.name}`) : (nextCity ? `${draft.name} – ${nextCity.name}` : `${draft.name} – Дом`)} departureLabel={transportDirection === 'in' ? previousCity?.name || 'Дом' : draft.name} arrivalLabel={transportDirection === 'in' ? draft.name : nextCity?.name || 'Дом'} defaultTimeZone={tripTimeZone} members={members} value={transportDirection === 'in' ? { ...draft.transportIn, departureDate: draft.transportIn.departureDate || previousCity?.departure || tripStartDate, arrivalDate: draft.transportIn.arrivalDate || draft.arrival } : { ...draft.transportOut, departureDate: draft.transportOut.departureDate || draft.departure, arrivalDate: draft.transportOut.arrivalDate || nextCity?.arrival || tripEndDate }} ticketName={transportDirection === 'in' ? draft.trainIn : draft.trainOut} tickets={transportDocuments(transportDirection)} ticketError={transportDocuments(transportDirection)[0] ? documentErrors[transportDocuments(transportDirection)[0].id] : attachmentErrors[transportDirection]} onTicket={() => (transportDirection === 'in' ? trainInFileRef : trainOutFileRef).current?.click()} onOpenTicket={onOpenDocument} onDownloadTicket={onDownloadDocument} onDeleteTicket={(file) => { const direction = transportDirection; const previous = draft; setDraft((current) => { const remaining = current.files.filter((item) => item.id !== file.id); const nextTicket = remaining.find((item) => item.category.startsWith(`train-${direction}:`)); return { ...current, [direction === 'in' ? 'trainIn' : 'trainOut']: nextTicket?.name ?? '', files: remaining } }); void onDeleteDocument(file).catch(() => setDraft(previous)) }} onClose={() => { setTransportDirection(null); onPanelClose() }} onSave={saveTransport} />}
+      {hotelOpen && <HotelDialog readOnly={readOnly} cityName={draft.name} members={members} value={{ name: draft.hotel, url: draft.hotelUrl, checkInTime: draft.hotelCheckInTime, checkOutTime: draft.hotelCheckOutTime, notes: draft.hotelNotes, payerIds: draft.hotelPayerIds, totalAmountRubles: draft.hotelTotalAmountRubles }} booking={hotelDocument} bookingError={hotelDocument ? documentErrors[hotelDocument.id] : attachmentErrors.hotel} onBooking={(hotel) => { pendingHotelDraftRef.current = hotel; hotelFileRef.current?.click() }} onOpenBooking={hotelDocument ? () => onOpenDocument(hotelDocument) : undefined} onDownloadBooking={hotelDocument ? () => onDownloadDocument(hotelDocument) : undefined} onDeleteBooking={hotelDocument ? () => { const file = hotelDocument; const previous = draft; setDraft((current) => ({ ...current, files: current.files.filter((item) => item.id !== file.id) })); void onDeleteDocument(file).catch(() => setDraft(previous)) } : undefined} onClose={() => { setHotelOpen(false); onPanelClose() }} onSave={saveHotel} />}
     </>
   )
 }
 
-function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete }: { trip: Trip; user: CurrentUser | null; tripCount: number; cacheState: CacheState; online: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => Promise<string | undefined>; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void> }) {
+function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit, onTrips, onProfile, onInvite, onCityChange, onDayDescriptionChange, onAddPlace, onUpdatePlace, onDeletePlace, onMovePlace, onTrainUpload, onHotelUpload, onDocumentDelete, onRefreshData, onOperationError }: { trip: Trip; user: CurrentUser | null; tripCount: number; cacheState: CacheState; online: boolean; onChange: (trip: Trip) => void; onEdit: () => void; onTrips: () => void; onProfile: () => void; onInvite: () => void; onCityChange: (city: City) => Promise<string | undefined>; onDayDescriptionChange: (date: string, description: string) => void; onAddPlace: (city: City, date: string, place: Place) => void; onUpdatePlace: (city: City, date: string, place: Place) => void; onDeletePlace: (placeId: string) => void; onMovePlace: (placeId: string, date: string | null, position: number) => void; onTrainUpload: (city: City, direction: 'in' | 'out', file: File) => Promise<TravelFile | undefined>; onHotelUpload: (city: City, file: File) => Promise<TravelFile | undefined>; onDocumentDelete: (file: TravelFile) => Promise<void>; onRefreshData: () => void; onOperationError: (title: string, retry: () => void, message?: string, options?: { retryLabel?: string; actionIcon?: 'retry' | 'refresh'; closable?: boolean }) => void }) {
   const [showPast, setShowPast] = useState(false)
   const [expensesOpen, setExpensesOpen] = useState(false)
   const [selectedCityId, setSelectedCityId] = useState<string | null>(null)
   const [selectedPanel, setSelectedPanel] = useState<'hotel' | 'in' | 'out' | null>(null)
   const [selectedPlaceId, setSelectedPlaceId] = useState<string | null>(null)
+  const [documentErrors, setDocumentErrors] = useState<Record<string, string>>({})
   const [panelReturnCityId, setPanelReturnCityId] = useState<string | null>(null)
   const backgroundReady = useTripBackgroundReady(trip)
   const access = useAccess()
@@ -1632,6 +1803,41 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
   const visibleDays = showPast ? allDays : allDays.filter((date) => date >= today)
   const selectedCity = trip.cities.find((city) => city.id === selectedCityId) ?? null
   const selectedCityIndex = selectedCity ? trip.cities.findIndex((city) => city.id === selectedCity.id) : -1
+  const openDocument = (file: TravelFile) => {
+    setDocumentErrors((current) => ({ ...current, [file.id]: '' }))
+    const target = window.open('', '_blank')
+    void api.downloadDocument(file.id).then((blob) => {
+      const url = URL.createObjectURL(blob)
+      if (target) target.location.href = url
+      else {
+        const anchor = document.createElement('a')
+        anchor.href = url
+        anchor.target = '_blank'
+        anchor.click()
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    }).catch((reason) => {
+      target?.close()
+      const missing = reason instanceof ApiRequestError && reason.message === 'Файл не найден'
+      if (missing) onOperationError('Кажется, данные устарели', onRefreshData, staleTripMessage, staleTripOptions)
+      else setDocumentErrors((current) => ({ ...current, [file.id]: 'Попробуйте скачать ещё раз' }))
+    })
+  }
+  const downloadDocument = (file: TravelFile) => {
+    setDocumentErrors((current) => ({ ...current, [file.id]: '' }))
+    void api.downloadDocument(file.id).then((blob) => {
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = file.name
+      anchor.click()
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
+    }).catch((reason) => {
+      const missing = reason instanceof ApiRequestError && reason.message === 'Файл не найден'
+      if (missing) onOperationError('Кажется, данные устарели', onRefreshData, staleTripMessage, staleTripOptions)
+      else setDocumentErrors((current) => ({ ...current, [file.id]: 'Попробуйте скачать ещё раз' }))
+    })
+  }
   if (expensesOpen) return <ExpensesScreen trip={trip} onBack={() => setExpensesOpen(false)} />
   return (
     <main className={tripBackgroundClassName('screen trip-background dashboard', backgroundReady)} style={tripBackgroundStyle(trip)}>
@@ -1648,6 +1854,7 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
             initialPanel={selectedPanel}
             initialDate={selectedCityDate}
             initialFocusPlace={selectedPlaceId}
+            documentErrors={documentErrors}
             previousCity={trip.cities[selectedCityIndex - 1]}
             nextCity={trip.cities[selectedCityIndex + 1]}
             onOpenManagedPanel={(cityId, panel) => { setSelectedPlaceId(null); setPanelReturnCityId(selectedCityId); setSelectedCityDate(null); setSelectedCityId(cityId); setSelectedPanel(panel) }}
@@ -1684,31 +1891,19 @@ function Dashboard({ trip, user, tripCount, cacheState, online, onChange, onEdit
               onChange({ ...trip, cities: trip.cities.map((city) => city.id === nextCity.id ? { ...nextCity, files: city.files.some((item) => item.id === file.id) ? city.files : [...city.files, file] } : city) })
               return onHotelUpload(nextCity, source)
             }}
-            onOpenDocument={(file) => {
-              const target = window.open('', '_blank')
-              void api.downloadDocument(file.id).then((blob) => {
-                const url = URL.createObjectURL(blob)
-                if (target) target.location.href = url
-                else {
-                  const anchor = document.createElement('a')
-                  anchor.href = url
-                  anchor.target = '_blank'
-                  anchor.click()
+            onOpenDocument={openDocument}
+            onDownloadDocument={downloadDocument}
+            onDeleteDocument={async (file) => {
+              setDocumentErrors((current) => ({ ...current, [file.id]: '' }))
+              try { await onDocumentDelete(file) }
+              catch (reason) {
+                if (reason instanceof ApiRequestError && reason.message === 'Удалить файл может его автор или владелец поездки') {
+                  setDocumentErrors((current) => ({ ...current, [file.id]: 'Удалить файл может его автор или\u00a0владелец\u00a0поездки' }))
+                  throw reason
                 }
-                window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
-              }).catch((reason) => { target?.close(); window.alert(reason instanceof Error ? reason.message : 'Не удалось открыть файл') })
+                throw reason
+              }
             }}
-            onDownloadDocument={(file) => {
-              void api.downloadDocument(file.id).then((blob) => {
-                const url = URL.createObjectURL(blob)
-                const anchor = document.createElement('a')
-                anchor.href = url
-                anchor.download = file.name
-                anchor.click()
-                window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
-              }).catch((reason) => window.alert(reason instanceof Error ? reason.message : 'Не удалось скачать файл'))
-            }}
-            onDeleteDocument={onDocumentDelete}
           />
         ) : (
           <div className="calendar-content setup-transition">
@@ -1741,6 +1936,9 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>(viewToken ? 'view' : invitationLink ? 'join' : 'start')
   const [loading, setLoading] = useState(Boolean(session.token || viewToken))
   const [error, setError] = useState('')
+  const [errorNotice, setErrorNotice] = useState<ErrorNotice | null>(null)
+  const [successNotice, setSuccessNotice] = useState(false)
+  const [setupRowErrors, setSetupRowErrors] = useState<Record<string, string>>({})
   const [conflictMessage, setConflictMessage] = useState('')
   const [remoteUpdateNotice, setRemoteUpdateNotice] = useState<RemoteUpdateNotice | null>(null)
   const [updateNoticeShakeKey, setUpdateNoticeShakeKey] = useState(0)
@@ -1749,6 +1947,13 @@ export default function App() {
   const [inviteOpen, setInviteOpen] = useState(false)
   const { state: cacheState, online, reconnectVersion, freshDataVersion } = useOfflineCache(trip?.id ?? null)
   useEffect(() => { tripRef.current = trip }, [trip])
+  const showOperationError = (title: string, retry: () => void, message = 'Попробуйте ещё раз', options?: { retryLabel?: string; actionIcon?: 'retry' | 'refresh'; closable?: boolean; retryable?: boolean }) => setErrorNotice((current) => current?.title === 'Нет доступа к поездке' ? current : { title, message, retry: options?.retryable === false ? undefined : retry, ...options })
+
+  useEffect(() => {
+    const showAccessDenied = () => setErrorNotice({ title: 'Нет доступа к поездке', message: 'Обратитесь к её владельцу', closable: true })
+    window.addEventListener(ACCESS_DENIED_EVENT, showAccessDenied)
+    return () => window.removeEventListener(ACCESS_DENIED_EVENT, showAccessDenied)
+  }, [])
 
   const loadCurrentUser = async () => {
     const account = await api.me()
@@ -1773,7 +1978,7 @@ export default function App() {
 
   useEffect(() => {
     if (viewToken) {
-      void loadPublicTrip(viewToken).then(() => { setScreen('view'); setLoading(false) }).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось открыть поездку'); setLoading(false) })
+      void loadPublicTrip(viewToken).then(() => { setScreen('view'); setLoading(false) }).catch((reason) => { setError(reason instanceof ApiRequestError && reason.status === 404 ? 'Поездка не найдена' : 'Не удалось открыть поездку'); setLoading(false) })
       return
     }
     if (!session.token) return
@@ -1789,11 +1994,11 @@ export default function App() {
             window.history.replaceState({}, '', import.meta.env.BASE_URL)
             setError('')
             try { await openAccount() }
-            catch (accountReason) { setError(accountReason instanceof Error ? accountReason.message : 'Не удалось открыть аккаунт') }
+            catch { setError('Не удалось открыть аккаунт') }
             finally { setLoading(false) }
             return
           }
-          setError(reason instanceof Error ? reason.message : 'Не удалось принять приглашение')
+          setError('Не удалось принять приглашение')
           setLoading(false)
         })
         return
@@ -1801,7 +2006,7 @@ export default function App() {
     }
     void openAccount().catch((reason) => {
       if (reason instanceof ApiRequestError && reason.status === 401) session.token = ''
-      else setError(reason instanceof Error ? reason.message : 'Не удалось открыть аккаунт')
+      else setError('Не удалось открыть аккаунт')
       setLoading(false)
     })
   }, [])
@@ -1817,7 +2022,14 @@ export default function App() {
       imageUrls.push(url)
       return url
     }
-    if (value.background) value.backgroundUrl = await loadImage(value.background)
+    if (value.background) {
+      try {
+        value.backgroundUrl = await loadImage(value.background)
+      } catch {
+        value.background = undefined
+        value.backgroundUrl = defaultTripBackground
+      }
+    }
     await Promise.all(value.cities.map(async (city) => { if (city.image) city.imageUrl = await loadImage(city.image) }))
     cityImageUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
     if (backgroundObjectUrlRef.current) URL.revokeObjectURL(backgroundObjectUrlRef.current)
@@ -1848,10 +2060,17 @@ export default function App() {
       }
     }))
     if (value.background) {
-      const blob = await api.downloadDocument(value.background.id)
-      if (backgroundObjectUrlRef.current) URL.revokeObjectURL(backgroundObjectUrlRef.current)
-      backgroundObjectUrlRef.current = URL.createObjectURL(blob)
-      value.backgroundUrl = backgroundObjectUrlRef.current
+      try {
+        const blob = await api.downloadDocument(value.background.id)
+        if (backgroundObjectUrlRef.current) URL.revokeObjectURL(backgroundObjectUrlRef.current)
+        backgroundObjectUrlRef.current = URL.createObjectURL(blob)
+        value.backgroundUrl = backgroundObjectUrlRef.current
+      } catch {
+        if (backgroundObjectUrlRef.current) URL.revokeObjectURL(backgroundObjectUrlRef.current)
+        backgroundObjectUrlRef.current = null
+        value.background = undefined
+        value.backgroundUrl = defaultTripBackground
+      }
     } else {
       if (backgroundObjectUrlRef.current) URL.revokeObjectURL(backgroundObjectUrlRef.current)
       backgroundObjectUrlRef.current = null
@@ -1884,8 +2103,11 @@ export default function App() {
   // После реального возврата сети не оставляем на экране офлайн-снимок.
   useEffect(() => {
     if ((!reconnectVersion && !freshDataVersion) || !trip?.id) return
-    const refresh = screen === 'view' && viewToken ? loadPublicTrip(viewToken) : loadTrip(trip.id)
-    void refresh.catch((reason) => setError(reason instanceof Error ? reason.message : 'Не удалось обновить данные'))
+    const reload = () => {
+      const refresh = screen === 'view' && viewToken ? loadPublicTrip(viewToken) : loadTrip(trip.id!)
+      void refresh.catch(() => showOperationError('Эх, не загружается', reload))
+    }
+    reload()
   }, [reconnectVersion, freshDataVersion])
 
   useEffect(() => {
@@ -1929,7 +2151,7 @@ export default function App() {
       setConflictMessage('')
       setUpdateNoticeShakeKey(0)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось загрузить новые данные')
+      showOperationError('Эх, не загружается', () => void refreshProtectedData())
     }
   }
 
@@ -1966,9 +2188,8 @@ export default function App() {
       if (city.imageFile) await api.uploadDocument(created.trip.id, result.city.id, 'city-image', city.imageFile)
       if (city.hotel || city.hotelUrl || city.hotelCheckInTime || city.hotelCheckOutTime) await api.updateCity(created.trip.id, result.city.id, { ...hotelPayload(city), expectedUpdatedAt: result.city.updated_at })
       for (const [date, places] of Object.entries(city.places)) {
-        for (const place of places) await api.createPlace(created.trip.id, result.city.id, { name: place.name, googleMapsUrl: place.url, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
+        for (const place of places) await api.createPlace(created.trip.id, result.city.id, { name: place.name, googleMapsUrl: place.url, icon: place.icon, notes: place.notes, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
       }
-      for (const task of city.tasks) await api.createTask(created.trip.id, { cityId: result.city.id, title: task.title })
     }
     if (draft.backgroundFile) await api.uploadDocument(created.trip.id, undefined, 'trip-background', draft.backgroundFile)
     localStorage.removeItem(STORAGE_KEY)
@@ -1998,9 +2219,13 @@ export default function App() {
 
   const saveTrip = async (draft: Trip) => {
     setError('')
+    setErrorNotice(null)
+    setSuccessNotice(false)
+    setSetupRowErrors({})
     try {
+      let saved: Trip
       if (!draft.id) {
-        await createFromDraft(draft)
+        saved = await createFromDraft(draft)
       } else {
         await api.updateTrip(draft.id, { name: draft.name, startDate: draft.startDate, endDate: draft.endDate, timeZone: draft.timeZone, accentColor: draft.accentColor, backgroundRemoved: draft.backgroundRemoved, expectedUpdatedAt: draft.updatedAt })
         const remote = (await api.trip(draft.id)).trip
@@ -2011,17 +2236,29 @@ export default function App() {
           const cityId = existingIds.has(city.id) ? city.id : (await api.createCity(draft.id, payload)).city.id
           if (existingIds.has(city.id)) await api.updateCity(draft.id, city.id, { ...payload, expectedUpdatedAt: city.updatedAt })
           if (city.imageDeleteId) await api.deleteDocument(city.imageDeleteId)
-          if (city.imageFile) await api.uploadDocument(draft.id, cityId, 'city-image', city.imageFile)
+          if (city.imageFile) {
+            try { await api.uploadDocument(draft.id, cityId, 'city-image', city.imageFile) }
+            catch (reason) { setSetupRowErrors({ [`city-image:${city.id}`]: imageRowErrorMessage(reason) }); return }
+          }
         }
         if (draft.backgroundDeleteId) await api.deleteDocument(draft.backgroundDeleteId)
-        if (draft.backgroundFile) await api.uploadDocument(draft.id, undefined, 'trip-background', draft.backgroundFile)
-        await loadTrip(draft.id)
+        if (draft.backgroundFile) {
+          try { await api.uploadDocument(draft.id, undefined, 'trip-background', draft.backgroundFile) }
+          catch (reason) { setSetupRowErrors({ background: imageRowErrorMessage(reason) }); return }
+        }
+        saved = await loadTrip(draft.id)
       }
-      setScreen('dashboard')
+      return saved
     } catch (reason) {
-      if (isConflictError(reason)) await showConflictNotice()
-      else setError(reason instanceof Error ? reason.message : 'Не удалось сохранить')
+      if (isConflictError(reason) && !isTripDatesExcludeCitiesError(reason)) await showConflictNotice()
+      else if (isTripDatesExcludeCitiesError(reason)) showOperationError('Эх, не сохраняется', () => undefined, 'Проверьте даты городов', { retryable: false })
+      else if (isStaleTripDataError(reason)) showOperationError('Кажется, данные устарели', () => { if (draft.id) void loadTrip(draft.id); else void refreshTrips() }, staleTripMessage, staleTripOptions)
+      else {
+        const uploadMessage = uploadErrorMessage(reason)
+        showOperationError(uploadMessage ? uploadErrorTitle(uploadMessage) : 'Эх, не сохраняется', () => void saveTrip(draft), uploadMessage, isNonRetryableUploadMessage(uploadMessage) ? { retryable: false } : undefined)
+      }
     }
+    return undefined
   }
 
   const saveCityPayload = async (cityId: string, payload: Record<string, unknown>, expectedUpdatedAt?: string) => {
@@ -2040,7 +2277,8 @@ export default function App() {
     }
     catch (reason) {
       if (isConflictError(reason)) await showConflictNotice()
-      else setError(reason instanceof Error ? reason.message : 'Ошибка сохранения')
+      else if (isStaleTripDataError(reason)) showOperationError('Кажется, данные устарели', () => void loadTrip(trip.id!), staleTripMessage, staleTripOptions)
+      else showOperationError('Эх, не сохраняется', () => void updateCity(city))
       return undefined
     }
   }
@@ -2048,11 +2286,12 @@ export default function App() {
   const addPlace = async (city: City, date: string, place: Place) => {
     if (!trip?.id) return
     try {
-      await api.createPlace(trip.id, city.id, { name: place.name, googleMapsUrl: place.url, icon: place.icon, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
+      await api.createPlace(trip.id, city.id, { name: place.name, googleMapsUrl: place.url, icon: place.icon, notes: place.notes, latitude: place.latitude, longitude: place.longitude, ...(date === UNSCHEDULED_KEY ? {} : { visitDate: date }) })
       await loadTrip(trip.id)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Ошибка добавления места')
-      await loadTrip(trip.id)
+      const missing = isMissingCityError(reason)
+      showOperationError(missing ? 'Кажется, данные устарели' : isDuplicatePlaceError(reason) ? duplicatePlaceTitle : 'Эх, не сохраняется', missing ? () => void loadTrip(trip.id!) : () => void addPlace(city, date, place), missing ? staleTripMessage : isDuplicatePlaceError(reason) ? duplicatePlaceMessage : undefined, missing ? staleTripOptions : isDuplicatePlaceError(reason) ? { retryable: false } : undefined)
+      if (!missing) await loadTrip(trip.id)
     }
   }
 
@@ -2060,9 +2299,9 @@ export default function App() {
     if (!trip?.id) return
     try {
       // visitDate: null здесь обязателен — иначе точку нельзя вернуть в «Без даты».
-      await api.updatePlace(trip.id, place.id, { name: place.name, googleMapsUrl: place.url, icon: place.icon, latitude: place.latitude, longitude: place.longitude, visitDate: date === UNSCHEDULED_KEY ? null : date })
+      await api.updatePlace(trip.id, place.id, { name: place.name, googleMapsUrl: place.url, icon: place.icon, notes: place.notes, latitude: place.latitude, longitude: place.longitude, visitDate: date === UNSCHEDULED_KEY ? null : date })
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Ошибка обновления места')
+      showOperationError(isDuplicatePlaceError(reason) ? duplicatePlaceTitle : 'Эх, не сохраняется', () => void updatePlace(city, date, place), isDuplicatePlaceError(reason) ? duplicatePlaceMessage : undefined, isDuplicatePlaceError(reason) ? { retryable: false } : undefined)
       await loadTrip(trip.id)
     }
   }
@@ -2072,8 +2311,9 @@ export default function App() {
     try {
       await api.deletePlace(trip.id, placeId)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось удалить точку')
-      await loadTrip(trip.id)
+      const missing = isMissingDeletionError(reason)
+      showOperationError(missing ? 'Кажется, данные устарели' : 'Эх, не удаляется', missing ? () => void loadTrip(trip.id!) : () => void deletePlace(placeId), deletionErrorMessage(reason), missing ? { retryLabel: 'Обновить данные', actionIcon: 'refresh', closable: false } : undefined)
+      if (!missing) await loadTrip(trip.id)
     }
   }
 
@@ -2082,7 +2322,7 @@ export default function App() {
     try {
       await api.movePlace(trip.id, placeId, { visitDate: date, position })
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : 'Не удалось перенести точку')
+      showOperationError(isDuplicatePlaceError(reason) ? duplicatePlaceTitle : 'Эх, не сохраняется', () => void movePlace(placeId, date, position), isDuplicatePlaceError(reason) ? duplicatePlaceMessage : undefined, isDuplicatePlaceError(reason) ? { retryable: false } : undefined)
       await loadTrip(trip.id)
     }
   }
@@ -2102,7 +2342,7 @@ export default function App() {
       if (linked) await api.uploadDocument(trip.id, linked.id, `${direction === 'in' ? 'train-out' : 'train-in'}:${routeKey}`, file)
       await loadTrip(trip.id)
       return { id: uploaded.document.id, name: uploaded.document.original_name, category: uploaded.document.category, uploadedBy: uploaded.document.created_by_name, uploadedAt: uploaded.document.created_at }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка загрузки файла'); throw reason }
+    } catch (reason) { if (isMissingCityError(reason)) showOperationError('Кажется, данные устарели', () => void loadTrip(trip.id!), staleTripMessage, staleTripOptions); throw reason }
   }
 
   const uploadHotel = async (city: City, file: File): Promise<TravelFile | undefined> => {
@@ -2112,12 +2352,13 @@ export default function App() {
       const uploaded = await api.uploadDocument(trip.id, city.id, 'hotel-booking', file)
       await loadTrip(trip.id)
       return { id: uploaded.document.id, name: uploaded.document.original_name, category: uploaded.document.category, uploadedBy: uploaded.document.created_by_name, uploadedAt: uploaded.document.created_at }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Ошибка загрузки брони'); throw reason }
+    } catch (reason) { if (isMissingCityError(reason)) showOperationError('Кажется, данные устарели', () => void loadTrip(trip.id!), staleTripMessage, staleTripOptions); throw reason }
   }
 
   const joinTrip = async (link: string, name: string, email: string, password: string, mode: 'login' | 'register') => {
+    setError('')
     const token = link.split('/join/').at(-1)?.trim()
-    if (!token) { setError('Неверная ссылка'); return }
+    if (!token) { setError('Неправильная ссылка'); return }
     try {
       const auth = mode === 'register' ? await api.register(email, password, name) : await api.login(email, password)
       session.token = auth.token
@@ -2125,7 +2366,69 @@ export default function App() {
       const accepted = await api.acceptInvitation(token)
       window.history.replaceState({}, '', import.meta.env.BASE_URL)
       await refreshTrips(); await loadTrip(accepted.tripId); setScreen('dashboard')
-    } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось присоединиться') }
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : ''
+      if (reason instanceof ApiRequestError && reason.status === 404) setError('Неправильная ссылка')
+      else if (accountFieldErrors.has(message)) setError(message)
+      else showOperationError('Ох, не присоединяется', () => void joinTrip(link, name, email, password, mode))
+    }
+  }
+
+  const exportTripFile = async (item: ApiTripSummary) => {
+    try {
+      const blob = await api.exportTrip(item.id)
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `${item.name}.travelspace`
+      anchor.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      showOperationError('Эх, поездка не скачивается', () => void exportTripFile(item))
+    }
+  }
+
+  const importTripFile = async (file: File) => {
+    try {
+      const result = await api.importTrip(file)
+      await refreshTrips()
+      await loadTrip(result.trip.id)
+      setScreen('dashboard')
+    } catch (reason) {
+      const oversized = reason instanceof ApiRequestError && (reason.status === 413 || /превышают допустимый размер|file too large/i.test(reason.message))
+      const oversizedMessage = reason instanceof ApiRequestError && /^Файл «/.test(reason.message) ? 'Должен быть до 15 МБ' : 'Должен быть до 200 МБ'
+      const content = importErrorContent(reason)
+      showOperationError(content?.title ?? (oversized ? 'Какой огромный файл' : 'Эх, поездка не загружается'), () => void importTripFile(file), content?.message ?? (oversized ? oversizedMessage : undefined), content || oversized ? { retryable: false } : undefined)
+    }
+  }
+
+  const deleteDocument = async (file: TravelFile) => {
+    if (!trip?.id) return
+    try {
+      await api.deleteDocument(file.id)
+      await loadTrip(trip.id)
+    } catch (reason) {
+      const missing = isMissingDeletionError(reason)
+      const forbidden = reason instanceof ApiRequestError && reason.message === 'Удалить файл может его автор или владелец поездки'
+      if (missing) showOperationError('Кажется, данные устарели', () => void loadTrip(trip.id!), deletionErrorMessage(reason), { retryLabel: 'Обновить данные', actionIcon: 'refresh', closable: false })
+      else if (!forbidden) showOperationError('Эх, не удаляется', () => void deleteDocument(file), deletionErrorMessage(reason))
+      throw reason
+    }
+  }
+
+  const deleteTrip = async (item: ApiTripSummary) => {
+    try {
+      await api.deleteTrip(item.id, item.name)
+      setDeleteTarget(null)
+      const remaining = await refreshTrips()
+      if (remaining.length === 1) {
+        await loadTrip(remaining[0].id)
+        setScreen('dashboard')
+      }
+    } catch (reason) {
+      const missing = isMissingDeletionError(reason)
+      showOperationError(missing ? 'Кажется, данные устарели' : 'Эх, не удаляется', missing ? () => void refreshTrips() : () => void deleteTrip(item), deletionErrorMessage(reason), missing ? { retryLabel: 'Обновить данные', actionIcon: 'refresh', closable: false } : undefined)
+    }
   }
 
   // Один выключатель на всё приложение: экраны спрашивают useAccess(), а не
@@ -2142,20 +2445,20 @@ export default function App() {
     if (!trip) return <AuthShell><AuthPanel><h1>{error || 'Поездка не найдена'}</h1></AuthPanel></AuthShell>
     const noop = () => undefined
     const noopAsync = async () => undefined
-    return <Dashboard trip={trip} user={null} tripCount={0} cacheState={cacheState} online={online} onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noopAsync} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} />
+    return <Dashboard trip={trip} user={null} tripCount={0} cacheState={cacheState} online={online} onChange={noop} onEdit={noop} onTrips={noop} onProfile={noop} onInvite={noop} onCityChange={noopAsync} onDayDescriptionChange={noop} onAddPlace={noop} onUpdatePlace={noop} onDeletePlace={noop} onMovePlace={noop} onTrainUpload={noopAsync} onHotelUpload={noopAsync} onDocumentDelete={noopAsync} onRefreshData={noop} onOperationError={noop} />
   }
 
   if (screen === 'start' || screen === 'login' || screen === 'join') {
     return (
       <AuthShell onBack={screen === 'start' ? undefined : () => setScreen('start')}>
         {screen === 'start' && <StartScreen onLogin={() => setScreen('login')} onJoin={() => setScreen('join')} />}
-        {screen === 'login' && <LoginScreen onSubmit={openAccount} />}
-        {screen === 'join' && <JoinScreen initialLink={invitationLink} onSubmit={joinTrip} />}
-        {error && <p className="form-hint app-error">{error}</p>}
+        {screen === 'login' && <LoginScreen onSubmit={openAccount} onOperationError={showOperationError} />}
+        {screen === 'join' && <JoinScreen initialLink={invitationLink} onSubmit={joinTrip} serverError={error} onClearError={() => setError('')} />}
+        {error && (screen !== 'join' || (!accountFieldErrors.has(error) && error !== 'Неправильная ссылка')) && <p className="form-hint app-error">{error}</p>}
       </AuthShell>
     )
   }
-  if (screen === 'profile' && currentUser) return <ProfileScreen user={currentUser} onBack={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onLogout={() => {
+  if (screen === 'profile' && currentUser) return <ProfileScreen user={currentUser} onBack={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onOperationError={showOperationError} onLogout={() => {
     tripLoadSequenceRef.current += 1
     void clearPrivateCaches()
     session.token = ''
@@ -2184,16 +2487,18 @@ export default function App() {
     setTrip((current) => current ? { ...current, members: current.members?.map((member) => member.id === currentUser.id ? { ...member, hasAvatar: true, avatarUrl } : member) } : current)
     return avatarUrl
   }} />
-  if (screen === 'trips') return <><TripsScreen trips={trips} canCreate={currentUser?.email.toLowerCase() === ADMIN_EMAIL} deleteTarget={deleteTarget} onOpen={(id) => { void loadTrip(id).then(() => setScreen('dashboard')) }} onCreate={() => { setTrip(null); setScreen('setup') }} onClose={() => { setDeleteTarget(null); setScreen(trip ? 'dashboard' : 'start') }} onDelete={setDeleteTarget} onCloseDelete={() => setDeleteTarget(null)} onConfirmDelete={async () => { if (!deleteTarget) return; await api.deleteTrip(deleteTarget.id, deleteTarget.name); setDeleteTarget(null); const remaining = await refreshTrips(); if (remaining.length === 1) { await loadTrip(remaining[0].id); setScreen('dashboard') } }} onExport={async (item) => { try { const blob = await api.exportTrip(item.id); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `${item.name}.travelspace`; anchor.click(); URL.revokeObjectURL(url) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось экспортировать поездку') } }} onImport={async (file) => { try { const result = await api.importTrip(file); await refreshTrips(); await loadTrip(result.trip.id); setScreen('dashboard') } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось импортировать поездку') } }} />{error && <p className="app-error">{error}</p>}</>
-  if (screen === 'setup') return <><SetupScreen initial={trip} user={currentUser} refreshToken={remoteRefreshToken} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={(value) => void saveTrip(value)} />{error && <p className="app-error">{error}</p>}</>
+  if (screen === 'trips') return <><TripsScreen trips={trips} canCreate={currentUser?.email.toLowerCase() === ADMIN_EMAIL} deleteTarget={deleteTarget} onOpen={(id) => { void loadTrip(id).then(() => setScreen('dashboard')).catch(() => showOperationError('Эх, не загружается', () => void loadTrip(id).then(() => setScreen('dashboard')))) }} onCreate={() => { setTrip(null); setScreen('setup') }} onClose={() => { setDeleteTarget(null); setScreen(trip ? 'dashboard' : 'start') }} onDelete={setDeleteTarget} onCloseDelete={() => setDeleteTarget(null)} onConfirmDelete={async () => { if (deleteTarget) await deleteTrip(deleteTarget) }} onExport={exportTripFile} onImport={importTripFile} />{error && <p className="app-error">{error}</p>}</>
+  if (screen === 'setup') return <><SetupScreen initial={trip} user={currentUser} refreshToken={remoteRefreshToken} rowErrors={setupRowErrors} onClearRowError={(key) => setSetupRowErrors((current) => { const next = { ...current }; delete next[key]; return next })} onExit={() => setScreen(trip ? 'dashboard' : trips.length ? 'trips' : 'start')} onCreate={saveTrip} onCitySaved={() => { setSuccessNotice(false); window.setTimeout(() => setSuccessNotice(true), 0) }} />{error && <p className="app-error">{error}</p>}</>
   if (!trip) return null
-  if (inviteOpen) return <><InviteScreen trip={trip} onBack={() => setInviteOpen(false)} onCreate={async (hours) => (await api.createInvitation(trip.id!, hours)).invitation} onViewLink={async () => (await api.viewLink(trip.id!)).viewLink.url} onRemove={async (member) => { await api.removeMember(trip.id!, member.id); await loadTrip(trip.id!) }} />{error && <p className="app-error">{error}</p>}</>
-  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} cacheState={cacheState} online={online} onChange={setTrip} onEdit={() => { if (!trip.id) return; void loadTrip(trip.id).then(() => setScreen('setup')).catch((reason) => setError(reason instanceof Error ? reason.message : 'Не удалось обновить поездку')) }} onTrips={async () => { await refreshTrips(); setScreen('trips') }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={updateCity} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; void api.updateDayDescription(trip.id, date, description).catch((reason) => { setError(reason instanceof Error ? reason.message : 'Не удалось сохранить описание дня'); void loadTrip(trip.id!) }) }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={async (file) => { if (!trip.id) return; try { await api.deleteDocument(file.id); await loadTrip(trip.id) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Не удалось удалить файл'); throw reason } }} />{error && <p className="app-error">{error}</p>}</>
+  if (inviteOpen) return <><InviteScreen trip={trip} onBack={() => setInviteOpen(false)} onCreate={async (hours) => (await api.createInvitation(trip.id!, hours)).invitation} onViewLink={async () => (await api.viewLink(trip.id!)).viewLink.url} onRemove={async (member) => { await api.removeMember(trip.id!, member.id); await loadTrip(trip.id!) }} onRefresh={async () => { await loadTrip(trip.id!) }} onOperationError={showOperationError} />{error && <p className="app-error">{error}</p>}</>
+  return <><Dashboard trip={trip} user={currentUser} tripCount={trips.length} cacheState={cacheState} online={online} onChange={setTrip} onEdit={() => { if (!trip.id) return; void loadTrip(trip.id).then(() => setScreen('setup')).catch(() => showOperationError('Эх, не загружается', () => void loadTrip(trip.id!).then(() => setScreen('setup')))) }} onTrips={() => { const openTrips = () => void refreshTrips().then(() => setScreen('trips')).catch(() => showOperationError('Эх, не загружается', openTrips)); openTrips() }} onProfile={() => setScreen('profile')} onInvite={() => setInviteOpen(true)} onCityChange={updateCity} onDayDescriptionChange={(date, description) => { setTrip((current) => current ? { ...current, dayDescriptions: { ...current.dayDescriptions, [date]: description } } : current); if (!trip.id) return; const saveDescription = () => void api.updateDayDescription(trip.id!, date, description).catch(() => { showOperationError('Эх, не сохраняется', saveDescription); void loadTrip(trip.id!) }); saveDescription() }} onAddPlace={(city, date, place) => void addPlace(city, date, place)} onUpdatePlace={(city, date, place) => void updatePlace(city, date, place)} onDeletePlace={(placeId) => void deletePlace(placeId)} onMovePlace={(placeId, date, position) => void movePlace(placeId, date, position)} onTrainUpload={uploadTrain} onHotelUpload={uploadHotel} onDocumentDelete={deleteDocument} onRefreshData={() => void refreshProtectedData()} onOperationError={showOperationError} />{error && <p className="app-error">{error}</p>}</>
   }
 
   const updateNoticeMessage = conflictMessage || remoteUpdateNotice?.message
   return <AccessContext.Provider value={access}>
     {renderScreen()}
     {updateNoticeMessage && <UpdateNotification key={updateNoticeShakeKey} message={updateNoticeMessage} shake={Boolean(updateNoticeShakeKey)} onRefresh={() => void refreshProtectedData()} />}
+    {errorNotice && <ErrorNotification title={errorNotice.title} message={errorNotice.message} onClose={errorNotice.closable === false ? undefined : () => setErrorNotice(null)} retryLabel={errorNotice.retryLabel} actionIcon={errorNotice.actionIcon} onRetry={errorNotice.retry ? () => { const retry = errorNotice.retry!; setErrorNotice(null); retry() } : undefined} />}
+    {successNotice && <SuccessNotification onClose={() => setSuccessNotice(false)} />}
   </AccessContext.Provider>
 }

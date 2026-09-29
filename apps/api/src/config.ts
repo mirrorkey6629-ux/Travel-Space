@@ -27,7 +27,10 @@ export const config = {
   // Без завершающего слэша: он мешал бы склейке путей вроде `${basePath}/api`.
   basePath: (process.env.BASE_PATH ?? '/travel').replace(/\/+$/, ''),
   spaDir: path.resolve(process.env.SPA_DIST_DIR ?? path.join(moduleDirectory, '../../../dist')),
-  uploadDir: path.resolve(process.env.UPLOAD_DIR ?? './data/uploads'),
+  // Путь не должен зависеть от cwd: `pnpm --dir apps/api dev` и запуск API из
+  // корня раньше смотрели в разные каталоги и визуально «теряли» загрузки.
+  // От src и dist три уровня ведут в корень проекта; в контейнере это /app.
+  uploadDir: path.resolve(process.env.UPLOAD_DIR ?? path.join(moduleDirectory, '../../../data/uploads')),
   maxUploadBytes: integer(process.env.MAX_UPLOAD_BYTES, 15 * 1024 * 1024),
   maxImportBytes: integer(process.env.MAX_IMPORT_BYTES, 200 * 1024 * 1024),
   sessionTtlDays: integer(process.env.SESSION_TTL_DAYS, 30),

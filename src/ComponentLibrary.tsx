@@ -16,11 +16,13 @@ import { FormPanel, FormPanelGroup, FormPanelHeader, FormPanelNote } from './com
 import { ComponentContentPreview } from './ComponentContentPreview'
 import { PointCard } from './components/PointCard'
 import { UpdateNotification } from './components/UpdateNotification'
+import { ErrorNotification } from './components/ErrorNotification'
+import { SuccessNotification } from './components/SuccessNotification'
 import { AuthPanel } from './components/AuthPanel'
 import { PLACE_ICON_OPTIONS, placeIconUrl } from './placeIcons'
 import './component-library.css'
 
-const icons: IconName[] = ['add-plus', 'arrow-back', 'arrow-down', 'attractions', 'barefoot', 'cached', 'calendar-month', 'cannabis', 'casino', 'checkbox-empty', 'checkbox-filled', 'close', 'content-copy', 'delete-forever', 'docs', 'done-indicator', 'download', 'edit', 'email', 'encrypted', 'face', 'footprint', 'foundation', 'hotel', 'link', 'money-bag', 'pin', 'pin-add', 'pin-home', 'pin-transport', 'plane', 'planet', 'public', 'refresh', 'sailing', 'soup-kitchen', 'ticket', 'time', 'train']
+const icons: IconName[] = ['add-plus', 'arrow-back', 'arrow-down', 'attractions', 'barefoot', 'cached', 'calendar-month', 'cannabis', 'casino', 'checkbox-empty', 'checkbox-filled', 'close', 'content-copy', 'delete-forever', 'docs', 'done-indicator', 'download', 'edit', 'email', 'encrypted', 'face', 'footprint', 'foundation', 'hotel', 'link', 'money-bag', 'pin', 'pin-add', 'pin-home', 'pin-transport', 'plane', 'planet', 'public', 'refresh', 'sailing', 'soup-kitchen', 'ticket', 'time', 'train', 'warning']
 
 const colorGroups = [
   { title: 'Текст', colors: [
@@ -48,7 +50,6 @@ const navigation = [
   { id: 'colors', label: 'Цвета и эффекты' },
   { id: 'typography', label: 'Типографика' },
   { id: 'icons', label: 'Иконки' },
-  { id: 'typography-groups', label: 'Группы текста' },
   { id: 'buttons', label: 'Кнопки' },
   { id: 'fields', label: 'Контролы формы' },
   { id: 'visual-elements', label: 'Аватары' },
@@ -122,6 +123,7 @@ export default function ComponentLibrary() {
   const [infoRowHoverEffect, setInfoRowHoverEffect] = useState(false)
   const [infoRowActionIndicators, setInfoRowActionIndicators] = useState(false)
   const [infoRowTitleStyle, setInfoRowTitleStyle] = useState<'head-m' | 'text'>('head-m')
+  const [infoRowError, setInfoRowError] = useState(false)
   const [avatarHoverEffect, setAvatarHoverEffect] = useState(false)
   const [pointDetailsActionCount, setPointDetailsActionCount] = useState<1 | 2>(2)
   const [textRowIcon, setTextRowIcon] = useState(true)
@@ -145,18 +147,18 @@ export default function ComponentLibrary() {
     trailingIcon: inputRightIcon ? <Icon name="content-copy" /> : undefined,
   }
   const infoRowPreview = (title: string, subtitle: string) => infoRowRightContent === 'text'
-    ? <InfoRow theme={infoRowTheme} image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title={title} titleStyle={infoRowTitleStyle} subtitle={subtitle} trailing="54 000 ₽" hoverEffect={infoRowHoverEffect} />
-    : <InfoRow theme={infoRowTheme} image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title={title} titleStyle={infoRowTitleStyle} subtitle={subtitle} actionTheme={infoRowActionTheme} hoverEffect={infoRowHoverEffect} showActionIndicators={infoRowActionIndicators} actions={infoRowRightContent === 'actions' ? [{ icon: <Icon name="download" />, label: 'Экспортировать', complete: true }, ...(infoRowActionCount === 2 ? [{ icon: <Icon name="delete-forever" />, label: 'Удалить', complete: true }] : [])] : []} />
+    ? <InfoRow theme={infoRowTheme} image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title={title} titleStyle={infoRowTitleStyle} subtitle={subtitle} trailing="54 000 ₽" hoverEffect={infoRowHoverEffect} error={infoRowError ? 'Нужно исправить значение' : undefined} />
+    : <InfoRow theme={infoRowTheme} image={infoRowImage ? `${import.meta.env.BASE_URL}assets/autumn-garden.jpg` : undefined} imageAlt="Осенний сад" imageShape={infoRowImageShape} title={title} titleStyle={infoRowTitleStyle} subtitle={subtitle} actionTheme={infoRowActionTheme} hoverEffect={infoRowHoverEffect} showActionIndicators={infoRowActionIndicators} error={infoRowError ? 'Нужно исправить значение' : undefined} actions={infoRowRightContent === 'actions' ? [{ icon: <Icon name="download" />, label: 'Экспортировать', complete: true }, ...(infoRowActionCount === 2 ? [{ icon: <Icon name="delete-forever" />, label: 'Удалить', complete: true }] : [])] : []} />
   const textRowPreview = (label: string, icon: IconName = 'train') => !textRowIcon
     ? <TextRow showIcon={false} hoverEffect={textRowHoverEffect}>{label}</TextRow>
     : textRowIconType === 'icon'
       ? <TextRow iconType="icon" icon={<Icon name={icon} />} hoverEffect={textRowHoverEffect}>{label}</TextRow>
       : <TextRow iconType="checkbox" checkboxState={textRowCheckboxState} hoverEffect={textRowHoverEffect}>{label}</TextRow>
-  const selectPreview = (disabled = false) => selectType === 'date'
-    ? <Select type="date" label="Дата" showLabel={selectLabel} icon={<Icon name="calendar-month" />} defaultValue="4 октября" disabled={disabled}><option>4 октября</option><option>5 октября</option></Select>
+  const selectPreview = (disabled = false, error = false) => selectType === 'date'
+    ? <Select type="date" label="Дата" showLabel={selectLabel} icon={<Icon name="calendar-month" />} defaultValue="4 октября" error={error ? 'Выберите дату' : undefined} disabled={disabled}><option>4 октября</option><option>5 октября</option></Select>
     : selectType === 'time'
-      ? <Select type="time" label="Время" showLabel={selectLabel} icon={<Icon name="time" />} secondaryText="UTC +3" defaultValue="День" disabled={disabled}><option>Утро</option><option>День</option><option>Вечер</option></Select>
-      : <Select type="assignee" showLabel={selectLabel} options={[{ value: 'torch', label: 'Torch' }, { value: 'playsty', label: 'Playsty' }]} value={disabled ? [] : assignees} icon={<Icon name="face" />} emptyLabel="Кто платил" onValueChange={setAssignees} disabled={disabled} />
+      ? <Select type="time" label="Время" showLabel={selectLabel} icon={<Icon name="time" />} secondaryText="UTC +3" defaultValue="День" error={error ? 'Выберите время' : undefined} disabled={disabled}><option>Утро</option><option>День</option><option>Вечер</option></Select>
+      : <Select type="assignee" showLabel={selectLabel} options={[{ value: 'torch', label: 'Torch' }, { value: 'playsty', label: 'Playsty' }]} value={disabled ? [] : assignees} icon={<Icon name="face" />} emptyLabel="Кто платил" error={error ? 'Выберите участника' : undefined} onValueChange={setAssignees} disabled={disabled} />
   return (
     <main className="component-library">
       <GalaxyBackground />
@@ -171,6 +173,11 @@ export default function ComponentLibrary() {
             <a href="#content-selects">Select</a>
             <a href="#content-info-rows">Info Row</a>
             <a href="#content-default-images">Изображения</a>
+            <a href="#content-field-errors">Ошибки полей</a>
+            <a href="#content-info-row-errors">Ошибки Info Row</a>
+            <a href="#content-success-notifications">Успешные уведомления</a>
+            <a href="#content-error-notifications">Уведомления об ошибках</a>
+            <a href="#content-system-errors">Системные ошибки</a>
           </nav>}
           <div className="kit-sidebar-actions">
             <a className="kit-back-link ui-button ui-button-secondary ui-button-m secondary" href={import.meta.env.BASE_URL}>В приложение</a>
@@ -198,10 +205,18 @@ export default function ComponentLibrary() {
             </div>
           </div>
           <div className="kit-type-group">
-            <p className="kit-type-group-label type-text-s">Текст</p>
+            <p className="kit-type-group-label type-text-s">Подзаголовки</p>
             <div className="kit-type-group-cards">
               <Specimen name="Text"><Variant label={<TypeMetrics size={15} weight={400} lineHeight={20} letterSpacing={0} />}><div className="type-text-paragraphs kit-type-line"><p>Первый абзац основного текста</p><p>Второй абзац с отступом 12px</p></div></Variant></Specimen>
               <Specimen name="Text S"><Variant label={<TypeMetrics size={13} weight={400} lineHeight={15.6} letterSpacing={0} />}><p className="type-text-s kit-type-line">Вспомогательный текст</p></Variant></Specimen>
+            </div>
+          </div>
+          <div className="kit-type-group">
+            <p className="kit-type-group-label type-text-s">Группы текста</p>
+            <div className="kit-type-group-cards">
+              <Specimen name="Head L + Text"><Variant label="Gap: 6"><TypographyGroup title="Название поездки" text="4–15 октября · 12 дней" /></Variant></Specimen>
+              <Specimen name="Head M + Text"><Variant label="Gap: 4"><TypographyGroup variant="head-m-text" headingLevel="h3" title="Осака" text="Прибытие" /></Variant></Specimen>
+              <Specimen name="Text + Text"><Variant label="Gap: 2"><TypographyGroup variant="text-text" headingLevel="h3" title="Название города" text="Осака" /></Variant></Specimen>
             </div>
           </div>
         </Section>
@@ -214,12 +229,6 @@ export default function ComponentLibrary() {
               <PropertySelect label="Tone" value={iconTone} options={[{ value: 'primary', label: 'Primary' }, { value: 'secondary', label: 'Secondary' }, { value: 'disabled', label: 'Disabled' }]} onChange={(value) => setIconTone(value as 'primary' | 'secondary' | 'disabled')} />
             </div>
           </div>
-        </Section>
-
-        <Section id="typography-groups" title="Группы текста" description="Готовые сочетания заголовков и поясняющего текста" className="kit-typography-groups-section">
-          <Specimen name="Head L + Text"><Variant label="Gap 6"><TypographyGroup title="Название поездки" text="4–15 октября · 12 дней" /></Variant></Specimen>
-          <Specimen name="Head M + Text"><Variant label="Gap 4"><TypographyGroup variant="head-m-text" headingLevel="h3" title="Осака" text="Прибытие" /></Variant></Specimen>
-          <Specimen name="Text + Text"><Variant label="Gap 2"><TypographyGroup variant="text-text" headingLevel="h3" title="Название города" text="Осака" /></Variant></Specimen>
         </Section>
 
         <Section id="buttons" title="Кнопки" description="Основные действия и компактные контролы">
@@ -238,7 +247,7 @@ export default function ComponentLibrary() {
               </div>
               <Variant wide>
                 {inputType === 'default'
-                  ? <div className="kit-input-matrix"><span>Empty</span><Input label="Название города" showLabel={inputLabel} {...inputIcons} placeholder="Например, Осака" /><span>Filled</span><Input label="Название города" showLabel={inputLabel} {...inputIcons} defaultValue="Осака" /><span>Disabled</span><Input label="Название города" showLabel={inputLabel} {...inputIcons} value="Осака" disabled readOnly /></div>
+                  ? <div className="kit-input-matrix"><span>Empty</span><Input label="Название города" showLabel={inputLabel} {...inputIcons} placeholder="Например, Осака" /><span>Filled</span><Input label="Название города" showLabel={inputLabel} {...inputIcons} defaultValue="Осака" /><span>Error</span><Input label="Название города" showLabel={inputLabel} {...inputIcons} error="Нужно ввести название города" /><span>Disabled</span><Input label="Название города" showLabel={inputLabel} {...inputIcons} value="Осака" disabled readOnly /></div>
                   : <div className="kit-input-matrix"><span>Empty</span><Input content="money" showLabel={inputLabel} aria-label="Пустая общая сумма" value={emptyMoney} onValueChange={setEmptyMoney} /><span>Filled</span><Input content="money" showLabel={inputLabel} aria-label="Общая сумма" value={money} onValueChange={setMoney} /><span>Disabled</span><Input content="money" showLabel={inputLabel} aria-label="Недоступная общая сумма" value={3500} onValueChange={() => undefined} disabled /></div>}
               </Variant>
             </div>
@@ -246,7 +255,7 @@ export default function ComponentLibrary() {
           <Specimen name="Select" className="kit-input-specimen">
             <div className="kit-info-row-layout">
               <div className="kit-info-row-controls"><PropertySelect label="Type" value={selectType} options={[{ value: 'date', label: 'Date' }, { value: 'time', label: 'Time' }, { value: 'assignee', label: 'Assignee' }]} onChange={(value) => setSelectType(value as 'date' | 'time' | 'assignee')} /><PropertyToggle label="Label" checked={selectLabel} onChange={setSelectLabel} /></div>
-              <Variant wide><div className="kit-input-matrix"><span>Default</span>{selectPreview()}<span>Disabled</span>{selectPreview(true)}</div></Variant>
+              <Variant wide><div className="kit-input-matrix"><span>Default</span>{selectPreview()}<span>Error</span>{selectPreview(false, true)}<span>Disabled</span>{selectPreview(true)}</div></Variant>
             </div>
           </Specimen>
           <Specimen name="Textarea" className="kit-input-specimen"><Variant label="Empty" wide><Textarea aria-label="Заметки" placeholder="Места, ориентиры и важная информация" /></Variant><Variant label="Filled" wide><Textarea aria-label="Заполненные заметки" defaultValue="Заселение после 15:00" /></Variant><Variant label="Disabled" wide><Textarea aria-label="Недоступные заметки" value="Заселение после 15:00" disabled readOnly /></Variant></Specimen>
@@ -340,6 +349,20 @@ export default function ComponentLibrary() {
               </div>
               <div className="kit-notification-controls">
                 <Button size="m" theme="secondary" onClick={() => setNotificationShakeKey((value) => value + 1)}>Анимация</Button>
+              </div>
+            </div>
+          </Specimen>
+          <Specimen name="Error notification">
+            <div className="kit-notification-layout">
+              <div className="kit-notification-preview">
+                <ErrorNotification title="Эх, не сохраняется" message="Попробуйте ещё раз" onClose={() => undefined} onRetry={() => undefined} />
+              </div>
+            </div>
+          </Specimen>
+          <Specimen name="Success notification">
+            <div className="kit-notification-layout">
+              <div className="kit-notification-preview">
+                <SuccessNotification onClose={() => undefined} />
               </div>
             </div>
           </Specimen>
@@ -440,7 +463,7 @@ export default function ComponentLibrary() {
             <div className="kit-info-row-layout">
               <div className="kit-info-row-controls">
                 <PropertySelect label="Theme" value={infoRowTheme} options={[{ value: 'background', label: 'Color' }, { value: 'transparent', label: 'Transperent' }]} onChange={(value) => setInfoRowTheme(value as 'background' | 'transparent')} />
-                <PropertySelect label="Title" value={infoRowTitleStyle} options={[{ value: 'head-m', label: 'Head M' }, { value: 'text', label: 'Text' }]} onChange={(value) => setInfoRowTitleStyle(value as 'head-m' | 'text')} />
+                <PropertySelect label="Title" value={infoRowTheme === 'background' ? 'text' : infoRowTitleStyle} options={[{ value: 'head-m', label: 'Head M' }, { value: 'text', label: 'Text' }]} onChange={(value) => setInfoRowTitleStyle(value as 'head-m' | 'text')} disabled={infoRowTheme === 'background'} />
                 <PropertyToggle label="Hover Effect" checked={infoRowHoverEffect} onChange={setInfoRowHoverEffect} />
                 <PropertyToggle label="Image" checked={infoRowImage} onChange={setInfoRowImage} />
                 <PropertySelect label="Image Type" value={infoRowImageShape} options={[{ value: 'square', label: 'Square' }, { value: 'circle', label: 'Circle' }]} onChange={(value) => setInfoRowImageShape(value as 'square' | 'circle')} disabled={!infoRowImage} />
@@ -448,6 +471,7 @@ export default function ComponentLibrary() {
                 <PropertySelect label="Buttons Count" value={String(infoRowActionCount)} options={[{ value: '1', label: '1 Button' }, { value: '2', label: '2 Buttons' }]} onChange={(value) => setInfoRowActionCount(Number(value) as 1 | 2)} disabled={infoRowRightContent !== 'actions'} />
                 <PropertySelect label="Buttons Type" value={infoRowActionTheme} options={[{ value: 'primary', label: 'Primary' }, { value: 'secondary', label: 'Secondary' }, { value: 'transparent', label: 'Transparent' }]} onChange={(value) => setInfoRowActionTheme(value as 'primary' | 'secondary' | 'transparent')} disabled={infoRowRightContent !== 'actions'} />
                 <PropertyToggle label="Action Indicators" checked={infoRowActionIndicators} onChange={setInfoRowActionIndicators} disabled={infoRowRightContent !== 'actions' || infoRowActionTheme !== 'secondary'} />
+                <PropertyToggle label="Error" checked={infoRowError} onChange={setInfoRowError} />
               </div>
               <Variant label="Single" wide>
                 <div className="kit-info-row-previews">

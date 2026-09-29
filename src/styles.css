@@ -54,12 +54,12 @@ h2, h3 { color: var(--color-text-primary); font-family: var(--font-family-head-m
 .ui-icon { display: block; flex: 0 0 auto; object-fit: contain; opacity: var(--opacity-icon-primary); }
 .ui-icon-secondary { opacity: var(--opacity-icon-secondary); }
 .ui-icon-disabled { opacity: var(--opacity-icon-disabled); }
-.text-row { min-width: 0; display: inline-flex; align-items: center; gap: 6px; color: var(--color-text-secondary); font: inherit; }
+.text-row { min-width: 0; display: inline-flex; align-items: flex-start; gap: 6px; color: var(--color-text-secondary); font: inherit; }
 .text-row-hover-effect { transition: color 160ms ease; }
 .text-row-hover-effect:hover,
 :is(button, a):hover .text-row-hover-effect,
 :is(button, a):focus-visible .text-row-hover-effect { color: var(--color-text-primary); }
-.text-row-icon { width: 24px; height: 24px; flex: 0 0 24px; display: grid; place-items: center; }
+.text-row-icon { width: 24px; height: 24px; margin-top: calc((var(--type-text-line-height) - 24px) / 2); flex: 0 0 24px; display: grid; place-items: center; }
 .text-row-icon .ui-icon { width: 24px; height: 24px; }
 .text-row-checkbox-off .ui-icon { opacity: var(--opacity-icon-secondary); transition: opacity 160ms ease; }
 .text-row-hover-effect:hover .ui-icon,
@@ -78,6 +78,7 @@ h2, h3 { color: var(--color-text-primary); font-family: var(--font-family-head-m
 .item-list-headline { margin: 0; color: var(--color-text-primary); font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); letter-spacing: var(--type-head-m-letter-spacing); }
 .form-control-list { min-width: 0; width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
 .form-control-list-content { min-width: 0; width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.form-control-list-content > .form-control-row:has(.field-error):not(:last-child) { margin-bottom: 4px; }
 .form-control-list-gap-12 > .form-control-list-content { gap: 12px; }
 .form-control-list-gap-16 > .form-control-list-content { gap: 16px; }
 .form-control-list-gap-24 > .form-control-list-content { gap: 24px; }
@@ -119,12 +120,13 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .galaxy-background { position: fixed; inset: 0; z-index: 0; background: radial-gradient(circle at 35% 58%, rgba(88,72,190,.22) 0, rgba(36,80,156,.11) 38%, transparent 100%), radial-gradient(circle at 50% 45%, #17142f 0, #080a1c 45%, #010208 100%); pointer-events: none; }
 .auth-brand { position: fixed; z-index: 2; top: 40px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; justify-content: center; gap: 4px; color: #fff; white-space: nowrap; }
 .glass { position: relative; background: var(--color-background-secondary); border: var(--effect-glass-stroke); backdrop-filter: var(--effect-glass-filter); -webkit-backdrop-filter: var(--effect-glass-filter); box-shadow: none; transform: translateZ(0); }
-.choice-grid { z-index: 1; display: grid; grid-template-columns: repeat(2, 400px); gap: 20px; }
+.choice-grid { position: fixed; z-index: 1; top: 50%; left: 50%; display: grid; grid-template-columns: repeat(2, 400px); gap: 20px; transform: translate(-50%, -50%); }
 .choice-card { height: 300px; border-radius: 24px; color: #fff; font-family: var(--font-family-head-l); font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); transition: transform .2s, background .2s; }
 .choice-card:hover { transform: translateY(-4px); background: var(--color-background-hover); }
 .icon-button.back-button { position: fixed; z-index: 12; top: 28px; left: 28px; width: 48px; height: 48px; padding: 12px; border-radius: 50%; color: #fff; background: var(--color-background-secondary); border: 1px solid var(--border); backdrop-filter: blur(30px); display: grid; place-items: center; }
 .back-button .ui-icon { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 .auth-panel { position: relative; z-index: 1; width: 500px; padding: 48px; border-radius: 24px; display: flex; flex-direction: column; gap: 32px; text-align: center; }
+.auth-screen > .auth-panel { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); }
 .auth-panel-action { position: absolute; top: 24px; right: 24px; }
 .auth-panel-offset { margin-top: 64px; }
 .auth-panel h1 { margin: 0; font-size: var(--type-head-l-size); font-weight: var(--type-head-l-weight); line-height: var(--type-head-l-line-height); letter-spacing: var(--type-head-l-letter-spacing); }
@@ -192,6 +194,8 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 }
 .trips-screen { display: grid; place-items: center; padding: 40px; }
 .info-row { min-width: 0; min-height: 72px; height: 72px; padding: 16px 16px 16px 12px; border-radius: 16px; background: var(--glass-soft); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.info-row-field { min-width: 0; width: 100%; }
+.info-row-field > .info-row { width: 100%; }
 .info-row-transparent { background: transparent; }
 .info-row-content { min-width: 0; flex: 1; padding: 0; border: 0; color: #fff; background: transparent; display: flex; align-items: center; gap: 12px; text-align: left; }
 .avatar { width: var(--avatar-size); height: var(--avatar-size); display: block; object-fit: cover; }
@@ -229,6 +233,7 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .info-row-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
 .info-row-list { min-width: 0; width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
 .info-row-list-content { min-width: 0; width: 100%; display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.info-row-list-content > .info-row-field:has(.field-error):not(:last-child) { margin-bottom: 4px; }
 .info-row-list-gap-4 > .info-row-list-content { gap: 4px; }
 .info-row-list-gap-8 > .info-row-list-content { gap: 8px; }
 .info-row-list-gap-16 > .info-row-list-content { gap: 16px; }
@@ -357,6 +362,9 @@ button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .icon-button-indicator .ui-icon { width: 16px; height: 16px; display: block; max-width: none; }
 .field { display: flex; flex-direction: column; gap: 8px; color: var(--color-text-secondary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); text-align: left; }
 .floating-field { gap: 0; }
+.field-control-group { min-width: 0; width: 100%; }
+.field-error { margin-top: 8px; display: flex; align-items: flex-start; gap: 4px; color: var(--color-text-secondary); }
+.field-error .ui-icon { width: 16px; height: 16px; flex: 0 0 16px; }
 .field.span-2 { grid-column: span 2; }
 .field input, .field select { min-width: 0; height: 68px; padding: 0 16px; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-soft); color: var(--color-text-primary); color-scheme: dark; }
 .form-control { min-width: 0; width: 100%; height: 68px; padding: 0 16px; border: 1px solid transparent; border-radius: 16px; background: var(--glass-soft); display: flex; align-items: center; gap: 10px; color: var(--color-text-primary); font-size: var(--type-text-size); font-weight: var(--type-text-weight); line-height: var(--type-text-line-height); letter-spacing: var(--type-text-letter-spacing); transition: border-color .15s, background .15s; }
@@ -420,6 +428,9 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .form-select-secondary-text { flex: 0 0 auto; margin-left: auto; color: var(--color-text-secondary); white-space: nowrap; pointer-events: none; }
 .form-textarea { height: auto; min-height: 120px; padding: 16px; align-items: stretch; }
 .form-textarea textarea { height: auto; min-height: 88px; overflow: hidden; resize: none; }
+.form-textarea-fixed { height: 120px; }
+.form-textarea-fixed textarea { height: 100%; overflow-y: auto; scrollbar-width: none; }
+.form-textarea-fixed textarea::-webkit-scrollbar { display: none; }
 .form-control input[type="url"] { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .form-control input:-webkit-autofill,
 .form-control input:-webkit-autofill:hover,
@@ -539,6 +550,13 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .point-card.update-notification { position: fixed; z-index: 1000; top: 20px; right: 20px; width: clamp(320px, calc(100vw - 40px), 400px); padding: 16px; background: var(--color-background-secondary); display: flex; align-items: center; gap: 16px; animation: update-notification-in .46s cubic-bezier(.2,.9,.25,1.12) both; }
 .update-notification-copy { min-width: 0; flex: 1; }
 .update-notification-copy .typography-group-title, .update-notification-copy .typography-group-text { white-space: normal; overflow-wrap: anywhere; }
+.point-card.error-notification { position: fixed; z-index: 1000; top: 20px; right: 20px; width: clamp(320px, calc(100vw - 40px), 480px); padding: 16px; background: var(--color-background-secondary); display: flex; align-items: center; gap: 16px; animation: update-notification-in .46s cubic-bezier(.2,.9,.25,1.12) both; }
+.point-card.success-notification { position: fixed; z-index: 1000; top: 20px; right: 20px; width: clamp(320px, calc(100vw - 40px), 480px); padding: 16px; background: var(--color-background-secondary); display: flex; align-items: center; gap: 16px; animation: update-notification-in .46s cubic-bezier(.2,.9,.25,1.12) both; }
+.error-notification-copy { min-width: 0; flex: 1; }
+.error-notification-copy .typography-group-title, .error-notification-copy .typography-group-text { white-space: normal; overflow-wrap: anywhere; }
+.success-notification-copy { min-width: 0; flex: 1; }
+.success-notification-copy .typography-group-title, .success-notification-copy .typography-group-text { white-space: normal; overflow-wrap: anywhere; }
+.error-notification-actions { flex: 0 0 auto; display: flex; align-items: center; gap: 8px; }
 .point-card.update-notification.update-notification-shake { animation: update-notification-shake 130ms cubic-bezier(.4,0,.2,1) 2 both; }
 @keyframes update-notification-in {
   from { opacity: 0; transform: translate3d(calc(100% + 28px), -10px, 0) scale(.94); }
@@ -549,8 +567,8 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
   0%, 100% { transform: translate3d(0, 0, 0); }
   50% { transform: translate3d(8px, 0, 0); }
 }
-@media (prefers-reduced-motion: reduce) { .update-notification { animation: none; } }
-@media (max-width: 560px) { .update-notification { top: 12px; right: 12px; width: calc(100vw - 24px); } }
+@media (prefers-reduced-motion: reduce) { .update-notification, .error-notification, .success-notification { animation: none; } }
+@media (max-width: 560px) { .update-notification, .error-notification, .success-notification { top: 12px; right: 12px; width: calc(100vw - 24px); } }
 .document-row { width: 100%; min-height: 24px; margin: 0; padding: 0; display: flex; align-items: center; gap: 9px; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; }
 .document-row:hover .text-row, .document-row:focus-visible .text-row { color: var(--color-text-primary); }
 .document-check { position: relative; width: 17px; height: 17px; flex: 0 0 17px; border: 1.5px solid rgba(255,255,255,.72); border-radius: 4px; }
@@ -696,6 +714,14 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
    попап висит над картой рядом с маркером, а не занимает собственную колонку. */
 .place-popup-link { color: var(--color-text-secondary); text-decoration: none; }
 .place-popup-link:hover { color: #fff; }
+.place-popup-notes {
+  display: -webkit-box;
+  overflow: hidden;
+  white-space: pre-wrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 5;
+  line-clamp: 5;
+}
 .point-card { position: relative; z-index: 0; width: min(420px, calc(100vw - 32px)); border: 1px solid var(--border); border-radius: 16px; background: var(--glass-point-card); backdrop-filter: blur(50px) saturate(115%); -webkit-backdrop-filter: blur(50px) saturate(115%); box-shadow: none; transform: translateZ(0); color: var(--color-text-primary); }
 .point-card:has(.native-select.open) { z-index: 20; }
 .point-card .native-select-menu { max-height: min(320px, 50vh); scrollbar-width: none; }

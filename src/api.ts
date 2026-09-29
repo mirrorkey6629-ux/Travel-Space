@@ -4,6 +4,7 @@ import type { PlaceIconKey } from './placeIcons'
 // иначе префикс приложения пришлось бы менять в двух местах.
 const API_BASE = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/api`
 const TOKEN_KEY = 'travel-api-token'
+export const ACCESS_DENIED_EVENT = 'travel:access-denied'
 
 export class ApiRequestError extends Error {
   constructor(message: string, readonly status: number) {
@@ -15,6 +16,10 @@ export class ApiRequestError extends Error {
 export const isConflictError = (reason: unknown) => Boolean(
   reason && typeof reason === 'object' && 'status' in reason && Number((reason as { status?: unknown }).status) === 409,
 )
+
+const notifyAccessDenied = (message?: string) => {
+  if (message === 'Нет доступа к поездке' && typeof window !== 'undefined') window.dispatchEvent(new Event(ACCESS_DENIED_EVENT))
+}
 
 export type ApiRole = 'owner' | 'member'
 
@@ -101,14 +106,8 @@ export type ApiPlace = {
   longitude: number | null
   position: number
   icon: PlaceIconKey
+  notes: string
   updated_at: string
-}
-
-export type ApiTask = {
-  id: string
-  city_id: string | null
-  title: string
-  done: boolean
 }
 
 export type ApiDayNote = {
@@ -151,7 +150,6 @@ export type ApiTripDetails = ApiTripSummary & {
   owner_id: string
   cities: ApiCity[]
   places: ApiPlace[]
-  tasks: ApiTask[]
   day_notes: ApiDayNote[]
   documents: ApiDocument[]
   members: ApiMember[]
@@ -186,6 +184,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, { ...init, cache, headers })
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: string }
+    notifyAccessDenied(payload.error)
     throw new ApiRequestError(payload.error || `Ошибка сервера (${response.status})`, response.status)
   }
   if (response.status === 204) return undefined as T
@@ -198,6 +197,7 @@ async function checkedResponse(path: string, init: RequestInit = {}) {
   const response = await fetch(`${API_BASE}${path}`, { ...init, headers })
   if (!response.ok) {
     const payload = await response.json().catch(() => ({})) as { error?: string }
+    notifyAccessDenied(payload.error)
     throw new ApiRequestError(payload.error || `Ошибка сервера (${response.status})`, response.status)
   }
   return response
@@ -237,14 +237,13 @@ export const api = {
   createCity: (tripId: string, value: Record<string, unknown>) => request<{ city: ApiCity }>(`/trips/${tripId}/cities`, json('POST', value)),
   updateCity: (tripId: string, cityId: string, value: Record<string, unknown>) => request<{ city: ApiCity }>(`/trips/${tripId}/cities/${cityId}`, json('PATCH', value)),
   deleteCity: (tripId: string, cityId: string) => request<void>(`/trips/${tripId}/cities/${cityId}`, { method: 'DELETE' }),
-  createPlace: (tripId: string, cityId: string, value: { name: string; googleMapsUrl: string; visitDate?: string; latitude?: number; longitude?: number; icon?: PlaceIconKey }) => request<{ place: ApiPlace }>(`/trips/${tripId}/cities/${cityId}/places`, json('POST', value)),
+  createPlace: (tripId: string, cityId: string, value: { name: string; googleMapsUrl: string; visitDate?: string; latitude?: number; longitude?: number; icon?: PlaceIconKey; notes?: string }) => request<{ place: ApiPlace }>(`/trips/${tripId}/cities/${cityId}/places`, json('POST', value)),
   // visitDate различает два случая: undefined — «не трогать дату», null — «убрать дату».
   // JSON.stringify выбрасывает undefined из тела, поэтому сервер их различит.
-  updatePlace: (tripId: string, placeId: string, value: { name?: string; googleMapsUrl?: string; visitDate?: string | null; latitude?: number; longitude?: number; icon?: PlaceIconKey }) => request<{ place: ApiPlace }>(`/trips/${tripId}/places/${placeId}`, json('PATCH', value)),
+  updatePlace: (tripId: string, placeId: string, value: { name?: string; googleMapsUrl?: string; visitDate?: string | null; latitude?: number; longitude?: number; icon?: PlaceIconKey; notes?: string }) => request<{ place: ApiPlace }>(`/trips/${tripId}/places/${placeId}`, json('PATCH', value)),
   deletePlace: (tripId: string, placeId: string) => request<void>(`/trips/${tripId}/places/${placeId}`, { method: 'DELETE' }),
   movePlace: (tripId: string, placeId: string, value: { visitDate: string | null; position: number }) => request<{ places: ApiPlace[] }>(`/trips/${tripId}/places/${placeId}/move`, json('PATCH', value)),
   updateDayDescription: (tripId: string, date: string, description: string) => request<{ note: ApiDayNote | null }>(`/trips/${tripId}/days/${date}`, json('PUT', { description })),
-  createTask: (tripId: string, value: { cityId?: string; dueDate?: string; title: string }) => request<{ task: ApiTask }>(`/trips/${tripId}/tasks`, json('POST', value)),
   uploadDocument: async (tripId: string, cityId: string | undefined, category: string, file: File) => {
     const form = new FormData()
     form.append('file', file)

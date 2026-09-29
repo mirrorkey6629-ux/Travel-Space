@@ -2,7 +2,6 @@ export type ProtectedCity = {
   id: string
   updatedAt?: string
   places?: unknown
-  tasks?: unknown
   files?: unknown
   image?: unknown
   imageUrl?: unknown
@@ -29,7 +28,7 @@ export const protectedDataSignature = (source: ProtectedTripState) => JSON.strin
   source.accentColor,
   Boolean(source.backgroundRemoved),
   ...source.cities.map((city) => {
-    const { updatedAt: _updatedAt, places: _places, tasks: _tasks, files: _files, image: _image, imageUrl: _imageUrl, imageFile: _imageFile, imageDeleteId: _imageDeleteId, ...protectedFields } = city
+    const { updatedAt: _updatedAt, places: _places, files: _files, image: _image, imageUrl: _imageUrl, imageFile: _imageFile, imageDeleteId: _imageDeleteId, ...protectedFields } = city
     return JSON.stringify(protectedFields)
   }),
 ])

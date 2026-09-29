@@ -53,6 +53,7 @@ const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}
 const base64Pattern = /^[A-Za-z0-9+/]*={0,2}$/
 const isBase64 = (value: string) => value.length % 4 === 0 && base64Pattern.test(value)
 const httpError = (statusCode: number, message: string) => Object.assign(new Error(message), { statusCode })
+const supportedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 const changed = (before: Record<string, unknown>, after: Record<string, unknown>, fields: string[]) => fields.some((field) => {
   const normalize = (value: unknown) => value instanceof Date ? value.toISOString() : value
@@ -148,11 +149,11 @@ app.post(`${apiPrefix}/auth/register`, async (request, reply) => {
   const email = text(body.email).toLowerCase()
   const displayName = text(body.displayName)
   const password = passwordText(body.password)
-  if (!/^\S+@\S+\.\S+$/.test(email)) throw httpError(400, 'Укажите корректный email')
-  if (!displayName) throw httpError(400, 'Укажите имя')
-  if (password.length < 8) throw httpError(400, 'Пароль должен содержать не менее 8 символов')
-  if (password.length > 256) throw httpError(400, 'Пароль не должен быть длиннее 256 символов')
-  if ((await db.query('SELECT 1 FROM users WHERE email=$1', [email])).rowCount) throw httpError(409, 'Аккаунт с таким email уже есть')
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw httpError(400, 'Такая почта не зарегистрирована')
+  if (!displayName) throw httpError(400, 'Нужно ввести имя')
+  if (password.length < 8) throw httpError(400, 'В пароле должно быть не меньше 8 символов')
+  if (password.length > 256) throw httpError(400, 'В пароле должно быть меньше 256 символов')
+  if ((await db.query('SELECT 1 FROM users WHERE email=$1', [email])).rowCount) throw httpError(409, 'Аккаунт с такой почтой уже есть')
   const passwordHash = await hashPassword(password)
   const user = (await db.query<{ id: string; email: string; display_name: string }>('INSERT INTO users(email,display_name,password_hash) VALUES ($1,$2,$3) RETURNING id,email,display_name', [email, displayName, passwordHash])).rows[0]
   const token = await createSession(user.id)
@@ -164,9 +165,10 @@ app.post(`${apiPrefix}/auth/login`, async (request) => {
   const body = bodyOf(request.body)
   const email = text(body.email).toLowerCase()
   const password = passwordText(body.password)
-  if (password.length > 256) throw httpError(400, 'Пароль не должен быть длиннее 256 символов')
+  if (password.length > 256) throw httpError(401, 'Неправильный пароль')
   const user = (await db.query<{ id: string; email: string; display_name: string; password_hash: string | null }>('SELECT id,email,display_name,password_hash FROM users WHERE email=$1', [email])).rows[0]
-  if (!user?.password_hash || !await verifyPassword(password, user.password_hash)) throw httpError(401, 'Неверный email или пароль')
+  if (!user?.password_hash) throw httpError(401, 'Такая почта не зарегистрирована')
+  if (!await verifyPassword(password, user.password_hash)) throw httpError(401, 'Неправильный пароль')
   const token = await createSession(user.id)
   return { token, user: { id: user.id, email: user.email, displayName: user.display_name } }
 })
@@ -179,11 +181,11 @@ app.patch(`${apiPrefix}/me`, async (request) => {
   const email = text(body.email).toLowerCase()
   const displayName = text(body.displayName)
   const password = passwordText(body.password)
-  if (!/^\S+@\S+\.\S+$/.test(email)) throw httpError(400, 'Укажите корректный email')
-  if (!displayName) throw httpError(400, 'Укажите имя')
-  if (password && password.length < 8) throw httpError(400, 'Пароль должен содержать не менее 8 символов')
-  if (password.length > 256) throw httpError(400, 'Пароль не должен быть длиннее 256 символов')
-  if ((await db.query('SELECT 1 FROM users WHERE email=$1 AND id<>$2', [email, user.id])).rowCount) throw httpError(409, 'Аккаунт с таким email уже есть')
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw httpError(400, 'Такая почта не зарегистрирована')
+  if (!displayName) throw httpError(400, 'Нужно ввести имя')
+  if (password && password.length < 8) throw httpError(400, 'В пароле должно быть не меньше 8 символов')
+  if (password.length > 256) throw httpError(400, 'В пароле должно быть меньше 256 символов')
+  if ((await db.query('SELECT 1 FROM users WHERE email=$1 AND id<>$2', [email, user.id])).rowCount) throw httpError(409, 'Аккаунт с такой почтой уже есть')
   const passwordHash = password ? await hashPassword(password) : undefined
   const updated = (await db.query<{ id: string; email: string; display_name: string }>(
     `UPDATE users
@@ -208,7 +210,7 @@ app.post(`${apiPrefix}/me/avatar`, async (request) => {
   const user = await requireUser(request)
   const upload = await request.file()
   if (!upload) throw httpError(400, 'Файл не выбран')
-  if (!upload.mimetype.startsWith('image/')) throw httpError(400, 'Аватар должен быть изображением')
+  if (!supportedImageTypes.has(upload.mimetype)) throw httpError(400, 'Аватар должен быть изображением')
   await mkdir(config.uploadDir, { recursive: true })
   const extension = path.extname(upload.filename).slice(0, 16)
   const storageKey = `${crypto.randomUUID()}${extension}`
@@ -273,7 +275,7 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
   if (!upload) throw httpError(400, 'Файл импорта не выбран')
   let bundle: any
   try { bundle = JSON.parse((await upload.toBuffer()).toString('utf8')) } catch { throw httpError(400, 'Файл поездки повреждён или имеет неверный формат') }
-  if (bundle?.format !== 'travel-space' || bundle?.version !== 1 || !bundle.trip || !Array.isArray(bundle.cities) || !Array.isArray(bundle.places) || !Array.isArray(bundle.tasks) || !Array.isArray(bundle.documents)) throw httpError(400, 'Неподдерживаемый формат файла поездки')
+  if (bundle?.format !== 'travel-space' || bundle?.version !== 1 || !bundle.trip || !Array.isArray(bundle.cities) || !Array.isArray(bundle.places) || !Array.isArray(bundle.documents)) throw httpError(400, 'Неподдерживаемый формат файла поездки')
   const tripName = text(bundle.trip.name)
   const startDate = text(bundle.trip.startDate)
   const endDate = text(bundle.trip.endDate)
@@ -322,18 +324,8 @@ app.post(`${apiPrefix}/trips/import`, async (request, reply) => {
         const placeIcon = normalizePlaceIcon(source.icon)
         if (!placeIcon) throw httpError(400, 'Неизвестная иконка места в файле поездки')
         await client.query(
-          `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,icon,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
-          [createdTrip.id, cityId, visitDate, text(source.name), text(source.googleMapsUrl), optionalCoordinate(source.latitude, -90, 90) ?? null, optionalCoordinate(source.longitude, -180, 180) ?? null, Number.isInteger(source.position) ? source.position : 0, placeIcon, user.id],
-        )
-      }
-      for (const source of bundle.tasks) {
-        const cityId = source.cityId ? cityIds.get(text(source.cityId)) : null
-        const dueDate = optionalText(source.dueDate) || null
-        if ((source.cityId && !cityId) || !text(source.title)) throw httpError(400, 'Некорректная задача в файле')
-        if (dueDate && (!datePattern.test(dueDate) || dueDate < startDate || dueDate > endDate)) throw httpError(400, 'Дата задачи находится за пределами поездки')
-        await client.query(
-          'INSERT INTO tasks(trip_id,city_id,due_date,title,done,created_by) VALUES ($1,$2,$3,$4,$5,$6)',
-          [createdTrip.id, cityId, dueDate, text(source.title), Boolean(source.done), user.id],
+          `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,icon,notes,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+          [createdTrip.id, cityId, visitDate, text(source.name), text(source.googleMapsUrl), optionalCoordinate(source.latitude, -90, 90) ?? null, optionalCoordinate(source.longitude, -180, 180) ?? null, Number.isInteger(source.position) ? source.position : 0, placeIcon, text(source.notes), user.id],
         )
       }
       for (const source of Array.isArray(bundle.dayNotes) ? bundle.dayNotes : []) {
@@ -393,11 +385,10 @@ app.get(`${apiPrefix}/trips/:tripId`, async (request) => {
   const user = await requireUser(request)
   const { tripId } = request.params as { tripId: string }
   const role = await requireTripRole(tripId, user.id)
-  const [tripResult, cities, places, tasks, dayNotes, documents, members, latestChange] = await Promise.all([
+  const [tripResult, cities, places, dayNotes, documents, members, latestChange] = await Promise.all([
     db.query('SELECT id, name, start_date, end_date, time_zone, accent_color, owner_id, background_removed, created_at, updated_at FROM trips WHERE id = $1', [tripId]),
     db.query('SELECT * FROM cities WHERE trip_id = $1 ORDER BY position', [tripId]),
     db.query('SELECT * FROM places WHERE trip_id = $1 ORDER BY city_id, visit_date NULLS FIRST, position', [tripId]),
-    db.query('SELECT * FROM tasks WHERE trip_id = $1 ORDER BY created_at', [tripId]),
     db.query('SELECT trip_id,day_date,description FROM trip_day_notes WHERE trip_id = $1 ORDER BY day_date', [tripId]),
     db.query('SELECT d.id, d.trip_id, d.city_id, d.category, d.original_name, d.mime_type, d.size_bytes, d.created_by, d.created_at, u.display_name AS created_by_name FROM documents d JOIN users u ON u.id = d.created_by WHERE d.trip_id = $1 ORDER BY d.created_at', [tripId]),
     db.query(`SELECT u.id, u.email, u.display_name, (u.avatar_storage_key IS NOT NULL) AS has_avatar, tm.role, tm.joined_at FROM trip_members tm JOIN users u ON u.id = tm.user_id WHERE tm.trip_id = $1`, [tripId]),
@@ -410,7 +401,7 @@ app.get(`${apiPrefix}/trips/:tripId`, async (request) => {
   ])
   const trip = tripResult.rows[0]
   if (!trip) throw httpError(404, 'Поездка не найдена')
-  return { trip: { ...trip, role, cities: cities.rows, places: places.rows, tasks: tasks.rows, day_notes: dayNotes.rows, documents: documents.rows, members: members.rows, last_change: latestChange.rows[0] ?? null } }
+  return { trip: { ...trip, role, cities: cities.rows, places: places.rows, day_notes: dayNotes.rows, documents: documents.rows, members: members.rows, last_change: latestChange.rows[0] ?? null } }
 })
 
 app.put(`${apiPrefix}/trips/:tripId/days/:date`, async (request) => {
@@ -455,11 +446,10 @@ app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
   const user = await requireUser(request)
   const { tripId } = request.params as { tripId: string }
   await requireTripRole(tripId, user.id, true)
-  const [tripResult, cities, places, tasks, dayNotes, documents] = await Promise.all([
+  const [tripResult, cities, places, dayNotes, documents] = await Promise.all([
     db.query('SELECT name,start_date::text,end_date::text,time_zone,accent_color,background_removed FROM trips WHERE id=$1', [tripId]),
     db.query('SELECT * FROM cities WHERE trip_id=$1 ORDER BY position', [tripId]),
     db.query('SELECT * FROM places WHERE trip_id=$1 ORDER BY city_id,visit_date NULLS FIRST,position', [tripId]),
-    db.query('SELECT * FROM tasks WHERE trip_id=$1 ORDER BY created_at', [tripId]),
     db.query('SELECT day_date,description FROM trip_day_notes WHERE trip_id=$1 ORDER BY day_date', [tripId]),
     db.query('SELECT * FROM documents WHERE trip_id=$1 ORDER BY created_at', [tripId]),
   ])
@@ -470,8 +460,7 @@ app.get(`${apiPrefix}/trips/:tripId/export`, async (request, reply) => {
     trip: { name: trip.name, startDate: trip.start_date, endDate: trip.end_date, timeZone: trip.time_zone, accentColor: trip.accent_color, backgroundRemoved: trip.background_removed },
     cities: cities.rows.map((city) => ({ id: city.id, name: city.name, googleMapsUrl: city.google_maps_url, arrivalDate: String(city.arrival_date).slice(0,10), departureDate: String(city.departure_date).slice(0,10), arrivalPeriod: city.arrival_period, departurePeriod: city.departure_period, hotelNotNeeded: city.hotel_not_needed, hotel: city.hotel, hotelUrl: city.hotel_url, hotelCheckInTime: city.hotel_check_in_time, hotelCheckOutTime: city.hotel_check_out_time, hotelNotes: city.hotel_notes, trainIn: city.train_in, trainOut: city.train_out,
       transportInType: city.transport_in_type, transportOutType: city.transport_out_type, transportInName: city.transport_in_name, transportOutName: city.transport_out_name, transportInDepartureTime: city.transport_in_departure_time, transportInArrivalTime: city.transport_in_arrival_time, transportOutDepartureTime: city.transport_out_departure_time, transportOutArrivalTime: city.transport_out_arrival_time, transportInDepartureStation: city.transport_in_departure_station, transportInDepartureStationUrl: city.transport_in_departure_station_url, transportInArrivalStation: city.transport_in_arrival_station, transportInArrivalStationUrl: city.transport_in_arrival_station_url, transportOutDepartureStation: city.transport_out_departure_station, transportOutDepartureStationUrl: city.transport_out_departure_station_url, transportOutArrivalStation: city.transport_out_arrival_station, transportOutArrivalStationUrl: city.transport_out_arrival_station_url, transportInNotes: city.transport_in_notes, transportOutNotes: city.transport_out_notes, transportInTicketOnSite: city.transport_in_ticket_on_site, transportOutTicketOnSite: city.transport_out_ticket_on_site })),
-    places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, latitude: place.latitude, longitude: place.longitude, position: place.position, icon: place.icon })),
-    tasks: tasks.rows.map((task) => ({ cityId: task.city_id, dueDate: task.due_date ? String(task.due_date).slice(0,10) : null, title: task.title, done: task.done })),
+    places: places.rows.map((place) => ({ cityId: place.city_id, visitDate: place.visit_date ? String(place.visit_date).slice(0,10) : null, name: place.name, googleMapsUrl: place.google_maps_url, latitude: place.latitude, longitude: place.longitude, position: place.position, icon: place.icon, notes: place.notes })),
     dayNotes: dayNotes.rows.map((note) => ({ date: String(note.day_date).slice(0,10), description: note.description })),
     documents: await Promise.all(documents.rows.map(async (document) => ({ cityId: document.city_id, category: document.category, originalName: document.original_name, mimeType: document.mime_type, contentBase64: (await readFile(path.join(config.uploadDir, document.storage_key))).toString('base64') }))),
   }
@@ -519,7 +508,7 @@ app.delete(`${apiPrefix}/trips/:tripId`, async (request, reply) => {
   const confirmation = text(body.confirmation)
   const trip = (await db.query<{ name: string }>('SELECT name FROM trips WHERE id = $1', [tripId])).rows[0]
   if (!trip) throw httpError(404, 'Поездка не найдена')
-  if (confirmation !== trip.name) throw httpError(400, 'Введите название поездки без изменений')
+  if (confirmation !== trip.name) throw httpError(400, 'Такой поездки не существует')
   const documents = await db.query<{ storage_key: string }>('SELECT storage_key FROM documents WHERE trip_id = $1', [tripId])
   await db.query('DELETE FROM trips WHERE id = $1', [tripId])
   await Promise.all(documents.rows.map((document) => unlink(path.join(config.uploadDir, document.storage_key)).catch(() => undefined)))
@@ -569,10 +558,9 @@ app.get(`${apiPrefix}/public-trips/:token`, async (request) => {
   )
   const trip = tripResult.rows[0]
   if (!trip) throw httpError(404, 'Ссылка на поездку недействительна')
-  const [cities, places, tasks, dayNotes, documents] = await Promise.all([
+  const [cities, places, dayNotes, documents] = await Promise.all([
     db.query('SELECT * FROM cities WHERE trip_id=$1 ORDER BY position', [trip.id]),
     db.query('SELECT * FROM places WHERE trip_id=$1 ORDER BY city_id,visit_date NULLS FIRST,position', [trip.id]),
-    db.query('SELECT * FROM tasks WHERE trip_id=$1 ORDER BY created_at', [trip.id]),
     db.query('SELECT trip_id,day_date,description FROM trip_day_notes WHERE trip_id=$1 ORDER BY day_date', [trip.id]),
     db.query("SELECT d.id,d.trip_id,d.city_id,d.category,d.original_name,d.mime_type,d.size_bytes,d.created_at,''::text AS created_by,''::text AS created_by_name FROM documents d WHERE d.trip_id=$1 AND d.category IN ('trip-background','city-image') ORDER BY d.created_at", [trip.id]),
   ])
@@ -582,7 +570,6 @@ app.get(`${apiPrefix}/public-trips/:token`, async (request) => {
       role: 'member',
       cities: cities.rows.map(({ created_by: _createdBy, updated_by: _updatedBy, ...city }) => ({ ...city, train_in: '', train_out: '', ticket_assignee_ids: [], hotel_assignee_ids: [], plan_assignee_ids: [], hotel_payer_ids: [], transport_in_payer_ids: [], transport_out_payer_ids: [] })),
       places: places.rows.map(({ created_by: _createdBy, updated_by: _updatedBy, ...place }) => place),
-      tasks: tasks.rows.map(({ created_by: _createdBy, updated_by: _updatedBy, ...task }) => task),
       day_notes: dayNotes.rows,
       documents: documents.rows,
       members: [],
@@ -754,6 +741,20 @@ app.patch(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request) => {
   )
   if (!result.rowCount) throw httpError(409, 'Этот город уже изменили в другой сессии. Обновите страницу — ваши данные не были перезаписаны')
   const saved = result.rows[0]
+  await db.query(
+    `WITH moved AS (
+       SELECT id, row_number() OVER (ORDER BY visit_date, position, id) AS offset
+         FROM places
+        WHERE city_id=$1 AND visit_date IS NOT NULL AND (visit_date < $2 OR visit_date > $3)
+     ), unscheduled AS (
+       SELECT coalesce(max(position), -1) AS last_position FROM places WHERE city_id=$1 AND visit_date IS NULL
+     )
+     UPDATE places AS place
+        SET visit_date=NULL, position=unscheduled.last_position + moved.offset, updated_at=now()
+       FROM moved, unscheduled
+      WHERE place.id=moved.id`,
+    [cityId, input.arrivalDate, input.departureDate],
+  )
   const sections: string[] = []
   if (changed(current, saved, ['hotel_not_needed', 'hotel', 'hotel_url', 'hotel_check_in_time', 'hotel_check_out_time', 'hotel_notes', 'hotel_payer_ids', 'hotel_total_amount_rubles'])) sections.push('hotel')
   if (changed(current, saved, ['transport_in_type', 'transport_in_name', 'transport_in_departure_date', 'transport_in_arrival_date', 'transport_in_departure_time', 'transport_in_arrival_time', 'transport_in_departure_time_zone', 'transport_in_arrival_time_zone', 'transport_in_departure_station', 'transport_in_departure_station_url', 'transport_in_arrival_station', 'transport_in_arrival_station_url', 'transport_in_notes', 'transport_in_ticket_on_site', 'transport_in_payer_ids', 'transport_in_total_amount_rubles'])) sections.push('transport-in')
@@ -767,10 +768,15 @@ app.delete(`${apiPrefix}/trips/:tripId/cities/:cityId`, async (request, reply) =
   const user = await requireUser(request)
   const { tripId, cityId } = request.params as { tripId: string; cityId: string }
   await requireTripRole(tripId, user.id, true)
-  const related = await db.query('SELECT (SELECT count(*) FROM places WHERE city_id=$1) + (SELECT count(*) FROM documents WHERE city_id=$1) AS count', [cityId])
-  if (Number(related.rows[0]?.count) > 0) throw httpError(409, 'В городе есть места или документы. Сначала удалите либо перенесите их')
-  const result = await db.query('DELETE FROM cities WHERE id=$1 AND trip_id=$2', [cityId, tripId])
-  if (!result.rowCount) throw httpError(404, 'Город не найден')
+  const storageKeys = await transaction(async (client) => {
+    const city = await client.query('SELECT id FROM cities WHERE id=$1 AND trip_id=$2 FOR UPDATE', [cityId, tripId])
+    if (!city.rowCount) throw httpError(404, 'Город не найден')
+    const documents = await client.query<{ storage_key: string }>('SELECT storage_key FROM documents WHERE city_id=$1', [cityId])
+    // Places, tasks and document records are tied to the city with ON DELETE CASCADE.
+    await client.query('DELETE FROM cities WHERE id=$1 AND trip_id=$2', [cityId, tripId])
+    return documents.rows.map((document) => document.storage_key)
+  })
+  await Promise.all(storageKeys.map((storageKey) => unlink(path.join(config.uploadDir, storageKey)).catch(() => undefined)))
   reply.code(204).send()
 })
 
@@ -784,19 +790,20 @@ app.post(`${apiPrefix}/trips/:tripId/cities/:cityId/places`, async (request, rep
   const latitude = optionalCoordinate(body.latitude, -90, 90)
   const longitude = optionalCoordinate(body.longitude, -180, 180)
   if ((latitude === undefined) !== (longitude === undefined)) throw httpError(400, 'Широта и долгота должны быть указаны вместе')
-  if (!name) throw httpError(400, 'Название места обязательно')
+  if (!name) throw httpError(400, 'Нужно ввести название места')
   const icon = normalizePlaceIcon(body.icon)
   if (!icon) throw httpError(400, 'Неизвестная иконка места')
   const city = (await db.query('SELECT id FROM cities WHERE id=$1 AND trip_id=$2', [cityId, tripId])).rows[0]
   if (!city) throw httpError(404, 'Город не найден')
   if (visitDate) await assertVisitDateInCity(tripId, cityId, visitDate)
   const googleMapsUrl = text(body.googleMapsUrl)
+  const notes = text(body.notes)
   const sameDayPlaces = await db.query('SELECT id, google_maps_url FROM places WHERE city_id=$1 AND visit_date IS NOT DISTINCT FROM $2', [cityId, visitDate])
   if (hasDuplicatePlaceUrl(sameDayPlaces.rows, googleMapsUrl)) throw httpError(409, 'Эта точка уже добавлена на выбранный день')
   const position = Number((await db.query('SELECT coalesce(max(position), -1) + 1 AS value FROM places WHERE city_id=$1 AND visit_date IS NOT DISTINCT FROM $2', [cityId, visitDate])).rows[0].value)
   const result = await db.query(
-    `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,icon,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
-    [tripId, cityId, visitDate, name, googleMapsUrl, latitude ?? null, longitude ?? null, position, icon, user.id],
+    `INSERT INTO places(trip_id,city_id,visit_date,name,google_maps_url,latitude,longitude,position,icon,notes,created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+    [tripId, cityId, visitDate, name, googleMapsUrl, latitude ?? null, longitude ?? null, position, icon, notes, user.id],
   )
   reply.code(201)
   return { place: result.rows[0] }
@@ -813,6 +820,7 @@ app.patch(`${apiPrefix}/trips/:tripId/places/:placeId`, async (request) => {
   const longitude = optionalCoordinate(body.longitude, -180, 180)
   if ((latitude === undefined) !== (longitude === undefined)) throw httpError(400, 'Широта и долгота должны быть указаны вместе')
   const icon = 'icon' in body ? normalizePlaceIcon(body.icon) : undefined
+  const notes = 'notes' in body ? text(body.notes) : undefined
   if ('icon' in body && !icon) throw httpError(400, 'Неизвестная иконка места')
   // coalesce не различает «поле не прислали» и «прислали null», поэтому дату
   // разбираем отдельно: без этого точку невозможно вернуть в «Без даты».
@@ -827,10 +835,10 @@ app.patch(`${apiPrefix}/trips/:tripId/places/:placeId`, async (request) => {
     `UPDATE places SET name=coalesce($3,name), google_maps_url=coalesce($4,google_maps_url),
        visit_date=CASE WHEN $5 THEN $6 ELSE visit_date END,
        position=coalesce($7,position), latitude=coalesce($8,latitude), longitude=coalesce($9,longitude),
-       icon=coalesce($10,icon), updated_at=now()
+       icon=coalesce($10,icon), notes=coalesce($11,notes), updated_at=now()
      WHERE id=$1 AND trip_id=$2 RETURNING *`,
     [placeId, tripId, optionalText(body.name), optionalText(body.googleMapsUrl), visitDateGiven, visitDate ?? null,
-     Number.isInteger(body.position) ? body.position : null, latitude ?? null, longitude ?? null, icon ?? null],
+     Number.isInteger(body.position) ? body.position : null, latitude ?? null, longitude ?? null, icon ?? null, notes],
   )
   return { place: result.rows[0] }
 })
@@ -871,33 +879,6 @@ app.patch(`${apiPrefix}/trips/:tripId/places/:placeId/move`, async (request) => 
   return { places: places.rows }
 })
 
-app.post(`${apiPrefix}/trips/:tripId/tasks`, async (request, reply) => {
-  const user = await requireUser(request)
-  const { tripId } = request.params as { tripId: string }
-  await requireTripRole(tripId, user.id)
-  const body = bodyOf(request.body)
-  const title = text(body.title)
-  if (!title) throw httpError(400, 'Название задачи обязательно')
-  const result = await db.query(
-    'INSERT INTO tasks(trip_id,city_id,due_date,title,created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *',
-    [tripId, optionalText(body.cityId) || null, optionalText(body.dueDate) || null, title, user.id],
-  )
-  reply.code(201)
-  return { task: result.rows[0] }
-})
-
-app.patch(`${apiPrefix}/trips/:tripId/tasks/:taskId`, async (request) => {
-  const user = await requireUser(request)
-  const { tripId, taskId } = request.params as { tripId: string; taskId: string }
-  const role = await requireTripRole(tripId, user.id)
-  const task = (await db.query('SELECT * FROM tasks WHERE id=$1 AND trip_id=$2', [taskId, tripId])).rows[0]
-  if (!task) throw httpError(404, 'Задача не найдена')
-  if (role !== 'owner' && task.created_by !== user.id) throw httpError(403, 'Можно редактировать только добавленные вами задачи')
-  const body = bodyOf(request.body)
-  const result = await db.query('UPDATE tasks SET title=coalesce($3,title), done=coalesce($4,done), updated_at=now() WHERE id=$1 AND trip_id=$2 RETURNING *', [taskId, tripId, optionalText(body.title), typeof body.done === 'boolean' ? body.done : null])
-  return { task: result.rows[0] }
-})
-
 app.post(`${apiPrefix}/documents`, async (request, reply) => {
   const user = await requireUser(request)
   const query = request.query as { tripId?: string; cityId?: string; category?: string }
@@ -906,9 +887,13 @@ app.post(`${apiPrefix}/documents`, async (request, reply) => {
   if (!tripId || !category) throw httpError(400, 'Нужны tripId и category')
   if (category === 'city-image' && !text(query.cityId)) throw httpError(400, 'Для фото города нужен cityId')
   await requireTripRole(tripId, user.id, category === 'trip-background' || category === 'city-image')
+  if (text(query.cityId)) {
+    const city = (await db.query('SELECT id FROM cities WHERE id=$1 AND trip_id=$2', [text(query.cityId), tripId])).rows[0]
+    if (!city) throw httpError(404, 'Город не найден')
+  }
   const upload = await request.file()
   if (!upload) throw httpError(400, 'Файл не выбран')
-  if ((category === 'trip-background' || category === 'city-image') && !upload.mimetype.startsWith('image/')) throw httpError(400, 'Фото должно быть изображением')
+  if ((category === 'trip-background' || category === 'city-image') && !supportedImageTypes.has(upload.mimetype)) throw httpError(400, 'Фото должно быть изображением')
   await mkdir(config.uploadDir, { recursive: true })
   const id = crypto.randomUUID()
   const extension = path.extname(upload.filename).slice(0, 16)

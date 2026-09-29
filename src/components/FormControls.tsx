@@ -1,5 +1,9 @@
-import { Children, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes, isValidElement, useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react'
+import { Children, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes, isValidElement, useEffect, useId, useLayoutEffect, useRef, useState, type ChangeEvent, type RefObject } from 'react'
 import { Icon } from './Icon'
+
+export function FieldError({ id, children }: { id: string; children: ReactNode }) {
+  return <span className="field-error type-text-s" id={id}><Icon name="warning" size={16} /><span>{children}</span></span>
+}
 
 type InputBaseProps = {
   icon?: ReactNode
@@ -11,6 +15,7 @@ type InputBaseProps = {
   showLabel?: boolean
   controlClassName?: string
   fieldClassName?: string
+  error?: ReactNode
 }
 
 type InputProps = InputBaseProps & (
@@ -20,7 +25,8 @@ type InputProps = InputBaseProps & (
 
 export function Input(props: InputProps) {
   const [moneyFocused, setMoneyFocused] = useState(false)
-  const { icon, trailingIcon, trailingIconLabel, onTrailingIconClick, label, showIcon = true, showLabel = true, controlClassName = '', fieldClassName = '', content = 'text', onValueChange, ...inputProps } = props
+  const errorId = useId()
+  const { icon, trailingIcon, trailingIconLabel, onTrailingIconClick, label, showIcon = true, showLabel = true, controlClassName = '', fieldClassName = '', error, content = 'text', onValueChange, ...inputProps } = props
   const money = content === 'money'
   const moneyValue = money ? Number(props.value) : 0
   const resolvedIcon = money ? icon ?? <Icon name="money-bag" /> : icon
@@ -28,6 +34,8 @@ export function Input(props: InputProps) {
   const resolvedInputProps = money
     ? {
         ...inputProps,
+        'aria-describedby': error ? [inputProps['aria-describedby'], errorId].filter(Boolean).join(' ') : inputProps['aria-describedby'],
+        'aria-invalid': error ? true : inputProps['aria-invalid'],
         type: 'text',
         inputMode: 'numeric' as const,
         placeholder: inputProps.placeholder ?? 'Общая сумма, ₽',
@@ -36,7 +44,11 @@ export function Input(props: InputProps) {
         onBlur: (event: React.FocusEvent<HTMLInputElement>) => { setMoneyFocused(false); props.onBlur?.(event) },
         onChange: (event: React.ChangeEvent<HTMLInputElement>) => onValueChange?.(Math.max(0, Number.parseInt(event.target.value.replace(/\D/g, ''), 10) || 0)),
       }
-    : inputProps
+    : {
+        ...inputProps,
+        'aria-describedby': error ? [inputProps['aria-describedby'], errorId].filter(Boolean).join(' ') : inputProps['aria-describedby'],
+        'aria-invalid': error ? true : inputProps['aria-invalid'],
+      }
   const floatingLabel = showLabel ? label ?? resolvedInputProps.placeholder : undefined
   const floatingPlaceholder = floatingLabel
     ? label ? resolvedInputProps.placeholder ?? ' ' : ' '
@@ -53,7 +65,8 @@ export function Input(props: InputProps) {
         : <span className="form-control-trailing-icon" aria-hidden="true">{trailingIcon}</span>)}
     </span>
   )
-  if (floatingLabel) return <label className={`field floating-field${fieldClassName ? ` ${fieldClassName}` : ''}`}>{control}</label>
+  const errorMessage = error && <FieldError id={errorId}>{error}</FieldError>
+  if (floatingLabel || error) return <label className={`field floating-field${fieldClassName ? ` ${fieldClassName}` : ''}`}>{control}{errorMessage}</label>
   return control
 }
 
@@ -61,18 +74,21 @@ type DateInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
   icon?: ReactNode
   label: ReactNode
   displayValue?: ReactNode
+  error?: ReactNode
 }
 
-export function DateInput({ icon, label, displayValue, disabled, ...props }: DateInputProps) {
+export function DateInput({ icon, label, displayValue, error, disabled, ...props }: DateInputProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  return <label className="form-control form-date-input" onClick={(event) => {
+  const errorId = useId()
+  const control = <label className="form-control form-date-input" onClick={(event) => {
     event.preventDefault()
     if (!inputRef.current?.disabled) inputRef.current?.showPicker()
   }}>
     {icon && <span className="form-control-icon">{icon}</span>}
     <span className="form-control-copy typography-group typography-group-text-text"><span className="form-control-copy-label">{label}</span><span>{displayValue}</span></span>
-    <input ref={inputRef} {...props} disabled={disabled} type="date" />
+    <input ref={inputRef} {...props} disabled={disabled} type="date" aria-invalid={error ? true : props['aria-invalid']} aria-describedby={error ? [props['aria-describedby'], errorId].filter(Boolean).join(' ') : props['aria-describedby']} />
   </label>
+  return error ? <div className="field-control-group">{control}<FieldError id={errorId}>{error}</FieldError></div> : control
 }
 
 type TimeZoneInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
@@ -97,18 +113,19 @@ type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label?: ReactNode
   controlClassName?: string
   fieldClassName?: string
+  autoResize?: boolean
 }
 
-export function Textarea({ label, controlClassName = '', fieldClassName = '', ...props }: TextareaProps) {
+export function Textarea({ label, controlClassName = '', fieldClassName = '', autoResize = true, ...props }: TextareaProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const resizeToContent = () => {
     const textarea = textareaRef.current
-    if (!textarea) return
+    if (!textarea || !autoResize) return
     textarea.style.height = 'auto'
     textarea.style.height = `${textarea.scrollHeight}px`
   }
-  useLayoutEffect(resizeToContent, [props.value])
-  const control = <span className={`form-control form-textarea${controlClassName ? ` ${controlClassName}` : ''}`}><textarea {...props} ref={textareaRef} onChange={(event) => { resizeToContent(); props.onChange?.(event) }} /></span>
+  useLayoutEffect(resizeToContent, [props.value, autoResize])
+  const control = <span className={`form-control form-textarea${autoResize ? '' : ' form-textarea-fixed'}${controlClassName ? ` ${controlClassName}` : ''}`}><textarea {...props} ref={textareaRef} onChange={(event) => { resizeToContent(); props.onChange?.(event) }} onBlur={(event) => { if (!autoResize) event.currentTarget.scrollTop = 0; props.onBlur?.(event) }} /></span>
   return label ? <label className={`field${fieldClassName ? ` ${fieldClassName}` : ''}`}><span>{label}</span>{control}</label> : control
 }
 
@@ -122,6 +139,7 @@ type NativeSelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   secondaryText?: ReactNode
   optionIcons?: Record<string, ReactNode>
   controlClassName?: string
+  error?: ReactNode
   children: ReactNode
 }
 
@@ -133,6 +151,7 @@ type AssigneeSelectProps = {
   options: { value: string; label: string }[]
   value: string[]
   emptyLabel?: string
+  error?: ReactNode
   disabled?: boolean
   onValueChange: (value: string[]) => void
 }
@@ -154,8 +173,9 @@ function useBlurOnOutsidePointer(containerRef: RefObject<HTMLElement | null>) {
   }, [containerRef])
 }
 
-function AssigneeSelect({ label, showLabel = true, icon, options, value, emptyLabel = 'Не назначен', disabled = false, onValueChange }: Omit<AssigneeSelectProps, 'type'>) {
+function AssigneeSelect({ label, showLabel = true, icon, options, value, emptyLabel = 'Не назначен', error, disabled = false, onValueChange }: Omit<AssigneeSelectProps, 'type'>) {
   const [open, setOpen] = useState(false)
+  const errorId = useId()
   const containerRef = useRef<HTMLDivElement>(null)
   useBlurOnOutsidePointer(containerRef)
 
@@ -174,8 +194,8 @@ function AssigneeSelect({ label, showLabel = true, icon, options, value, emptyLa
 
   const selectedLabels = options.filter((option) => value.includes(option.value)).map((option) => option.label)
   const floatingLabel = showLabel ? label ?? emptyLabel : undefined
-  return <div className={`assignee-select${open ? ' open' : ''}`} ref={containerRef}>
-    <button className={`form-control${floatingLabel ? ' form-control-floating' : ''} assignee-select-trigger`} type="button" data-filled={floatingLabel && selectedLabels.length > 0 || undefined} disabled={disabled} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+  const select = <div className={`assignee-select${open ? ' open' : ''}`} ref={containerRef}>
+    <button className={`form-control${floatingLabel ? ' form-control-floating' : ''} assignee-select-trigger`} type="button" data-filled={floatingLabel && selectedLabels.length > 0 || undefined} disabled={disabled} aria-haspopup="listbox" aria-expanded={open} aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} onClick={() => setOpen((current) => !current)}>
       {icon && <span className="form-control-icon">{icon}</span>}
       <span className="form-control-input typography-group typography-group-text-text">
         {floatingLabel && <span className="form-control-floating-label">{floatingLabel}</span>}
@@ -192,11 +212,13 @@ function AssigneeSelect({ label, showLabel = true, icon, options, value, emptyLa
       })}
     </div>}
   </div>
+  return error ? <div className="field-control-group">{select}<FieldError id={errorId}>{error}</FieldError></div> : select
 }
 
 function NativeSelect(props: NativeSelectProps) {
-  const { type, label, showLabel = true, icon, placeholder, displayValue, secondaryText, optionIcons, controlClassName = '', children, ...selectProps } = props
+  const { type, label, showLabel = true, icon, placeholder, displayValue, secondaryText, optionIcons, controlClassName = '', error, children, ...selectProps } = props
   const [open, setOpen] = useState(false)
+  const errorId = useId()
   const [uncontrolledValue, setUncontrolledValue] = useState(() => String(selectProps.defaultValue ?? ''))
   const containerRef = useRef<HTMLDivElement>(null)
   const controlled = selectProps.value !== undefined
@@ -228,9 +250,9 @@ function NativeSelect(props: NativeSelectProps) {
     setOpen(false)
   }
 
-  return (
+  const select = (
     <div ref={containerRef} className={`native-select${open ? ' open' : ''}`}>
-      <button type="button" className={`form-control form-select form-select-${type}${floatingLabel ? ' form-select-floating' : ''}${icon ? ' form-control-with-icon' : ''}${visibleValue !== undefined ? ' form-select-with-display-value' : ''}${controlClassName ? ` ${controlClassName}` : ''}`} data-filled={floatingLabel && hasValue || undefined} data-placeholder={floatingLabel && !hasValue && placeholder !== undefined || undefined} disabled={selectProps.disabled} aria-label={selectProps['aria-label']} aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen((current) => !current)}>
+      <button type="button" className={`form-control form-select form-select-${type}${floatingLabel ? ' form-select-floating' : ''}${icon ? ' form-control-with-icon' : ''}${visibleValue !== undefined ? ' form-select-with-display-value' : ''}${controlClassName ? ` ${controlClassName}` : ''}`} data-filled={floatingLabel && hasValue || undefined} data-placeholder={floatingLabel && !hasValue && placeholder !== undefined || undefined} disabled={selectProps.disabled} aria-label={selectProps['aria-label']} aria-haspopup="listbox" aria-expanded={open} aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined} onClick={() => setOpen((current) => !current)}>
         {icon && <span className="form-control-icon">{icon}</span>}
         <span className="form-control-input typography-group typography-group-text-text">
           {floatingLabel && <span className="form-control-floating-label">{floatingLabel}</span>}
@@ -244,6 +266,7 @@ function NativeSelect(props: NativeSelectProps) {
       {selectProps.name && <input type="hidden" name={selectProps.name} value={value} />}
     </div>
   )
+  return error ? <div className="field-control-group">{select}<FieldError id={errorId}>{error}</FieldError></div> : select
 }
 
 export function Select(props: SelectProps) {

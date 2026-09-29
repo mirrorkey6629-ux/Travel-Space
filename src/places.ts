@@ -4,7 +4,7 @@ import type { PlaceIconKey } from './placeIcons'
 // дней и карта обязаны сравнивать даты с одним и тем же значением.
 export const UNSCHEDULED_KEY = 'unscheduled'
 
-export type PlaceDraft = { name: string; icon: PlaceIconKey; date: string }
+export type PlaceDraft = { name: string; icon: PlaceIconKey; date: string; notes: string }
 
 /**
  * Ссылка «открыть в Google Maps».

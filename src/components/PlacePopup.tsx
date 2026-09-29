@@ -1,4 +1,4 @@
-import { Input, Select } from './FormControls'
+import { Input, Select, Textarea } from './FormControls'
 import { FormControlRow } from './FormControlList'
 import { Icon } from './Icon'
 import { PointCard } from './PointCard'
@@ -6,6 +6,11 @@ import { PLACE_ICON_OPTIONS, placeIconUrl } from '../placeIcons'
 import { UNSCHEDULED_KEY, type PlaceDraft } from '../places'
 
 type HotelPointDetails = { cityName: string; dateLabel: string; checkInTime: string; checkOutTime: string; hasBooking: boolean }
+
+const mapNotes = (value: string) => value
+  .split(/\r?\n/)
+  .filter((line) => line.trim())
+  .join('\n')
 
 export function PlacePopup({ mode, draft, dates, formatDate, formatDateOption, readOnly, dateLocked, mapsUrl, mapsAddress, hotelDetails, onOpenBooking, onEdit, onChange, onSave, onDelete, onClose }: {
   mode: 'view' | 'edit'
@@ -25,6 +30,7 @@ export function PlacePopup({ mode, draft, dates, formatDate, formatDateOption, r
   onDelete?: () => void
   onClose: () => void
 }) {
+  const visibleNotes = mapNotes(draft.notes)
   if (mode === 'view') {
     if (hotelDetails) {
       const stayTimes = [hotelDetails.checkInTime ? `Заселение в ${hotelDetails.checkInTime}` : '', hotelDetails.checkOutTime ? `Выселение до ${hotelDetails.checkOutTime}` : ''].filter(Boolean).join(' · ')
@@ -39,6 +45,7 @@ export function PlacePopup({ mode, draft, dates, formatDate, formatDateOption, r
             { icon: <Icon name="calendar-month" />, content: hotelDetails.dateLabel },
             ...(stayTimes ? [{ icon: <Icon name="time" />, content: stayTimes }] : []),
             ...(mapsUrl ? [{ icon: <Icon name="pin-home" />, content: <a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">{mapsAddress || 'Открыть в Google Maps'}</a> }] : []),
+            ...(visibleNotes ? [{ icon: <Icon name="docs" />, content: <span className="place-popup-notes">{visibleNotes}</span> }] : []),
           ]}
           secondaryAction={hotelDetails.hasBooking && onOpenBooking ? { label: 'Бронь отеля', onClick: onOpenBooking } : undefined}
           primaryAction={!readOnly ? { label: 'Редактировать', onClick: onEdit } : undefined}
@@ -56,6 +63,7 @@ export function PlacePopup({ mode, draft, dates, formatDate, formatDateOption, r
         rows={[
           { icon: <Icon name="calendar-month" />, content: draft.date === UNSCHEDULED_KEY ? 'Без даты' : formatDate(draft.date) },
           ...(mapsUrl ? [{ icon: <Icon name={dateLocked && draft.icon === 'transport' ? 'pin-transport' : 'pin'} />, content: <a className="place-popup-link" href={mapsUrl} target="_blank" rel="noreferrer">{mapsAddress || 'Открыть в Google Maps'}</a> }] : []),
+          ...(visibleNotes ? [{ icon: <Icon name="docs" />, content: <span className="place-popup-notes">{visibleNotes}</span> }] : []),
         ]}
         secondaryAction={!readOnly && onDelete ? { label: 'Удалить', onClick: onDelete } : undefined}
         primaryAction={!readOnly ? { label: 'Редактировать', onClick: onEdit } : undefined}
@@ -74,8 +82,10 @@ export function PlacePopup({ mode, draft, dates, formatDate, formatDateOption, r
           <option value={UNSCHEDULED_KEY}>Без даты</option>
           {dates.map((date) => <option key={date} value={date}>{formatDateOption(date)}</option>)}
         </Select></FormControlRow>
-        <FormControlRow><Input label="Название локации" icon={<Icon name="book" />} aria-label="Название локации" value={draft.name} autoFocus
+        <FormControlRow><Input label="Название локации" icon={<Icon name="book" />} aria-label="Название локации" value={draft.name} autoFocus error={!draft.name.trim() ? 'Нужно ввести название места' : undefined}
           onChange={(event) => onChange({ ...draft, name: event.target.value })} /></FormControlRow>
+        <FormControlRow><Textarea autoResize={false} aria-label="Описание точки" placeholder="Описание точки" value={draft.notes}
+          onChange={(event) => onChange({ ...draft, notes: event.target.value })} /></FormControlRow>
     </PointCard>
   )
 }

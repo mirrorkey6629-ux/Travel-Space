@@ -56,7 +56,7 @@ export function ImageFilePicker({ children, disabled = false, onSelect }: ImageF
 
   useEffect(() => clearPreview, [clearPreview])
 
-  return <FilePicker accept="image/*" disabled={disabled} onSelect={(file) => {
+  return <FilePicker accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" disabled={disabled} onSelect={(file) => {
     clearPreview()
     const previewUrl = URL.createObjectURL(file)
     previewUrlRef.current = previewUrl

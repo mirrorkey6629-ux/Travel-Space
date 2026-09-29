@@ -14,6 +14,7 @@ export type MapPlace = {
   date: string
   latitude?: number
   longitude?: number
+  notes?: string
   dateLocked?: boolean
   editTarget?: { cityId: string; panel: 'hotel' | 'in' | 'out' }
   hotelDetails?: { cityName: string; dateLabel: string; checkInTime: string; checkOutTime: string; hasBooking: boolean }
@@ -104,8 +105,8 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, ac
   readOnly?: boolean
   formatDate: (value: string) => string
   formatDateOption: (value: string) => string
-  onAdd: (value: { name: string; icon: PlaceIconKey; date: string; position: Coordinates }) => void
-  onUpdate: (id: string, value: { name: string; icon: PlaceIconKey; date: string }) => void
+  onAdd: (value: { name: string; icon: PlaceIconKey; date: string; notes: string; position: Coordinates }) => void
+  onUpdate: (id: string, value: { name: string; icon: PlaceIconKey; date: string; notes: string }) => void
   onDelete: (id: string) => void
   onResolvePlace?: (id: string, coordinates: Coordinates) => void
   onEditTarget?: (target: NonNullable<MapPlace['editTarget']>) => void
@@ -273,7 +274,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, ac
       gmpClickable: true,
     })
     marker.addEventListener('gmp-click', () => {
-      setDraft((current) => current ?? { name: '', icon: 'default', date: activeDate ?? UNSCHEDULED_KEY })
+      setDraft((current) => current ?? { name: '', icon: 'default', date: activeDate ?? UNSCHEDULED_KEY, notes: '' })
       setEditing(true)
     })
     return () => { marker.map = null }
@@ -333,7 +334,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, ac
     map?.setZoom(16)
     setSelectedId(null)
     setDraftPosition(result.position)
-    setDraft({ name: result.name, icon: iconForGoogleTypes(result.types), date: activeDate ?? UNSCHEDULED_KEY })
+    setDraft({ name: result.name, icon: iconForGoogleTypes(result.types), date: activeDate ?? UNSCHEDULED_KEY, notes: '' })
     setEditing(true)
   }
 
@@ -354,7 +355,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, ac
   const popupDraft = editing
     ? draft
     : selected
-      ? { name: selected.name, icon: selected.icon, date: selected.date }
+      ? { name: selected.name, icon: selected.icon, date: selected.date, notes: selected.notes ?? '' }
       : null
 
   return (
@@ -401,7 +402,7 @@ export function PlacesMap({ query, centerUrl = '', places, dates, activeDate, ac
         <div className="places-map-detached-popup">
           <PlacePopup
             mode="view"
-            draft={{ name: selected.name, icon: selected.icon, date: selected.date }}
+            draft={{ name: selected.name, icon: selected.icon, date: selected.date, notes: selected.notes ?? '' }}
             dates={dates}
             formatDate={formatDate}
             formatDateOption={formatDateOption}
