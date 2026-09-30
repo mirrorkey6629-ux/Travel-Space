@@ -7,6 +7,14 @@ export const UNSCHEDULED_KEY = 'unscheduled'
 export type PlaceDraft = { name: string; icon: PlaceIconKey; date: string; notes: string }
 
 /**
+ * Собирает маршрут дня в том же хронологическом порядке, что и календарь:
+ * приезд в город, заселение, места дня, отъезд.
+ */
+export function chronologicalDayPlaces<T>(ordinary: T[], arrival?: T, hotel?: T, departure?: T): T[] {
+  return [arrival, hotel, ...ordinary, departure].filter((place): place is T => place !== undefined)
+}
+
+/**
  * Ссылка «открыть в Google Maps».
  *
  * При известных координатах строится документированная форма Maps URLs API. Она

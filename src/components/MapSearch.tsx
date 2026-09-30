@@ -10,6 +10,7 @@ export function MapSearch({ maps, map, onPick }: {
 }) {
   const [query, setQuery] = useState('')
   const [suggestions, setSuggestions] = useState<any[]>([])
+  const [active, setActive] = useState(false)
   const tokenRef = useRef<any>(null)
 
   useEffect(() => {
@@ -49,12 +50,18 @@ export function MapSearch({ maps, map, onPick }: {
   }
 
   return (
-    <div className="map-search">
+    <div
+      className="map-search"
+      onFocusCapture={() => setActive(true)}
+      onBlurCapture={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setActive(false)
+      }}
+    >
       <div className="map-search-field">
         <Icon name="pin-add" />
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Найти место" aria-label="Поиск места на карте" />
       </div>
-      {suggestions.length > 0 && (
+      {active && suggestions.length > 0 && (
         <ul className="map-search-results">
           {suggestions.map((suggestion, index) => (
             <li key={suggestion.placePrediction?.placeId ?? index}>

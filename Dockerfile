@@ -33,7 +33,7 @@ ARG BASE_PATH
 # Ключ публичен по своей природе — он виден в коде страницы — и защищён
 # ограничением по HTTP-referer в Google Cloud, а не секретностью.
 ARG VITE_GOOGLE_MAPS_API_KEY=AIzaSyAXgPq2m7QuefxS1zSkjPr-NLeld0OJz00
-ARG VITE_GOOGLE_MAPS_MAP_ID=a906a0e6ca962cd2c1e96f72
+ARG VITE_GOOGLE_MAPS_MAP_ID=46b5bb5139bdbc65f37f3768
 ARG VITE_APP_VERSION=dev
 ENV BASE_PATH=${BASE_PATH}
 ENV VITE_GOOGLE_MAPS_API_KEY=${VITE_GOOGLE_MAPS_API_KEY}

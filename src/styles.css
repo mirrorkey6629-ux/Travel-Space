@@ -616,20 +616,16 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 .empty-text { color: var(--color-text-secondary); }
 .empty-calendar { padding: 48px; border-radius: 24px; text-align: center; }
 
-.city-page-card { position: relative; width: 100%; height: calc(100vh - 64px); min-height: 0; flex: 0 0 auto; padding: 20px; border-radius: 24px; display: flex; flex-direction: column; gap: 26px; }
+.city-page-card { position: relative; width: 100%; height: calc(100vh - 64px); min-height: 0; flex: 0 0 auto; padding: 20px; border-radius: 24px; display: flex; flex-direction: column; }
 .city-panel-content { opacity: 1; }
 .city-panel-content-out { opacity: 0; transition: opacity 150ms ease; }
 .city-panel-content-in { animation: city-panel-content-in 200ms ease; }
 @keyframes city-panel-content-in { from { opacity: 0; } to { opacity: 1; } }
-.city-compact-header { position: relative; text-align: center; }
-.city-compact-copy { width: 100%; margin-top: 13px; }
-.city-inline-back { position: absolute; top: 12px; left: 0; width: 40px; height: 40px; padding: 8px; border-radius: 50%; color: rgba(255,255,255,.8); background: var(--glass-soft); display: grid; place-items: center; }
-.city-inline-back:hover { color: #fff; }
-.city-inline-back:focus-visible { outline: 0; color: #fff; }
-.city-compact-header p { margin: 0; color: var(--color-text-secondary); font-size: var(--type-text-size); line-height: var(--type-text-line-height); font-weight: var(--type-text-weight); letter-spacing: var(--type-text-letter-spacing); }
 .hidden-file-input { display: none; }
-.city-main { min-height: 0; margin-top: 8px; flex: 1; display: grid; grid-template-columns: calc((100% - 24px) / 3 - 40px) 1fr; align-items: stretch; gap: 12px; }
-.city-days { min-height: 0; padding: 16px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; border-radius: 16px; background: var(--color-background-secondary); display: flex; flex-direction: column; gap: 28px; }
+.city-main { min-height: 0; flex: 1; display: grid; grid-template-columns: calc((100% - 24px) / 3 - 40px) 1fr; align-items: stretch; gap: 12px; }
+.city-route-sidebar { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 16px; }
+.city-calendar-back { width: 100%; flex: 0 0 auto; }
+.city-days { min-height: 0; flex: 1; padding: 16px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; border-radius: 16px; background: var(--color-background-secondary); display: flex; flex-direction: column; gap: 28px; }
 .city-days::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .city-day { padding: 0; margin: 0; border-radius: 12px; }
 .city-day h3 { margin: 0 0 12px; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); }
@@ -693,19 +689,27 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
 /* --- Точки на карте --- */
 
 .places-map { position: relative; width: 100%; height: 100%; }
+.places-map:fullscreen { width: 100vw; height: 100vh; background: var(--color-background-primary); }
 .places-map iframe { display: block; width: 100%; height: 100%; border: 0; }
 
 /* Маркер — обычный DOM-элемент AdvancedMarkerElement, поэтому стилизуется CSS. */
-.place-marker { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #fff; background: rgba(24,24,32,.88); display: grid; place-items: center; cursor: pointer; transition: transform .12s, opacity .12s; }
+.place-marker { position: relative; box-sizing: border-box; width: 32px; height: 32px; border-radius: 50%; border: 1px solid #fff; background: rgba(24,24,32,.88); display: grid; place-items: center; overflow: hidden; cursor: pointer; transition: transform .12s, opacity .12s, border-width .12s; }
+.place-marker::before { content: ''; position: absolute; inset: 0; border-radius: inherit; background: #000; opacity: 0; transition: opacity .12s; }
+.place-marker.is-selected { transform: scale(1.25); }
+.place-marker.is-selected::before { opacity: .3; }
 .place-marker-managed { background: #4D4FAB; }
-.place-marker:hover { transform: scale(1.1); }
+.place-marker:hover { transform: scale(1.25); }
+.place-marker:hover::before { opacity: .3; }
+.place-marker:not(.is-static):hover, .place-marker.is-selected { border-width: 1.5px; }
+.place-marker.is-selected:hover { transform: scale(1.25); }
 .place-marker.is-static { cursor: default; }
 .place-marker.is-static:hover { transform: none; }
-.place-marker .ui-icon { width: 20px; height: 20px; }
+.place-marker.is-static:not(.is-selected):hover::before { opacity: 0; }
+.place-marker .ui-icon { position: relative; z-index: 1; width: 20px; height: 20px; }
 .place-marker.is-dimmed { opacity: .38; }
-.place-marker.is-dimmed:hover { opacity: .8; }
+.place-marker.is-dimmed:hover { opacity: .38; }
 .place-marker.is-dimmed.is-static:hover { opacity: .38; }
-.place-marker-draft { border-style: dashed; background: rgba(24,24,32,.7); }
+.place-marker-draft { background: rgba(24,24,32,.7); }
 
 /* Якорь тултипа: сдвиг вверх, чтобы плашка не накрывала сам маркер. */
 .map-overlay { position: absolute; transform: translate(-50%, calc(-100% - 24px)); }
@@ -722,41 +726,62 @@ button.form-control-trailing-icon:focus-visible { outline: 2px solid #fff; outli
   -webkit-line-clamp: 5;
   line-clamp: 5;
 }
-.point-card { position: relative; z-index: 0; width: min(420px, calc(100vw - 32px)); border: 1px solid var(--border); border-radius: 16px; background: var(--glass-point-card); backdrop-filter: blur(50px) saturate(115%); -webkit-backdrop-filter: blur(50px) saturate(115%); box-shadow: none; transform: translateZ(0); color: var(--color-text-primary); }
+.point-card { position: relative; z-index: 0; width: min(400px, calc(100vw - 32px)); border: 1px solid var(--border); border-radius: 16px; background: var(--glass-point-card); backdrop-filter: blur(50px) saturate(115%); -webkit-backdrop-filter: blur(50px) saturate(115%); box-shadow: none; transform: translateZ(0); color: var(--color-text-primary); }
 .places-map-tinted { --glass-point-card: linear-gradient(color-mix(in srgb, var(--map-point-card-tint) 30%, transparent), color-mix(in srgb, var(--map-point-card-tint) 30%, transparent)), linear-gradient(rgba(0, 0, 0, 0.40), rgba(0, 0, 0, 0.40)), var(--color-background-secondary); }
 .point-card:has(.native-select.open) { z-index: 20; }
-.point-card .native-select-menu { max-height: min(320px, 50vh); scrollbar-width: none; }
+.point-card .native-select-menu { max-height: min(220px, 36vh); scrollbar-width: none; }
 .point-card .native-select-menu::-webkit-scrollbar { display: none; }
-.point-card-view { padding: 24px 16px 20px; }
-.point-details-header { position: relative; min-height: 52px; padding: 0 48px 20px; display: flex; justify-content: center; text-align: center; }
-.point-details-header > .icon-button { position: absolute; top: -8px; right: -4px; }
-.point-details-title { min-width: 0; align-items: center; }
+.point-card-view { padding: 16px; }
+.point-details-header { min-height: 40px; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; text-align: left; }
+.point-card-header-actions { flex: 0 0 auto; margin: -4px -4px 0 0; display: flex; align-items: center; gap: 8px; }
+.point-details-title { min-width: 0; padding-top: 4px; align-items: center; }
 .point-details-title .typography-group-title { overflow-wrap: anywhere; }
-.point-card-view > .divider { margin: 0; }
-.point-details-rows { padding: 20px 0; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.point-details-rows { padding: 12px 0 0; }
 .point-details-rows .text-row { width: 100%; }
-.point-details-rows .place-popup-link { color: inherit; }
-.point-card-editor { padding: 20px 16px; }
-.point-editor-header { min-height: 40px; margin-bottom: 20px; display: flex; align-items: center; gap: 8px; }
+.point-details-rows .place-popup-link { color: inherit; transition: color 160ms ease; }
+.point-details-rows .place-popup-link:hover,
+.point-details-rows .place-popup-link:focus-visible { color: var(--color-text-primary); }
+.point-card-editor { width: min(640px, calc(100vw - 32px)); padding: 16px; }
+.point-card-editor > .form-control-list > .form-control-list-content:has(> :nth-child(4)) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, auto); gap: 12px; }
+.point-card-editor > .form-control-list > .form-control-list-content:has(> :nth-child(4)) > :nth-child(-n+3) { grid-column: 1; }
+.point-card-editor > .form-control-list > .form-control-list-content:has(> :nth-child(4)) > :nth-child(4) { height: 100%; grid-column: 2; grid-row: 1 / 4; }
+.point-card-editor > .form-control-list > .form-control-list-content:has(> :nth-child(4)) > :nth-child(4) .form-textarea-fixed { height: 100%; min-height: 0; }
+.point-editor-header { min-height: 40px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
 .point-editor-header h3 { min-width: 0; flex: 1; margin: 0; font-size: var(--type-head-m-size); font-weight: var(--type-head-m-weight); line-height: var(--type-head-m-line-height); letter-spacing: var(--type-head-m-letter-spacing); }
 .point-card-actions { margin-top: 16px; display: flex; gap: 8px; }
 .point-card-view .point-card-actions { margin-top: 0; }
 .point-card-actions .ui-button { min-width: 0; flex: 1; }
+@media (max-width: 760px) {
+  .point-card-editor > .form-control-list > .form-control-list-content:has(> :nth-child(4)) { display: flex; gap: 8px; }
+  .point-card-editor > .form-control-list > .form-control-list-content:has(> :nth-child(4)) > :nth-child(4) { height: auto; }
+  .point-card-editor > .form-control-list > .form-control-list-content:has(> :nth-child(4)) > :nth-child(4) .form-textarea-fixed { height: 120px; }
+}
 
 /* Оффлайн Google Maps не загружается, а место всё равно нужно посмотреть:
    заглушка объясняет пустую область, попап встаёт по её центру. */
 .places-map-fallback { position: absolute; inset: 0; margin: 0; padding: 24px; display: grid; place-items: center; text-align: center; color: var(--color-text-secondary); }
 .places-map-centered-popup { position: absolute; z-index: 3; inset: 0; padding: 16px; display: grid; place-items: center; pointer-events: none; }
-.places-map-centered-popup > .point-card { pointer-events: auto; }
+.places-map-point-popup { position: absolute; z-index: 3; inset: 0; padding: 16px; display: grid; place-items: end start; pointer-events: none; }
+.places-map-centered-popup > .point-card, .places-map-point-popup > .point-card { width: min(400px, 100%); pointer-events: auto; }
+.places-map-centered-popup > .point-card-editor, .places-map-point-popup > .point-card-editor { width: min(640px, 100%); }
 .places-map-detached-popup { position: absolute; inset: 0; padding: 16px; display: grid; place-items: center; }
 
 .map-search { position: absolute; top: 12px; left: 12px; width: min(320px, calc(100% - 24px)); z-index: 2; }
+.map-controls { position: absolute; z-index: 3; top: 12px; right: 12px; display: flex; flex-direction: column; gap: 8px; }
+.map-control-button { width: 40px; height: 40px; padding: 0; border: 0; border-radius: 50%; background: #fff; box-shadow: 0 1px 4px rgba(0,0,0,.3); display: grid; place-items: center; color: #666; cursor: pointer; }
+.map-control-button:hover { background: #f5f5f5; color: #222; }
+.map-fullscreen-button > span { position: relative; width: 18px; height: 18px; background: linear-gradient(#666,#666) left top/7px 2px no-repeat, linear-gradient(#666,#666) left top/2px 7px no-repeat, linear-gradient(#666,#666) right top/7px 2px no-repeat, linear-gradient(#666,#666) right top/2px 7px no-repeat, linear-gradient(#666,#666) left bottom/7px 2px no-repeat, linear-gradient(#666,#666) left bottom/2px 7px no-repeat, linear-gradient(#666,#666) right bottom/7px 2px no-repeat, linear-gradient(#666,#666) right bottom/2px 7px no-repeat; }
+.map-fullscreen-button.is-fullscreen > span { transform: rotate(180deg) scale(.82); }
+.map-zoom-button > span { position: relative; width: 18px; height: 18px; }
+.map-zoom-button > span::before,
+.map-zoom-button > span::after { content: ''; position: absolute; top: 50%; left: 50%; width: 18px; height: 2px; border-radius: 1px; background: currentColor; transform: translate(-50%, -50%); }
+.map-zoom-in > span::after { transform: translate(-50%, -50%) rotate(90deg); }
+.map-zoom-out > span::after { display: none; }
 /* Те же токены, что у обычных полей формы. Поверх карты добавлен blur:
    без подложки стеклянный фон опирается на то, что под ним. */
 .map-search-field { min-width: 0; width: 100%; height: 68px; padding: 0 16px; border: 1px solid transparent; border-radius: 16px; background: var(--glass-point-card); backdrop-filter: blur(24px); display: flex; align-items: center; gap: 8px; color: var(--color-text-primary); transition: border-color .15s, background .15s; }
-.map-search-field:focus-within { border-color: rgba(255,255,255,.18); background: var(--glass-point-card-active); }
 .map-search-field .ui-icon { flex: 0 0 24px; }
-.map-search-field input { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: var(--color-text-primary); font: inherit; outline: 0; }
+.map-search-field input { min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; color: var(--color-text-primary); caret-color: var(--color-text-primary); font: inherit; outline: 0; }
 .map-search-field input::placeholder { color: var(--color-text-secondary); }
 .map-search-results { max-height: 260px; margin: 6px 0 0; padding: 6px; overflow-y: auto; list-style: none; border: 1px solid var(--border); border-radius: 16px; background: var(--glass-point-card); backdrop-filter: blur(24px); }
 .map-search-results button { width: 100%; padding: 8px 10px; border: 0; border-radius: 10px; color: var(--color-text-secondary); background: transparent; text-align: left; font: inherit; cursor: pointer; }

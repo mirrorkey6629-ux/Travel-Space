@@ -11,7 +11,7 @@ import { UpdateNotification } from './components/UpdateNotification'
 import { ErrorNotification } from './components/ErrorNotification'
 import { SuccessNotification } from './components/SuccessNotification'
 import { Icon, type IconName } from './components/Icon'
-import { UNSCHEDULED_KEY } from './places'
+import { chronologicalDayPlaces, UNSCHEDULED_KEY } from './places'
 import { PlacesMap } from './components/PlacesMap'
 import { PlaceDayList } from './components/PlaceDayList'
 import { managedPlaceIconUrl, placeIconUrl, type PlaceIconKey } from './placeIcons'
@@ -211,14 +211,8 @@ const formatParticipants = (value: number) => {
   const word = mod100 >= 11 && mod100 <= 14 ? 'участников' : mod10 === 1 ? 'участник' : mod10 >= 2 && mod10 <= 4 ? 'участника' : 'участников'
   return `${value} ${word}`
 }
-const formatLocations = (value: number) => {
-  const mod100 = Math.abs(value) % 100
-  const mod10 = mod100 % 10
-  const word = mod100 >= 11 && mod100 <= 14 ? 'локаций' : mod10 === 1 ? 'локация' : mod10 >= 2 && mod10 <= 4 ? 'локации' : 'локаций'
-  return `${value} ${word}`
-}
 const DEFAULT_TRIP_ACCENT_COLOR = '#4D4FAB'
-const TRIP_ACCENT_COLORS = [
+export const TRIP_ACCENT_COLORS = [
   '#FA6B61', '#F78B2D', '#F5C30F', '#5AC840', '#36C976', '#26C4B4', '#56B2FF', '#A89BFF', '#EC82C1', '#F66591',
   '#E73F3E', '#D35F00', '#CFA53F', '#369E44', '#489E5F', '#46978E', '#3188DF', '#7869FA', '#BC58A0', '#CE4D7B',
   '#8C2B24', '#853618', '#A87A2D', '#33652E', '#33623E', '#2E5F59', '#2352A0', '#4D4FAB', '#793568', '#88294B',
@@ -302,16 +296,16 @@ const formatShortRange = (from: string, to: string) => {
   const endMonth = ruMonths[end.getMonth()].slice(0, 3)
   if (from === to) return `${startDay} ${startMonth}`
   return start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()
-    ? `${startDay}–${endDay} ${endMonth}`
-    : `${startDay} ${startMonth}–${endDay} ${endMonth}`
+    ? `${startDay} – ${endDay} ${endMonth}`
+    : `${startDay} ${startMonth} – ${endDay} ${endMonth}`
 }
 const formatLongRange = (from: string, to: string) => {
   const start = parseDate(from)
   const end = parseDate(to)
   if (start.getMonth() === end.getMonth() && start.getFullYear() === end.getFullYear()) {
-    return `${start.getDate()}–${end.getDate()} ${ruMonths[end.getMonth()]}`
+    return `${start.getDate()} – ${end.getDate()} ${ruMonths[end.getMonth()]}`
   }
-  return `${formatDate(from)}–${formatDate(to)}`
+  return `${formatDate(from)} – ${formatDate(to)}`
 }
 const dateRange = (from: string, to: string) => {
   const result: string[] = []
@@ -924,7 +918,7 @@ function AllCitiesEditor({ trip, onSave, onClose }: { trip: Trip; onSave: (citie
     <form className="setup-editor-content setup-transition" onSubmit={(event) => { event.preventDefault(); setShowErrors(true); if (valid && citiesChanged) onSave(cities) }}>
       <section className="glass setup-card editing-all">
       <div className="all-cities-editor">
-      <IconButton type="button" className="bulk-edit-button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть редактирование" />
+      <IconButton type="button" className="bulk-edit-button" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть режим изменения" />
       <div className="all-cities-scroll">
         <h2>Все города</h2>
         <div className="all-cities-list">
@@ -1122,7 +1116,7 @@ function TripSidebar({ trip, user, tripCount, selectedCityId, cacheState, online
           )
         })}</InfoRowList>
         {access.canManageTrip && <div className="trip-summary-actions">
-          <Button size="m" onClick={onEdit}>Редактировать</Button>
+          <Button size="m" onClick={onEdit}>Изменить</Button>
           <Button size="m" theme="secondary" onClick={onInvite}>Участники и шеринг</Button>
         </div>}
       </section>
@@ -1238,7 +1232,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     transferCityIds.add(arrivalCity.id)
     if (!departureCity.hotelNotNeeded) {
       const checkOutTime = departureCity.hotelCheckOutTime.trim()
-      events.push({ key: `${departureCity.id}:check-out`, title: departureCity.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до ${checkOutTime}` : 'Выселение', icon: 'hotel', city: departureCity, panel: 'hotel', interactive: Boolean(departureCity.hotel.trim() || departureCity.hotelUrl.trim()), kind: 'hotel-out' })
+      events.push({ key: `${departureCity.id}:check-out`, title: departureCity.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до\u00a0${checkOutTime}` : 'Выселение', icon: 'hotel', city: departureCity, panel: 'hotel', interactive: Boolean(departureCity.hotel.trim() || departureCity.hotelUrl.trim()), kind: 'hotel-out' })
     }
     const outgoing = departureCity.transportOut
     const incoming = arrivalCity.transportIn
@@ -1254,7 +1248,7 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
     events.push({ key: `${departureCity.id}:${arrivalCity.id}:transfer`, title: `${departureCity.name} – ${arrivalCity.name}`, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, ticketOnSite), icon: transportEventIcon(outgoing.type || incoming.type), city: hasOutgoingDetails ? departureCity : arrivalCity, panel: hasOutgoingDetails ? 'out' : 'in', interactive: hasOutgoingDetails || hasIncomingDetails, kind: 'transfer', departureName: departurePlace, departureUrl: outgoing.departureStationUrl || incoming.departureStationUrl, departureCity, arrivalName: arrivalPlace, arrivalUrl: outgoing.arrivalStationUrl || incoming.arrivalStationUrl, arrivalCity })
     if (!arrivalCity.hotelNotNeeded) {
       const checkInTime = arrivalCity.hotelCheckInTime.trim()
-      events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel', interactive: Boolean(arrivalCity.hotel.trim() || arrivalCity.hotelUrl.trim()), kind: 'hotel-in' })
+      events.push({ key: `${arrivalCity.id}:check-in`, title: arrivalCity.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с\u00a0${checkInTime}` : 'Заселение', icon: 'hotel', city: arrivalCity, panel: 'hotel', interactive: Boolean(arrivalCity.hotel.trim() || arrivalCity.hotelUrl.trim()), kind: 'hotel-in' })
     }
     const arrivalPeriod = arrivalCity.arrivalPeriod ?? 'morning'
     const departurePeriod = arrivalCity.departurePeriod ?? 'evening'
@@ -1281,13 +1275,13 @@ function DayCard({ date, cities, allCities, tripTimeZone, description, hidden, o
       result.push({ key: `${city.id}:arrival`, title: routeTitle, subtitle: withTicketOnSiteSummary(travelTimes, durationLabel, ticketOnSite), icon: transportEventIcon(city.transportIn.type || previousTransport?.type), city: hasIncomingDetails || !previousCity ? city : previousCity, panel: hasIncomingDetails || !previousCity ? 'in' : 'out', interactive: hasIncomingDetails || Boolean(previousTransport && (previousCity?.trainOut || previousTransport.type || previousTransport.departureTime.trim() || previousTransport.arrivalTime.trim() || previousTransport.departureStation.trim() || previousTransport.arrivalStation.trim())), kind: 'transfer', departureName: departurePlace, departureUrl: city.transportIn.departureStationUrl || previousTransport?.departureStationUrl, departureCity: previousCity ?? city, arrivalName: arrivalPlace, arrivalUrl: city.transportIn.arrivalStationUrl || previousTransport?.arrivalStationUrl, arrivalCity: city })
       if (!city.hotelNotNeeded) {
         const checkInTime = city.hotelCheckInTime.trim()
-        result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с ${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel', interactive: Boolean(city.hotel.trim() || city.hotelUrl.trim()), kind: 'hotel-in' })
+        result.push({ key: `${city.id}:check-in`, title: city.hotel.trim() || 'Отель', subtitle: checkInTime ? `Заселение с\u00a0${checkInTime}` : 'Заселение', icon: 'hotel', city, panel: 'hotel', interactive: Boolean(city.hotel.trim() || city.hotelUrl.trim()), kind: 'hotel-in' })
       }
     }
     if (date === city.departure) {
       if (!city.hotelNotNeeded) {
         const checkOutTime = city.hotelCheckOutTime.trim()
-        result.push({ key: `${city.id}:check-out`, title: city.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до ${checkOutTime}` : 'Выселение', icon: 'hotel', city, panel: 'hotel', interactive: Boolean(city.hotel.trim() || city.hotelUrl.trim()), kind: 'hotel-out' })
+        result.push({ key: `${city.id}:check-out`, title: city.hotel.trim() || 'Отель', subtitle: checkOutTime ? `Выселение до\u00a0${checkOutTime}` : 'Выселение', icon: 'hotel', city, panel: 'hotel', interactive: Boolean(city.hotel.trim() || city.hotelUrl.trim()), kind: 'hotel-out' })
       }
       const departureTime = city.transportOut.departureTime.trim()
       const arrivalTime = city.transportOut.arrivalTime.trim()
@@ -1658,7 +1652,7 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
   ].map((url) => url?.trim()).filter((url): url is string => Boolean(url)))
   const isManagedPlace = (place: Place) => (place.icon === 'hotel' || place.icon === 'transport') && managedPlaceUrls.has(place.url.trim())
   const ordinaryPlacesByDate = Object.fromEntries(Object.entries(draft.places).map(([date, places]) => [date, places.filter((place) => !isManagedPlace(place) && Boolean(place.url.trim()))]))
-  type ManagedMapPlace = Place & { date: string; dateLocked: true; editTarget: { cityId: string; panel: 'hotel' | 'in' | 'out' }; hotelDetails?: { cityName: string; dateLabel: string; checkInTime: string; checkOutTime: string; hasBooking: boolean } }
+  type ManagedMapPlace = Place & { date: string; dateLocked: true; editTarget: { cityId: string; panel: 'hotel' | 'in' | 'out' }; attachmentId?: string; attachmentKind?: 'hotel' | 'ticket'; hotelDetails?: { cityName: string; dateLabel: string; checkInTime: string; checkOutTime: string; hasBooking: boolean } }
   const managedMapPlaces: ManagedMapPlace[] = []
   if (!draft.hotelNotNeeded && draft.hotelUrl.trim()) managedMapPlaces.push({
     id: `managed:hotel:${draft.id}`,
@@ -1669,6 +1663,8 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     date: draft.arrival || UNSCHEDULED_KEY,
     dateLocked: true,
     editTarget: { cityId: draft.id, panel: 'hotel' },
+    attachmentId: hotelDocument?.id,
+    attachmentKind: 'hotel',
     hotelDetails: {
     cityName: draft.name,
     dateLabel: formatShortRange(draft.arrival, draft.departure),
@@ -1682,16 +1678,32 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
     : previousCity?.transportOut.arrivalStationUrl.trim()
       ? { details: previousCity.transportOut, owner: previousCity, panel: 'out' as const }
       : undefined
-  if (incoming) managedMapPlaces.push({ id: `managed:transport-in:${draft.id}`, name: incoming.details.arrivalStation.trim() || draft.name, url: incoming.details.arrivalStationUrl.trim(), icon: 'transport', notes: incoming.details.notes, date: incoming.details.arrivalDate || draft.arrival || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: incoming.owner.id, panel: incoming.panel } })
+  if (incoming) {
+    const ticket = incoming.owner.files.find((file) => file.category.startsWith(`train-${incoming.panel}:`))
+    managedMapPlaces.push({ id: `managed:transport-in:${draft.id}`, name: incoming.details.arrivalStation.trim() || draft.name, url: incoming.details.arrivalStationUrl.trim(), icon: 'transport', notes: incoming.details.notes, date: incoming.details.arrivalDate || draft.arrival || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: incoming.owner.id, panel: incoming.panel }, attachmentId: ticket?.id, attachmentKind: 'ticket' })
+  }
   const outgoing = draft.transportOut.departureStationUrl.trim()
     ? { details: draft.transportOut, owner: draft, panel: 'out' as const }
     : nextCity?.transportIn.departureStationUrl.trim()
       ? { details: nextCity.transportIn, owner: nextCity, panel: 'in' as const }
       : undefined
-  if (outgoing) managedMapPlaces.push({ id: `managed:transport-out:${draft.id}`, name: outgoing.details.departureStation.trim() || draft.name, url: outgoing.details.departureStationUrl.trim(), icon: 'transport', notes: outgoing.details.notes, date: outgoing.details.departureDate || draft.departure || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: outgoing.owner.id, panel: outgoing.panel } })
-  const placesByDate = managedMapPlaces.reduce<Record<string, Place[]>>((result, place) => ({ ...result, [place.date]: [...(result[place.date] ?? []), place] }), ordinaryPlacesByDate)
+  if (outgoing) {
+    const ticket = outgoing.owner.files.find((file) => file.category.startsWith(`train-${outgoing.panel}:`))
+    managedMapPlaces.push({ id: `managed:transport-out:${draft.id}`, name: outgoing.details.departureStation.trim() || draft.name, url: outgoing.details.departureStationUrl.trim(), icon: 'transport', notes: outgoing.details.notes, date: outgoing.details.departureDate || draft.departure || UNSCHEDULED_KEY, dateLocked: true, editTarget: { cityId: outgoing.owner.id, panel: outgoing.panel }, attachmentId: ticket?.id, attachmentKind: 'ticket' })
+  }
+  const managedPlace = (kind: 'hotel' | 'transport-in' | 'transport-out', date: string) =>
+    managedMapPlaces.find((place) => place.id === `managed:${kind}:${draft.id}` && place.date === date)
+  const placeDates = new Set([...Object.keys(ordinaryPlacesByDate), ...managedMapPlaces.map((place) => place.date)])
+  const placesByDate = Object.fromEntries([...placeDates].map((date) => [
+    date,
+    chronologicalDayPlaces(
+      ordinaryPlacesByDate[date] ?? [],
+      managedPlace('transport-in', date),
+      managedPlace('hotel', date),
+      managedPlace('transport-out', date),
+    ),
+  ]))
   const managedPlaceIds = new Set(managedMapPlaces.map((place) => place.id))
-  const pointsCount = Object.values(placesByDate).reduce((total, places) => total + places.length, 0)
   const saveTransport = async (value: TransportDetails) => {
     if (!transportDirection) return false
     const currentTransport = transportDirection === 'in' ? draft.transportIn : draft.transportOut
@@ -1716,35 +1728,34 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
   return (
     <>
       <section className="glass city-page-card setup-transition">
-        <div className={`city-compact-header city-panel-content city-panel-content-${contentTransition}`}>
-          <IconButton type="button" className="city-inline-back" icon={<Icon name="calendar-month" />} onClick={onClose} aria-label="Вернуться к календарю" title="Вернуться к календарю" />
-          <TypographyGroup className="city-compact-copy" title={draft.name} text={<>{formatLongRange(draft.arrival, draft.departure)} · {formatDays(cityDays(draft))} · {formatLocations(pointsCount)}</>} />
-        </div>
         <input ref={trainInFileRef} className="hidden-file-input" type="file" onChange={(e) => { addTrainFiles(e.target.files, 'in'); e.currentTarget.value = '' }} />
         <input ref={trainOutFileRef} className="hidden-file-input" type="file" onChange={(e) => { addTrainFiles(e.target.files, 'out'); e.currentTarget.value = '' }} />
         <input ref={hotelFileRef} className="hidden-file-input" type="file" onChange={(e) => addHotelFile(e.target.files)} />
         <div className={`city-main city-panel-content city-panel-content-${contentTransition}`}>
-          <PlaceDayList
-            dates={dateRange(draft.arrival, draft.departure)}
-            placesByDate={placesByDate}
-            activeDate={activeDate}
-            readOnly={readOnly}
-            lockedPlaceIds={managedPlaceIds}
-            formatDate={formatDate}
-            onActivateDate={setActiveDate}
-            onFocusPlace={setFocusRequest}
-            onMove={(placeId, date, position) => {
-              const from = Object.keys(draft.places).find((key) => (draft.places[key] ?? []).some((item) => item.id === placeId))
-              const moved = from ? (draft.places[from] ?? []).find((item) => item.id === placeId) : undefined
-              if (!from || !moved) return
-              const to = date ?? UNSCHEDULED_KEY
-              const source = (draft.places[from] ?? []).filter((item) => item.id !== placeId)
-              const target = from === to ? source : [...(draft.places[to] ?? [])]
-              target.splice(Math.max(0, Math.min(position, target.length)), 0, moved)
-              setDraft((latest) => ({ ...latest, places: { ...latest.places, [from]: from === to ? target : source, [to]: target } }))
-              onMovePlace(placeId, date, position)
-            }}
-          />
+          <div className="city-route-sidebar">
+            <PlaceDayList
+              dates={dateRange(draft.arrival, draft.departure)}
+              placesByDate={placesByDate}
+              activeDate={activeDate}
+              readOnly={readOnly}
+              lockedPlaceIds={managedPlaceIds}
+              formatDate={formatDate}
+              onActivateDate={setActiveDate}
+              onFocusPlace={setFocusRequest}
+              onMove={(placeId, date, position) => {
+                const from = Object.keys(draft.places).find((key) => (draft.places[key] ?? []).some((item) => item.id === placeId))
+                const moved = from ? (draft.places[from] ?? []).find((item) => item.id === placeId) : undefined
+                if (!from || !moved) return
+                const to = date ?? UNSCHEDULED_KEY
+                const source = (draft.places[from] ?? []).filter((item) => item.id !== placeId)
+                const target = from === to ? source : [...(draft.places[to] ?? [])]
+                target.splice(Math.max(0, Math.min(position, target.length)), 0, moved)
+                setDraft((latest) => ({ ...latest, places: { ...latest.places, [from]: from === to ? target : source, [to]: target } }))
+                onMovePlace(placeId, date, position)
+              }}
+            />
+            <Button type="button" size="m" theme="secondary" className="city-calendar-back" icon={<Icon name="calendar-month" />} onClick={onClose}>К календарю</Button>
+          </div>
           <div className="city-route-content">
             <div className="city-map">
               <PlacesMap
@@ -1764,6 +1775,10 @@ function CityPanel({ city, previousCity, nextCity, members, tripStartDate, tripE
                 focusRequest={focusRequest}
                 onFocusHandled={() => setFocusRequest(null)}
                 onEditTarget={({ cityId, panel }) => onOpenManagedPanel(cityId, panel)}
+                onOpenAttachment={(attachmentId) => {
+                  const attachment = [draft, previousCity, nextCity].flatMap((item) => item?.files ?? []).find((file) => file.id === attachmentId)
+                  if (attachment) onOpenDocument(attachment)
+                }}
                 onOpenBooking={() => { if (hotelDocument) onOpenDocument(hotelDocument) }}
                 onAdd={({ name, icon, date, notes, position }) => {
                   const place = { id: uid(), name, url: `https://www.google.com/maps?q=${position.lat.toFixed(6)},${position.lng.toFixed(6)}`, icon, notes, latitude: position.lat, longitude: position.lng }

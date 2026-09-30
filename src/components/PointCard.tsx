@@ -2,6 +2,7 @@ import type { FormEvent, ReactNode } from 'react'
 import { Button, IconButton } from './Button'
 import { FormControlList } from './FormControlList'
 import { Icon } from './Icon'
+import { ItemList } from './ItemList'
 import { TextRow } from './TextRow'
 import { TypographyGroup } from './TypographyGroup'
 
@@ -11,9 +12,9 @@ type PointRow = { icon: ReactNode; content: ReactNode }
 type ViewProps = {
   variant: 'view'
   pointType: 'accommodation' | 'transport' | 'place'
-  actionCount?: 1 | 2
+  actionCount?: 1 | 2 | 3
   title: ReactNode
-  subtitle: ReactNode
+  subtitle?: ReactNode
   rows: PointRow[]
   secondaryAction?: PointAction
   primaryAction?: PointAction
@@ -33,22 +34,20 @@ export function PointCard(props: PointCardProps) {
   const { variant, onClose, className = '' } = props
 
   if (variant === 'view') {
-    const { pointType, actionCount = 2, title, subtitle, rows, secondaryAction, primaryAction } = props
-    const showSecondaryAction = pointType === 'place' || actionCount === 2
+    const { pointType, title, subtitle, rows, secondaryAction, primaryAction } = props
     return (
       <section className={`point-card point-card-view${className ? ` ${className}` : ''}`} aria-label={typeof title === 'string' ? title : 'Информация о точке'}>
         <header className="point-details-header">
           <TypographyGroup className="point-details-title" variant="head-m-text" headingLevel="h3" title={title} text={subtitle} />
-          <IconButton type="button" theme="transparent" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" />
+          <div className="point-card-header-actions">
+            {secondaryAction && pointType !== 'place' && <IconButton type="button" theme="secondary" icon={<Icon name={pointType === 'accommodation' ? 'hotel' : 'ticket'} />} disabled={secondaryAction.disabled} onClick={secondaryAction.onClick} aria-label={secondaryAction.label?.toString() || (pointType === 'accommodation' ? 'Отель' : 'Билет')} title={secondaryAction.label?.toString() || (pointType === 'accommodation' ? 'Отель' : 'Билет')} />}
+            {primaryAction && <IconButton type="button" theme="secondary" icon={<Icon name="edit" />} disabled={primaryAction.disabled} onClick={primaryAction.onClick} aria-label={primaryAction.label?.toString() || 'Изменить'} title={primaryAction.label?.toString() || 'Изменить'} />}
+          <IconButton type="button" theme="secondary" icon={<Icon name="close" />} onClick={onClose} aria-label="Закрыть" title="Закрыть" />
+          </div>
         </header>
-        <div className="divider" />
-        <div className="point-details-rows">
+        <ItemList className="point-details-rows">
           {rows.map((row, index) => <TextRow key={index} iconType="icon" icon={row.icon}>{row.content}</TextRow>)}
-        </div>
-        {((showSecondaryAction && secondaryAction) || primaryAction) && <div className="point-card-actions">
-          {showSecondaryAction && secondaryAction && <Button type="button" size="m" theme="secondary" disabled={secondaryAction.disabled} onClick={secondaryAction.onClick}>{secondaryAction.label}</Button>}
-          {primaryAction && <Button type="button" size="m" disabled={primaryAction.disabled} onClick={primaryAction.onClick}>{primaryAction.label}</Button>}
-        </div>}
+        </ItemList>
       </section>
     )
   }

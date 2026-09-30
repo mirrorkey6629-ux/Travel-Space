@@ -29,7 +29,7 @@
 | Дата по умолчанию | Активный день, если выбран; иначе «Без даты» |
 | Набор иконок | 8 штук |
 | Права | Править, перетаскивать и удалять точки может любой участник поездки |
-| Технология маркеров | `AdvancedMarkerElement` (маркер — HTML-элемент), Map ID `a906a0e6ca962cd2c1e96f72` |
+| Технология маркеров | `AdvancedMarkerElement` (маркер — HTML-элемент), Map ID `46b5bb5139bdbc65f37f3768` |
 | Технология DnD | `@dnd-kit/core` + `@dnd-kit/sortable` + `@dnd-kit/utilities` |
 
 ## Каталог иконок
@@ -148,7 +148,7 @@ ALTER TABLE places ADD COLUMN IF NOT EXISTS icon text NOT NULL DEFAULT 'default'
 ## Зависимости и конфигурация
 
 - Добавляются `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`.
-- `.env` и `.env.example`: `VITE_GOOGLE_MAPS_MAP_ID`, значение `a906a0e6ca962cd2c1e96f72`.
+- `.env` и `.env.example`: `VITE_GOOGLE_MAPS_MAP_ID`, значение `46b5bb5139bdbc65f37f3768`.
 - `VITE_GOOGLE_MAPS_API_KEY` и `VITE_GOOGLE_MAPS_MAP_ID` заданы в локальном `.env`, который не хранится в Git. В `.env.example` обе переменные остаются пустыми шаблонами с комментариями.
 - Map ID и переменная пробрасываются в `Dockerfile` и `compose.yaml` рядом с существующим ключом.
 - В Google Cloud включены Maps JavaScript API и Places API (New); проверено запросом автодополнения. На обоих стоит поставить ограничение квоты, чтобы не выйти за бесплатный лимит.

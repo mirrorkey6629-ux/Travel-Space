@@ -153,8 +153,14 @@ export function PlaceDayList({ dates, placesByDate, activeDate, readOnly, locked
     const origin = dayOfIn(placesByDate, movedId)
     if (!day || !origin) return
     // Предпросмотр уже показывает итоговую раскладку — берём позицию прямо из него.
-    const position = (base[day] ?? []).findIndex((place) => place.id === movedId)
-    const wasAt = (placesByDate[origin] ?? []).findIndex((place) => place.id === movedId)
+    const dayItems = base[day] ?? []
+    const displayPosition = dayItems.findIndex((place) => place.id === movedId)
+    // Служебные точки (приезд, отель, отъезд) не хранятся в порядке
+    // обычных мест. Переводим видимую позицию в индекс среди точек пользователя.
+    const position = dayItems.slice(0, displayPosition).filter((place) => !lockedPlaceIds.has(place.id)).length
+    const originItems = placesByDate[origin] ?? []
+    const originDisplayPosition = originItems.findIndex((place) => place.id === movedId)
+    const wasAt = originItems.slice(0, originDisplayPosition).filter((place) => !lockedPlaceIds.has(place.id)).length
     if (day === origin && wasAt === position) return
     onMove(movedId, day === UNSCHEDULED_KEY ? null : day, position)
   }

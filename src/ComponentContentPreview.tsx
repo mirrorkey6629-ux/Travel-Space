@@ -37,15 +37,15 @@ export function ComponentContentPreview() {
   return <div className="kit-content-preview">
     <Group id="content-inputs" title="Input" description="Поля из форм поездки, города, транспорта и отеля" className="kit-content-inputs">
       <Example title="Ссылки">
-        <InputUsage context="Создание и редактирование города"><Input label="Ссылка Google Maps" icon={<Icon name="link" />} type="url" /></InputUsage>
+        <InputUsage context="Создание и изменение города"><Input label="Ссылка Google Maps" icon={<Icon name="link" />} type="url" /></InputUsage>
         <InputUsage context="Транспорт · место отправления и место прибытия"><Input icon={<Icon name="pin-transport" />} aria-label="Ссылка Google Maps места отправления" placeholder="Ссылка Google Maps" trailingIcon={<Icon name="content-copy" />} /></InputUsage>
         <InputUsage context="Отель · адрес в Google Maps"><Input icon={<Icon name="pin-home" />} aria-label="Ссылка на отель в Google Maps" placeholder="Ссылка Google Maps" trailingIcon={<Icon name="content-copy" />} /></InputUsage>
         <InputUsage context="Приглашение участника"><Input aria-label="Активная ссылка приглашения" icon={<Icon name="link" />} readOnly value="https://travel.example/invite/example" trailingIcon={<Icon name="content-copy" />} /></InputUsage>
         <InputUsage context="Публичная ссылка на просмотр поездки"><Input icon={<Icon name="link" />} aria-label="Ссылка для просмотра" readOnly value="https://travel.example/view/example" trailingIcon={<Icon name="content-copy" />} /></InputUsage>
       </Example>
       <Example title="Названия мест, города и поездки">
-        <InputUsage context="Создание и редактирование поездки"><Input label="Название поездки" icon={<Icon name="book" />} placeholder="Например, Япония" /></InputUsage>
-        <InputUsage context="Добавление и редактирование города"><Input label="Название города" icon={<Icon name="planet" />} placeholder="Например, Осака" /></InputUsage>
+        <InputUsage context="Создание и изменение поездки"><Input label="Название поездки" icon={<Icon name="book" />} placeholder="Например, Япония" /></InputUsage>
+        <InputUsage context="Добавление и измение города"><Input label="Название города" icon={<Icon name="planet" />} placeholder="Например, Осака" /></InputUsage>
         <InputUsage context="Транспорт · точка отправления"><Input label="Место отъезда" icon={<Icon name="public" />} defaultValue="Шереметьево (SVO)" /></InputUsage>
         <InputUsage context="Транспорт · точка прибытия"><Input label="Место приезда" icon={<Icon name="public" />} defaultValue="Kansai (KIX)" /></InputUsage>
         <InputUsage context="Отель · название места проживания"><Input icon={<Icon name="hotel" />} aria-label="Название места" placeholder="Название места" /></InputUsage>
@@ -205,7 +205,7 @@ export function ComponentContentPreview() {
 
     <Group id="content-info-rows" title="Info Row" description="Строки городов, профиля, файлов, вложений и расходов" className="kit-content-info-rows">
       <Example title="Города">
-        <InputUsage context="Редактирование поездки · город в маршруте"><InfoRow image={image} imageAlt="Осака" title="Осака" titleStyle="text" subtitle="4–7 окт · 2,5 дня" hoverEffect /></InputUsage>
+        <InputUsage context="Изменение поездки · город в маршруте"><InfoRow image={image} imageAlt="Осака" title="Осака" titleStyle="text" subtitle="4–7 окт · 2,5 дня" hoverEffect /></InputUsage>
         <InputUsage context="Дашборд поездки · город с действиями"><InfoRow theme="transparent" image={image} imageAlt="Осака" title="Осака" subtitle="4–7 окт · 2,5 дня" hoverEffect actions={[{ icon: <Icon name="hotel" />, label: 'Отель в Осаке' }, { icon: <Icon name="ticket" />, label: 'Билет в Осаку' }]} /></InputUsage>
       </Example>
       <Example title="Профиль пользователя">
@@ -213,10 +213,10 @@ export function ComponentContentPreview() {
         <InputUsage context="Участники поездки"><InfoRow image={`${import.meta.env.BASE_URL}assets/person-member.png`} imageAlt="Аватар" imageShape="circle" title="Playsty" titleStyle="text" subtitle="playsty@example.com" actionTheme="secondary" actions={[{ icon: <Icon name="delete-forever" />, label: 'Удалить участника' }]} /></InputUsage>
       </Example>
       <Example title="Изображения">
-        <InputUsage context="Редактирование города · загруженное фото"><InfoRow image={image} imageAlt="Фото города" title="Фото города" titleStyle="text" subtitle="autumn-garden.jpg" actionTheme="secondary" actions={[{ icon: <Icon name="edit" />, label: 'Выбрать новое фото' }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото' }]} /></InputUsage>
-        <InputUsage context="Редактирование города · фото не загружено"><InfoRow title="Фото города" titleStyle="text" subtitle="В формате JPG, PNG, WEBP до 15 МБ" actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото' }]} /></InputUsage>
-        <InputUsage context="Редактирование поездки · фоновое фото"><InfoRow image={image} imageAlt="Фоновое фото" title="Фоновое фото" titleStyle="text" subtitle="autumn-garden.jpg" actionTheme="secondary" actions={[{ icon: <Icon name="edit" />, label: 'Выбрать новое фото' }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото' }]} /></InputUsage>
-        <InputUsage context="Редактирование поездки · фоновое фото не загружено"><InfoRow title="Фоновое фото" titleStyle="text" subtitle="В формате JPG, PNG, WEBP до 15 МБ" actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото' }]} /></InputUsage>
+        <InputUsage context="Изменение города · загруженное фото"><InfoRow image={image} imageAlt="Фото города" title="Фото города" titleStyle="text" subtitle="autumn-garden.jpg" actionTheme="secondary" actions={[{ icon: <Icon name="edit" />, label: 'Выбрать новое фото' }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото' }]} /></InputUsage>
+        <InputUsage context="Изменение города · фото не загружено"><InfoRow title="Фото города" titleStyle="text" subtitle="В формате JPG, PNG, WEBP до 15 МБ" actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить фото' }]} /></InputUsage>
+        <InputUsage context="Изменение поездки · фоновое фото"><InfoRow image={image} imageAlt="Фоновое фото" title="Фоновое фото" titleStyle="text" subtitle="autumn-garden.jpg" actionTheme="secondary" actions={[{ icon: <Icon name="edit" />, label: 'Выбрать новое фото' }, { icon: <Icon name="delete-forever" />, label: 'Удалить фото' }]} /></InputUsage>
+        <InputUsage context="Изменение поездки · фоновое фото не загружено"><InfoRow title="Фоновое фото" titleStyle="text" subtitle="В формате JPG, PNG, WEBP до 15 МБ" actionTheme="secondary" actions={[{ icon: <Icon name="add-plus" />, label: 'Прикрепить фоновое фото' }]} /></InputUsage>
       </Example>
       <Example title="Документы">
         <InputUsage context="Транспорт · загруженный билет"><InfoRow image={`${import.meta.env.BASE_URL}assets/ticket-placeholder.png`} imageAlt="Билет" title="Билет MU-248" titleStyle="text" subtitle="Torch · 27 сентября, 14:30" actionTheme="secondary" actions={[{ icon: <Icon name="download" />, label: 'Скачать билет' }, { icon: <Icon name="delete-forever" />, label: 'Удалить билет' }]} /></InputUsage>

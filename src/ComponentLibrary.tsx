@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { GalaxyBackground } from './App'
+import { GalaxyBackground, TRIP_ACCENT_COLORS } from './App'
 import { Icon, type IconName } from './components/Icon'
 import { Button, IconButton } from './components/Button'
 import { AddRow } from './components/AddRow'
@@ -15,6 +15,7 @@ import { TextareaList } from './components/TextareaList'
 import { FormPanel, FormPanelGroup, FormPanelHeader, FormPanelNote } from './components/FormPanel'
 import { ComponentContentPreview } from './ComponentContentPreview'
 import { PointCard } from './components/PointCard'
+import { PlaceMarker } from './components/PlaceMarker'
 import { UpdateNotification } from './components/UpdateNotification'
 import { ErrorNotification } from './components/ErrorNotification'
 import { SuccessNotification } from './components/SuccessNotification'
@@ -72,7 +73,7 @@ function TypeMetrics({ size, weight, lineHeight, letterSpacing }: { size: number
   return <span className="kit-type-metrics"><span>Size: {size}</span><span>Weight: {weight}</span><span>Linehight: {lineHeight}</span><span>Letter spacing: {letterSpacing}</span></span>
 }
 
-function PropertySelect({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: { value: string; label: string }[]; onChange: (value: string) => void; disabled?: boolean }) {
+function PropertySelect({ label, value, options, onChange, disabled = false }: { label: string; value: string; options: { value: string; label: string; color?: string }[]; onChange: (value: string) => void; disabled?: boolean }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const selected = options.find((option) => option.value === value) ?? options[0]
@@ -90,7 +91,7 @@ function PropertySelect({ label, value, options, onChange, disabled = false }: {
     if (disabled) setOpen(false)
   }, [disabled])
 
-  return <div className={`kit-property-select${disabled ? ' kit-property-select-disabled' : ''}`} ref={rootRef}><span>{label}</span><div className="kit-property-select-control"><button type="button" aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => setOpen((current) => !current)}><span>{selected.label}</span><Icon name="arrow-down" size={16} /></button>{open && <div className="kit-property-select-menu" role="listbox" aria-label={label}>{options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => { onChange(option.value); setOpen(false) }}><span className="kit-property-select-check" aria-hidden="true">{option.value === value ? '✓' : ''}</span><span>{option.label}</span></button>)}</div>}</div></div>
+  return <div className={`kit-property-select${disabled ? ' kit-property-select-disabled' : ''}`} ref={rootRef}><span>{label}</span><div className="kit-property-select-control"><button type="button" aria-haspopup="listbox" aria-expanded={open} disabled={disabled} onClick={() => setOpen((current) => !current)}><span className="kit-property-option-label">{selected.color && <i style={{ backgroundColor: selected.color }} aria-hidden="true" />}{selected.label}</span><Icon name="arrow-down" size={16} /></button>{open && <div className="kit-property-select-menu" role="listbox" aria-label={label}>{options.map((option) => <button key={option.value} type="button" role="option" aria-selected={option.value === value} onClick={() => { onChange(option.value); setOpen(false) }}><span className="kit-property-select-check" aria-hidden="true">{option.value === value ? '✓' : ''}</span><span className="kit-property-option-label">{option.color && <i style={{ backgroundColor: option.color }} aria-hidden="true" />}{option.label}</span></button>)}</div>}</div></div>
 }
 
 function PropertyToggle({ label, checked, onChange, disabled = false }: { label: string; checked: boolean; onChange: (checked: boolean) => void; disabled?: boolean }) {
@@ -126,6 +127,9 @@ export default function ComponentLibrary() {
   const [infoRowError, setInfoRowError] = useState(false)
   const [avatarHoverEffect, setAvatarHoverEffect] = useState(false)
   const [pointDetailsActionCount, setPointDetailsActionCount] = useState<1 | 2>(2)
+  const [markerColor, setMarkerColor] = useState('#4D4FAB')
+  const [markerDimmed, setMarkerDimmed] = useState(false)
+  const [markerInteractive, setMarkerInteractive] = useState(true)
   const [textRowIcon, setTextRowIcon] = useState(true)
   const [textRowIconType, setTextRowIconType] = useState<'icon' | 'checkbox'>('icon')
   const [textRowCheckboxState, setTextRowCheckboxState] = useState<'on' | 'off'>('off')
@@ -214,7 +218,7 @@ export default function ComponentLibrary() {
           <div className="kit-type-group">
             <p className="kit-type-group-label type-text-s">Группы текста</p>
             <div className="kit-type-group-cards">
-              <Specimen name="Head L + Text"><Variant label="Gap: 6"><TypographyGroup title="Название поездки" text="4–15 октября · 12 дней" /></Variant></Specimen>
+              <Specimen name="Head L + Text"><Variant label="Gap: 6"><TypographyGroup title="Название поездки" text="4 – 15 октября · 12 дней" /></Variant></Specimen>
               <Specimen name="Head M + Text"><Variant label="Gap: 4"><TypographyGroup variant="head-m-text" headingLevel="h3" title="Осака" text="Прибытие" /></Variant></Specimen>
               <Specimen name="Text + Text"><Variant label="Gap: 2"><TypographyGroup variant="text-text" headingLevel="h3" title="Название города" text="Осака" /></Variant></Specimen>
             </div>
@@ -270,10 +274,55 @@ export default function ComponentLibrary() {
           </Specimen>
         </Section>
 
-        <Section id="point-details" title="Точки на карте" description="Компоненты просмотра, создания и редактирования точек" className="kit-point-details-section">
+        <Section id="point-details" title="Точки на карте" description="Компоненты просмотра, создания и изменения точек" className="kit-point-details-section">
           <div className="kit-point-details-layout">
             <div className="kit-point-details-examples">
-              <div className="kit-point-details-row">
+              <Specimen name="Маркер точки" className="kit-point-details-specimen">
+                <div className="kit-point-component-layout">
+                  <div className="kit-point-details-row kit-point-details-row-single kit-place-marker-row">
+                    <div className="kit-point-details-example kit-place-marker-example">
+                      <div className="kit-place-marker-groups">
+                        <div className="kit-place-marker-group">
+                          <p className="kit-type-group-label type-text-s">Системные точки</p>
+                          <div className="kit-place-markers">
+                            {[{ key: 'hotel' as const, label: 'Жильё' }, { key: 'transport' as const, label: 'Транспорт' }].map((option) => <div className="kit-place-marker-item" key={option.key}>
+                              <span><PlaceMarker icon={option.key} dimmed={markerDimmed} interactive={markerInteractive} managed accentColor={markerColor} /><PlaceMarker icon={option.key} dimmed={markerDimmed} interactive={markerInteractive} managed selected accentColor={markerColor} /></span>
+                              <code className="type-text-s">{option.label}</code>
+                            </div>)}
+                          </div>
+                        </div>
+                        <div className="kit-place-marker-group">
+                          <p className="kit-type-group-label type-text-s">Пользовательские точки</p>
+                          <div className="kit-place-markers">
+                            {PLACE_ICON_OPTIONS.map((option) => <div className="kit-place-marker-item" key={option.key}>
+                              <span><PlaceMarker icon={option.key} dimmed={markerDimmed} interactive={markerInteractive} accentColor={markerColor} /><PlaceMarker icon={option.key} dimmed={markerDimmed} interactive={markerInteractive} selected accentColor={markerColor} /></span>
+                              <code className="type-text-s">{option.label}</code>
+                            </div>)}
+                          </div>
+                        </div>
+                        <div className="kit-place-marker-group">
+                          <p className="kit-type-group-label type-text-s">Черновик</p>
+                          <div className="kit-place-markers">
+                            <div className="kit-place-marker-item">
+                              <span><PlaceMarker dimmed={markerDimmed} draft interactive={markerInteractive} accentColor={markerColor} /><PlaceMarker dimmed={markerDimmed} draft interactive={markerInteractive} selected accentColor={markerColor} /></span>
+                              <code className="type-text-s">Новая точка</code>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="kit-point-details-controls">
+                    <PropertySelect label="Color" value={markerColor} options={TRIP_ACCENT_COLORS.map((color) => ({ value: color, label: color, color }))} onChange={setMarkerColor} />
+                    <PropertyToggle label="Muted" checked={markerDimmed} onChange={setMarkerDimmed} />
+                    <PropertyToggle label="Interactive" checked={markerInteractive} onChange={setMarkerInteractive} />
+                  </div>
+                </div>
+              </Specimen>
+              <Specimen name="Просмотр точки" className="kit-point-details-specimen kit-point-view-specimen">
+                <div className="kit-point-component-layout">
+                  <div className="kit-point-component-preview">
+                <div className="kit-point-details-row">
                 <div className="kit-point-details-example">
                 <span className="kit-variant-label">Просмотр / Жильё</span>
                 <PointCard
@@ -281,14 +330,13 @@ export default function ComponentLibrary() {
                   pointType="accommodation"
                   actionCount={pointDetailsActionCount}
                   title="Название точки"
-                  subtitle="Жильё · Название города"
                   rows={[
-                    { icon: <Icon name="calendar-month" />, content: '3–5 октября · 2 дня' },
-                    { icon: <Icon name="time" />, content: 'Заселение в 15:00 · Выселение до 10:00' },
+                    { icon: <Icon name="calendar-month" />, content: '3 – 5 октября · 2 дня · Жильё' },
+                    { icon: <Icon name="time" />, content: 'Заселение в\u00a015:00 · Выселение до\u00a010:00' },
                     { icon: <Icon name="pin-home" />, content: 'Адрес в Google Maps' },
                   ]}
                   secondaryAction={{ label: 'Бронь отеля' }}
-                  primaryAction={{ label: 'Редактировать' }}
+                  primaryAction={{ label: 'Изменить' }}
                   onClose={() => undefined}
                 />
                 </div>
@@ -299,13 +347,12 @@ export default function ComponentLibrary() {
                     pointType="transport"
                     actionCount={pointDetailsActionCount}
                     title="Название точки"
-                    subtitle="Транспорт"
                     rows={[
-                      { icon: <Icon name="calendar-month" />, content: '3 октября' },
+                      { icon: <Icon name="calendar-month" />, content: '3 октября · Транспорт' },
                       { icon: <Icon name="pin-transport" />, content: 'Адрес в Google Maps' },
                     ]}
                     secondaryAction={{ label: 'Билет' }}
-                    primaryAction={{ label: 'Редактировать' }}
+                    primaryAction={{ label: 'Изменить' }}
                     onClose={() => undefined}
                   />
                 </div>
@@ -313,30 +360,37 @@ export default function ComponentLibrary() {
               <div className="kit-point-details-row kit-point-details-row-single">
                 <div className="kit-point-details-example">
                   <span className="kit-variant-label">Просмотр / Точка на карте</span>
-                  <PointCard variant="view" pointType="place" title="Замок Осака" subtitle="Достопримечательность" rows={[{ icon: <Icon name="calendar-month" />, content: '5 октября' }, { icon: <Icon name="pin" />, content: 'Адрес в Google Maps' }]} secondaryAction={{ label: 'Удалить' }} primaryAction={{ label: 'Редактировать' }} onClose={() => undefined} />
+                  <PointCard variant="view" pointType="place" title="Замок Осака" rows={[{ icon: <Icon name="calendar-month" />, content: '5 октября · Достопримечательность' }, { icon: <Icon name="pin" />, content: 'Адрес в Google Maps' }]} secondaryAction={{ label: 'Удалить' }} primaryAction={{ label: 'Изменить' }} onClose={() => undefined} />
                 </div>
               </div>
-              <div className="kit-point-details-row">
+                  </div>
+                  <div className="kit-point-details-controls">
+                    <PropertySelect label="Buttons" value={String(pointDetailsActionCount)} options={[{ value: '1', label: '1' }, { value: '2', label: '2' }]} onChange={(value) => setPointDetailsActionCount(Number(value) as 1 | 2)} />
+                  </div>
+                </div>
+              </Specimen>
+              <Specimen name="Изменение и создание точки" className="kit-point-details-specimen kit-point-form-specimen">
+                <div className="kit-point-details-row">
                 <div className="kit-point-details-example">
-                  <span className="kit-variant-label">Точка с карты / Редактирование</span>
+                  <span className="kit-variant-label">Точка с карты / Изменение</span>
                   <PointCard variant="edit" onSubmit={() => undefined} onDelete={() => undefined} onClose={() => undefined}>
+                    <FormControlRow><Input label="Название локации" icon={<Icon name="book" />} aria-label="Название локации" value="Замок Осака" onChange={() => undefined} /></FormControlRow>
                     <FormControlRow><Select type="default" label="Тип локации" icon={<img className="ui-icon" src={placeIconUrl('sightseeing')} width={24} height={24} alt="" />} optionIcons={Object.fromEntries(PLACE_ICON_OPTIONS.map((option) => [option.key, <img className="ui-icon" src={placeIconUrl(option.key)} width={24} height={24} alt="" />]))} aria-label="Тип локации" value="sightseeing" onChange={() => undefined}>{PLACE_ICON_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</Select></FormControlRow>
                     <FormControlRow><Select type="date" label="Когда посещаем" icon={<Icon name="calendar-month" />} aria-label="Когда посещаем" value="2026-10-03" displayValue="3 октября" onChange={() => undefined}><option value="2026-10-03">3 октября</option></Select></FormControlRow>
-                    <FormControlRow><Input label="Название локации" icon={<Icon name="book" />} aria-label="Название локации" value="Замок Осака" onChange={() => undefined} /></FormControlRow>
+                    <FormControlRow><Textarea autoResize={false} aria-label="Описание точки" placeholder="Описание точки" value="Главная историческая точка дня" onChange={() => undefined} /></FormControlRow>
                   </PointCard>
                 </div>
                 <div className="kit-point-details-example">
                   <span className="kit-variant-label">Точка с карты / Создание</span>
                   <PointCard variant="create" onSubmit={() => undefined} onClose={() => undefined}>
+                    <FormControlRow><Input label="Название локации" icon={<Icon name="book" />} aria-label="Название локации" /></FormControlRow>
                     <FormControlRow><Select type="default" label="Тип локации" icon={<img className="ui-icon" src={placeIconUrl('sightseeing')} width={24} height={24} alt="" />} optionIcons={Object.fromEntries(PLACE_ICON_OPTIONS.map((option) => [option.key, <img className="ui-icon" src={placeIconUrl(option.key)} width={24} height={24} alt="" />]))} aria-label="Тип локации" value="sightseeing" onChange={() => undefined}>{PLACE_ICON_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</Select></FormControlRow>
                     <FormControlRow><Select type="date" label="Когда посещаем" icon={<Icon name="calendar-month" />} aria-label="Когда посещаем" value="unscheduled" onChange={() => undefined}><option value="unscheduled">Без даты</option><option value="2026-10-03">3 октября</option></Select></FormControlRow>
-                    <FormControlRow><Input label="Название локации" icon={<Icon name="book" />} aria-label="Название локации" /></FormControlRow>
+                    <FormControlRow><Textarea autoResize={false} aria-label="Описание точки" placeholder="Описание точки" /></FormControlRow>
                   </PointCard>
                 </div>
-              </div>
-            </div>
-            <div className="kit-point-details-controls">
-              <PropertySelect label="Buttons" value={String(pointDetailsActionCount)} options={[{ value: '1', label: '1' }, { value: '2', label: '2' }]} onChange={(value) => setPointDetailsActionCount(Number(value) as 1 | 2)} />
+                </div>
+              </Specimen>
             </div>
           </div>
         </Section>
